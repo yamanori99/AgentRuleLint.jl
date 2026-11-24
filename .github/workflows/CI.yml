@@ -12,31 +12,143 @@ concurrency:
 
 permissions:
   contents: read
+  actions: write # depot + JETLS caches (restore all events; save main push only)
 
 jobs:
-  test:
-    name: Julia ${{ matrix.label }} — test, Aqua, Runic
+  runic:
+    name: Runic
     runs-on: ubuntu-latest
-    continue-on-error: ${{ matrix.allow_failure == true }}
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - version: "1.13"
-            label: "1.13"
-            allow_failure: false
-          - version: "~1.14.0-0"
-            label: "1.14-pre"
-            allow_failure: true
-          - version: nightly
-            label: nightly
-            allow_failure: true
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - uses: julia-actions/setup-julia@780022b48dfc0c2c6b94cfee6a9284850107d037 # v2.3.0
         with:
-          version: ${{ matrix.version }}
+          version: "1.13"
+
+      - name: Runic pin
+        id: runic-pin
+        shell: bash
+        run: |
+          set -euo pipefail
+          v="$(sed -n -E 's/^Runic = "=([^"]+)".*/\1/p' .github/runic/Project.toml | head -1)"
+          if [[ ! "${v}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo ".github/runic/Project.toml: Runic compat pin missing or invalid" >&2
+            exit 1
+          fi
+          echo "version=${v}" >> "${GITHUB_OUTPUT}"
+
+      - uses: fredrikekre/runic-action@b4dbd650db5cc684baae27fea45d22daf41693c2 # v1.5.0
+        with:
+          version: ${{ steps.runic-pin.outputs.version }}
+
+  aqua:
+    name: Aqua (1.13)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: julia-actions/setup-julia@780022b48dfc0c2c6b94cfee6a9284850107d037 # v2.3.0
+        with:
+          version: "1.13"
+
+      - uses: ./.github/actions/julia-depot-cache
+        with:
+          cache-scratchspaces: false
+
+      - name: Aqua.test_all (latest Aqua)
+        run: ./.github/aqua-check.sh
+
+  # JETLS depot: restore every run; save on main push only. Exact hit skips Pkg.Apps.add.
+  jetls:
+    name: JETLS (1.13)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      JULIA_CPU_TARGET: "generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1);x86-64-v4,-rdrnd,base(1)"
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - id: files
+        run: echo "list=$(./.github/jetls-check.sh --print-files)" >> "$GITHUB_OUTPUT"
+
+      - uses: julia-actions/setup-julia@780022b48dfc0c2c6b94cfee6a9284850107d037 # v2.3.0
+        with:
+          version: "1.13"
+
+      - name: Log runner CPU
+        id: runner
+        run: |
+          set -euo pipefail
+          julia --startup-file=no -e 'println("CPU_NAME=", Sys.CPU_NAME); println("CPU_MODEL=", Sys.cpu_info()[1].model)'
+          ver="$(julia --startup-file=no -e 'print(VERSION)')"
+          tag="$(printf '%s' "$JULIA_CPU_TARGET" | sha256sum | cut -c1-12)"
+          echo "julia=${ver}" >> "$GITHUB_OUTPUT"
+          echo "cputarget=${tag}" >> "$GITHUB_OUTPUT"
+          echo "jetls-cache: julia=${ver} cputarget=${tag}"
+
+      - name: JETLS pin
+        id: jetls-rev
+        run: |
+          set -euo pipefail
+          rev="$(grep -E -m 1 -o 'rev="[0-9]{4}-[0-9]{2}-[0-9]{2}"' .github/actions/jetls-check/action.yml || true)"
+          rev="${rev#rev=\"}"
+          rev="${rev%\"}"
+          if [[ ! "${rev}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+            echo "jetls job: date pin missing in .github/actions/jetls-check/action.yml" >&2
+            exit 1
+          fi
+          echo "rev=${rev}" >> "${GITHUB_OUTPUT}"
+
+      - name: Restore JETLS depot cache
+        id: jetls-depot-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.julia/packages
+            ~/.julia/artifacts
+            ~/.julia/compiled
+            ~/.julia/registries
+            ~/.julia/environments/apps
+            ~/.julia/bin
+          key: jetls-depot-${{ runner.os }}-${{ steps.runner.outputs.julia }}-${{ steps.runner.outputs.cputarget }}-${{ steps.jetls-rev.outputs.rev }}
+          restore-keys: |
+            jetls-depot-${{ runner.os }}-${{ steps.runner.outputs.julia }}-${{ steps.runner.outputs.cputarget }}-${{ steps.jetls-rev.outputs.rev }}-
+
+      - uses: ./.github/actions/jetls-check
+        with:
+          files: ${{ steps.files.outputs.list }}
+          depot-cache-exact: ${{ steps.jetls-depot-cache.outputs.cache-hit == 'true' }}
+
+      - name: Save JETLS depot cache
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main' && steps.jetls-depot-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.julia/packages
+            ~/.julia/artifacts
+            ~/.julia/compiled
+            ~/.julia/registries
+            ~/.julia/environments/apps
+            ~/.julia/bin
+          key: ${{ steps.jetls-depot-cache.outputs.cache-primary-key }}
+
+  test:
+    name: Julia 1.13 — Pkg.test
+    needs: [runic, aqua, jetls]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - uses: julia-actions/setup-julia@780022b48dfc0c2c6b94cfee6a9284850107d037 # v2.3.0
+        with:
+          version: "1.13"
+
+      - uses: ./.github/actions/julia-depot-cache
+        with:
+          cache-scratchspaces: false
 
       - name: Instantiate main project
         shell: bash
@@ -46,6 +158,6 @@ jobs:
         shell: bash
         run: julia --startup-file=no --project=test/runic_env -e 'using Pkg; Pkg.instantiate(); Pkg.add("Runic")'
 
-      - name: Run tests (includes Aqua and Runic invariance)
+      - name: Run tests (Aqua + Runic invariance in test suite)
         shell: bash
         run: julia --startup-file=no --project=. --color=yes -e 'using Pkg; Pkg.test()'
