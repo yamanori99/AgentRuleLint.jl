@@ -9,11 +9,14 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 shopt -s nullglob
 
-# Package surface only: JETLS follows `include()` from here. Do not pass
-# test/runtests.jl — its test-only deps (Aqua, Runic env) are absent from the
-# JETLS app environment and produce toplevel errors.
+# JETLS follows top-level `include()` from each entry. `test/Project.toml`
+# (workspace member) supplies Test and Aqua; `test/runic_env` is only spawned
+# as a subprocess in `test_runic_invariance.jl` (not a `using`). Corpus samples
+# under `test/corpus/` are intentionally bad fixtures and are not `include`d
+# from `runtests.jl` (only checked by path).
 files=(
     src/AgentRuleLint.jl
+    test/runtests.jl
 )
 
 if ((${#files[@]} == 0)); then

@@ -1,9 +1,8 @@
 @testset "config and CLI fail-closed" begin
-    ver = string(pkgversion(AgentRuleLint))
-
     function minimal_config(extra::AbstractString = "")
+        v = string(pkgversion(AgentRuleLint))
         """
-        agentrulelint_version = \"=$(ver)\"
+        agentrulelint_version = \"=$(v)\"
         $extra
         """
     end
