@@ -23,7 +23,7 @@ Return `min(cols, OUTPUT_WIDTH_CAP[])` where `cols` is from `displaysize(io)`
 (TTY, else `ENV["COLUMNS"]`, else 80).
 """
 function output_displaysize(io::IO = stdout)
-    cols, _ = displaysize(io)
+    _, cols = displaysize(io)
     return min(cols, OUTPUT_WIDTH_CAP[])
 end
 
