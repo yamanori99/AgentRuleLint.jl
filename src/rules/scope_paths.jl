@@ -2,12 +2,12 @@
 
 function compile_allow_path_globs(raw::Vector{String})
     isempty(raw) &&
-        throw(ArgumentError("--allow-paths requires at least one non-empty glob"))
+        throw(ConfigError("--allow-paths requires at least one non-empty glob"))
     out = Regex[]
     for (j, g) in enumerate(raw)
         label = "allow-paths[$j]"
         pat = strip(String(g))
-        isempty(pat) && throw(ArgumentError("--allow-paths: empty glob at index $j"))
+        isempty(pat) && throw(ConfigError("--allow-paths: empty glob at index $j"))
         validate_path_glob_pattern!(pat, label)
         push!(out, compile_path_glob(pat, label))
     end
@@ -16,10 +16,10 @@ end
 
 function parse_allow_paths_cli(raw::AbstractString)
     s = strip(String(raw))
-    isempty(s) && throw(ArgumentError("--allow-paths requires a non-empty glob list"))
+    isempty(s) && throw(ConfigError("--allow-paths requires a non-empty glob list"))
     raw_parts = String[strip(p) for p in split(s, ',')]
-    isempty(raw_parts) && throw(ArgumentError("--allow-paths requires a non-empty glob list"))
-    all(isempty, raw_parts) && throw(ArgumentError("--allow-paths requires a non-empty glob list"))
+    isempty(raw_parts) && throw(ConfigError("--allow-paths requires a non-empty glob list"))
+    all(isempty, raw_parts) && throw(ConfigError("--allow-paths requires a non-empty glob list"))
     filter!(!isempty, raw_parts)
     return compile_allow_path_globs(raw_parts)
 end
@@ -64,7 +64,7 @@ end
 Every changed path (including deletes and both sides of renames) must match an allow glob.
 """
 function enforce_scope_paths(events::Vector{DiffPathEvent}, allow_regexes::Vector{Regex}, policy::PolicyBundle)
-    get(policy.rules, SCOPE_PATHS_RULE, nothing) === nothing && return Violation[]
+    _scope_paths_spec(policy)
     out = Violation[]
     seen = Set{String}()
     for ev in events
@@ -82,6 +82,6 @@ end
 function validate_allow_paths_kw(allow_paths, diff_base)
     allow_paths === nothing && return nothing
     diff_base === nothing &&
-        throw(ArgumentError("--allow-paths requires --diff (trusted scope mode)"))
+        throw(ConfigError("--allow-paths requires --diff (trusted scope mode)"))
     return allow_paths
 end

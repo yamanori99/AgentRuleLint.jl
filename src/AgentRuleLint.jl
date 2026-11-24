@@ -30,13 +30,22 @@ include("format/human.jl")
 include("format/agent.jl")
 include("format/report.jl")
 
+function _validate_check_keywords!(kwargs)
+    allow_raw = get(kwargs, :allow_paths, nothing)
+    allow_raw === nothing && return kwargs
+    diff_base = get(kwargs, :diff_base, nothing)
+    allow_paths = _resolve_allow_paths_kw(allow_raw)
+    validate_allow_paths_kw(allow_paths, diff_base)
+    nt = NamedTuple(kwargs)
+    return merge(nt, (; allow_paths = allow_paths))
+end
+
 function check(root::AbstractString; kwargs...)
+    kwargs = _validate_check_keywords!(kwargs)
     try
         return run_check(root; kwargs...)
     catch err
         if err isa InterruptException
-            rethrow()
-        elseif err isa ArgumentError
             rethrow()
         end
         is_fail_closed(err) && rethrow()
@@ -95,10 +104,14 @@ function _parse_cli_args(cmd::String, rest::Vector{String})
             i += 2
             continue
         elseif a == "--allow-paths" && i + 1 <= length(rest)
+            opts[:allow_paths] !== nothing &&
+                throw(ArgumentError("duplicate --allow-paths"))
             opts[:allow_paths] = parse_allow_paths_cli(rest[i + 1])
             i += 2
             continue
         elseif startswith(a, "--allow-paths=")
+            opts[:allow_paths] !== nothing &&
+                throw(ArgumentError("duplicate --allow-paths"))
             opts[:allow_paths] = parse_allow_paths_cli(a[(length("--allow-paths=") + 1):end])
         elseif a == "--write"
             cmd == "ratchet" || throw(
@@ -161,7 +174,7 @@ function _resolve_allow_paths_kw(raw)
     if raw isa AbstractVector
         return compile_allow_path_globs(String[string(x) for x in raw])
     end
-    throw(ArgumentError("allow_paths must be a vector of glob strings or compiled Regex values"))
+    throw(ConfigError("allow_paths must be a vector of glob strings or compiled Regex values"))
 end
 
 function _resolve_diff_kw(opts)
