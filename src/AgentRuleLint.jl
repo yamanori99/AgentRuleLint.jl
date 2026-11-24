@@ -188,17 +188,45 @@ function _cli_report(positional::Vector{String}, ::Dict)
     return 0
 end
 
+function _ratchet_scope_paths(root::AbstractString, diff_base, paths::Vector{String}, policy::PolicyBundle)
+    if diff_base !== nothing
+        project_regexes = project_rule_path_regexes(policy)
+        return Set(
+            discover_files(root; paths = String[], diff_base = diff_base, project_regexes = project_regexes),
+        )
+    elseif !isempty(paths)
+        project_regexes = project_rule_path_regexes(policy)
+        return Set(discover_files(root; paths = paths, diff_base = nothing, project_regexes = project_regexes))
+    end
+    return Set{String}()
+end
+
 function _cli_ratchet(positional::Vector{String}, opts)
     root = pwd()
     paths = positional
+    diff_base = _resolve_diff_kw(opts)
     result, contexts = run_check_pipeline(
         root;
         paths = paths,
         config_path = opts[:config_path],
         config_from = opts[:config_from],
-        diff_base = _resolve_diff_kw(opts),
+        diff_base = diff_base,
     )
-    ratchet_write!(root, result, contexts)
+    policy = resolve_policy(
+        root;
+        config_path = opts[:config_path],
+        config_from = opts[:config_from],
+    )
+    scope_paths = _ratchet_scope_paths(root, diff_base, paths, policy)
+    merge_scope = diff_base !== nothing || !isempty(paths)
+    ratchet_write!(
+        root,
+        result,
+        contexts;
+        merge_scope = merge_scope,
+        scope_paths = scope_paths,
+        policy = policy,
+    )
     println("Wrote $(abspath(joinpath(root, ".agentrulelint/ceilings.toml")))")
     return result.exit_code
 end

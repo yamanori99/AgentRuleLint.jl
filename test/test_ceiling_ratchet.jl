@@ -6,6 +6,17 @@
         return nothing
     end
 
+    function git_commit_all!(dir, msg)
+        run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
+        run(
+            setenv(
+                Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", msg]);
+                dir = dir,
+            ),
+        )
+        return nothing
+    end
+
     function minimal_cfg()
         ver = string(pkgversion(AgentRuleLint))
         return """
@@ -84,6 +95,98 @@
         end
     end
 
+    @testset "expect count implicit ceiling zero" begin
+        dir = abspath(mktempdir())
+        try
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(
+                joinpath(dir, "hit.jl"),
+                "# agentrulelint-expect: project/ratchet-lit reason=\"r\"\nx = 1\n",
+            )
+            write_ceilings!(
+                dir,
+                """
+                [violations."project/ratchet-lit"]
+                "hit.jl" = 0
+                """,
+            )
+            res = AgentRuleLint.check(dir)
+            hits = filter(
+                d -> d.rule_id == "ceiling-ratchet" && occursin("expect count increased", d.message),
+                res.violations,
+            )
+            @test length(hits) == 1
+            @test occursin(
+                "expect count increased for project/ratchet-lit at hit.jl: actual=1 ceiling=0",
+                first(hits).message,
+            )
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "diff mode rejects raised ceilings file" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, "hit.jl"), "x = 1\n")
+            write_ceilings!(
+                dir,
+                """
+                [violations."project/ratchet-lit"]
+                "hit.jl" = 0
+                """,
+            )
+            git_commit_all!(dir, "base")
+            write_ceilings!(
+                dir,
+                """
+                [violations."project/ratchet-lit"]
+                "hit.jl" = 5
+                """,
+            )
+            git_commit_all!(dir, "raise ceilings")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                hits = filter(
+                    d -> d.rule_id == "ceiling-ratchet" && occursin("ceiling raised", d.message),
+                    res.violations,
+                )
+                @test length(hits) == 1
+                @test occursin("base=0 working=5", first(hits).message)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "diff mode rejects removed ceilings file" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, "hit.jl"), "x = 1\n")
+            write_ceilings!(
+                dir,
+                """
+                [violations."project/ratchet-lit"]
+                "hit.jl" = 0
+                """,
+            )
+            git_commit_all!(dir, "base")
+            rm(joinpath(dir, ".agentrulelint", "ceilings.toml"))
+            git_commit_all!(dir, "delete ceilings")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                hits = filter(d -> d.rule_id == "ceiling-ratchet", res.violations)
+                @test any(occursin("ceilings.toml removed relative to diff base", d.message) for d in hits)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
     @testset "malformed and unknown rule id (exit 2 / ConfigError)" begin
         dir = abspath(mktempdir())
         try
@@ -136,25 +239,72 @@
         end
     end
 
-    @testset "ratchet --write" begin
+    @testset "TOML round-trip with special path keys" begin
+        dir = abspath(mktempdir())
+        try
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            policy = AgentRuleLint.resolve_policy(dir)
+            weird = "src/\"weird\".jl"
+            entry = AgentRuleLint.CeilingEntry(
+                Dict("project/ratchet-lit" => Dict(weird => 2)),
+                Dict{String, Dict{String, Int}}(),
+            )
+            path = joinpath(dir, ".agentrulelint", "ceilings.toml")
+            mkpath(dirname(path))
+            AgentRuleLint.write_ceilings_toml!(path, entry)
+            loaded = AgentRuleLint.load_ceilings(dir, policy)
+            @test loaded.violations["project/ratchet-lit"][weird] == 2
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "ratchet --write excludes ceiling-ratchet diagnostics" begin
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
             write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
             write(joinpath(dir, "hit.jl"), "x = \"CEILING_TOKEN\"\n")
-            run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
-            run(
-                setenv(
-                    Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "c"]);
-                    dir = dir,
-                ),
+            write_ceilings!(
+                dir,
+                """
+                [violations."project/ratchet-lit"]
+                "hit.jl" = 0
+                """,
             )
+            git_commit_all!(dir, "c")
             cd(dir) do
-                @test AgentRuleLint.cli_main(["ratchet", "--write"]) == 1
-                @test isfile(joinpath(dir, ".agentrulelint", "ceilings.toml"))
-                text = read(joinpath(dir, ".agentrulelint", "ceilings.toml"), String)
-                @test occursin("[violations.\"project/ratchet-lit\"]", text)
-                @test occursin("\"hit.jl\" = 1", text)
+                AgentRuleLint.cli_main(["ratchet", "--write"]) == 1
+                loaded = AgentRuleLint.load_ceilings(dir, AgentRuleLint.resolve_policy(dir))
+                @test !haskey(loaded.violations, "ceiling-ratchet")
+                @test get(loaded.violations["project/ratchet-lit"], "hit.jl", 0) == 1
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "ratchet --write with path merges out-of-scope entries" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, "hit.jl"), "x = \"CEILING_TOKEN\"\n")
+            write(joinpath(dir, "other.jl"), "y = 1\n")
+            write_ceilings!(
+                dir,
+                """
+                [violations."project/ratchet-lit"]
+                "other.jl" = 3
+                "hit.jl" = 0
+                """,
+            )
+            git_commit_all!(dir, "c")
+            cd(dir) do
+                @test AgentRuleLint.cli_main(["ratchet", "--write", "hit.jl"]) == 1
+                loaded = AgentRuleLint.load_ceilings(dir, AgentRuleLint.resolve_policy(dir))
+                @test loaded.violations["project/ratchet-lit"]["other.jl"] == 3
+                @test loaded.violations["project/ratchet-lit"]["hit.jl"] == 1
             end
         finally
             rm(dir, recursive = true, force = true)

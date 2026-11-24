@@ -47,7 +47,13 @@ JULIA_LOAD_PATH="@:@stdlib" julia --startup-file=no --project=. -e 'using Pkg; P
 
 Confirm `Pkg.test()` runs **Aqua** and `test/test_runic_invariance.jl` and that they pass. Do not set `HOME` or `JULIA_DEPOT_PATH` persistently in the shell (per-command prefixes only).
 
-## 5. Hygiene
+## 5. Ceiling ratchet and `--diff`
+
+- **Full-repository `check` (no `--diff`)**: reads `.agentrulelint/ceilings.toml` from the working tree only. Compares live violation and expect counts against those ceilings (implicit ceiling `0` when a `(rule, path)` pair has no entry). Does **not** compare the ceilings file to a git base ref (local hand-edits are only fully enforced in diff-scoped CI).
+- **`check --diff <base>`** (default base `HEAD^1`): loads ceilings from the working tree **and** from `<base>` via git. Fails if the file was removed relative to base, if any stored ceiling was raised, or if a new ceiling entry is greater than zero without a matching base entry. Unreadable base ceilings fail closed (exit `2`). Live counts are enforced against the working-tree ceilings when present, otherwise against the base file.
+- **`ratchet --write` with `--diff` or path arguments**: merges counts for the scoped paths into the existing `.agentrulelint/ceilings.toml`; out-of-scope entries are preserved. A full-repository `ratchet --write` replaces the file from the scanned tree.
+
+## 6. Hygiene
 
 - Do not silently edit protected policy/workflow files (`.AgentRuleLintConfig.toml`, `AGENTS.md`, `.github/workflows/**`) unless explicitly requested.
 - Merge `origin/main`; do not rebase or force-push this branch.

@@ -149,19 +149,48 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         all_diags = filter_diff_violations!(all_diags, diff_scope)
     end
 
-    ceilings_active = isfile(joinpath(abspath(root), CEILINGS_REL))
-    if ceilings_active
-        ceilings = load_ceilings(root, policy)
-        scope_paths = if diff_scope === nothing
-            nothing
-        else
-            Set(normalize_path(f.path) for f in diff_scope.files if f.status != 'D')
+    ceilings_path = joinpath(abspath(root), CEILINGS_REL)
+    working_ceil_present = isfile(ceilings_path)
+    scope_paths = if diff_scope === nothing
+        nothing
+    else
+        Set(normalize_path(f.path) for f in diff_scope.files if f.status != 'D')
+    end
+    if diff_base !== nothing
+        base_present, base_ceilings = load_ceilings_at_git_ref(root, diff_base, policy)
+        working_ceilings = working_ceil_present ? load_ceilings(root, policy) : CeilingEntry(Dict(), Dict())
+        append!(
+            all_diags,
+            enforce_ceilings_vs_git_base(
+                working_ceilings,
+                base_ceilings,
+                base_present,
+                working_ceil_present,
+                policy,
+            ),
+        )
+        if working_ceil_present || base_present
+            viol_counts = count_violation_hits(all_diags)
+            exp_counts = count_expect_lines(contexts)
+            ceilings_for_counts = working_ceil_present ? working_ceilings : base_ceilings
+            append!(
+                all_diags,
+                enforce_ceiling_ratchet(
+                    viol_counts,
+                    exp_counts,
+                    ceilings_for_counts,
+                    policy;
+                    scope_paths = scope_paths,
+                ),
+            )
         end
+    elseif working_ceil_present
+        ceilings = load_ceilings(root, policy)
         viol_counts = count_violation_hits(all_diags)
         exp_counts = count_expect_lines(contexts)
         append!(
             all_diags,
-            enforce_ceiling_ratchet(viol_counts, exp_counts, ceilings, policy; scope_paths = scope_paths),
+            enforce_ceiling_ratchet(viol_counts, exp_counts, ceilings, policy; scope_paths = nothing),
         )
     end
 
@@ -196,32 +225,23 @@ function run_check_pipeline(root::AbstractString; kwargs...)
     return _run_check_pipeline(root; kwargs...)
 end
 
-function ratchet_write!(root::AbstractString, result::CheckResult, contexts::Vector{FileContext})
-    path = joinpath(abspath(root), ".agentrulelint/ceilings.toml")
+function ratchet_write!(
+        root::AbstractString,
+        result::CheckResult,
+        contexts::Vector{FileContext};
+        merge_scope::Bool = false,
+        scope_paths::Set{String} = Set{String}(),
+        policy::PolicyBundle,
+    )
+    path = _ceilings_path(root)
     mkpath(dirname(path))
     viol_counts = count_violation_hits(result.violations)
     exp_counts = count_expect_lines(contexts)
-    lines = String[
-        "# Updated via agentrulelint ratchet --write",
-        "# Monotonic non-increasing semantics apply on manual review.",
-    ]
-    for (rid, paths) in sort(collect(viol_counts))
-        push!(lines, "")
-        push!(lines, "[violations.\"$rid\"]")
-        for (p, c) in sort(collect(paths))
-            push!(lines, "\"$p\" = $c")
-        end
+    entry = if merge_scope
+        base_entry = isfile(path) ? load_ceilings(root, policy) : CeilingEntry(Dict(), Dict())
+        merge_ceiling_entry(base_entry, viol_counts, exp_counts, scope_paths)
+    else
+        CeilingEntry(viol_counts, exp_counts)
     end
-    if !isempty(exp_counts)
-        push!(lines, "")
-    end
-    for (rid, paths) in sort(collect(exp_counts))
-        push!(lines, "")
-        push!(lines, "[expects.\"$rid\"]")
-        for (p, c) in sort(collect(paths))
-            push!(lines, "\"$p\" = $c")
-        end
-    end
-    write(path, join(lines, '\n') * '\n')
-    return path
+    return write_ceilings_toml!(path, entry)
 end
