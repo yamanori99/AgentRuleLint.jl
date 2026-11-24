@@ -1,7 +1,8 @@
 SCOPE_RULE = "scope-paths"
-const SCOPE_ROOT = dirname(@__DIR__)
 
 @testset "scope-paths and --allow-paths" begin
+    scope_root = dirname(@__DIR__)
+
     function init_git_repo!(dir)
         run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
         run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "agentrulelint@test"]); dir = dir))
@@ -37,7 +38,7 @@ const SCOPE_ROOT = dirname(@__DIR__)
     end
 
     @testset "allow-paths without diff fails closed" begin
-        cd(SCOPE_ROOT) do
+        cd(scope_root) do
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(
                 pwd();
                 allow_paths = AgentRuleLint.compile_allow_path_globs(["src/**"]),
@@ -53,7 +54,7 @@ const SCOPE_ROOT = dirname(@__DIR__)
     end
 
     @testset "duplicate --allow-paths is usage error" begin
-        cd(SCOPE_ROOT) do
+        cd(scope_root) do
             @test AgentRuleLint.cli_main(
                 [
                     "check",
@@ -67,28 +68,79 @@ const SCOPE_ROOT = dirname(@__DIR__)
         end
     end
 
-    @testset "stray ArgumentError in pipeline maps to internal error" begin
-        root = SCOPE_ROOT
-        src_runner = joinpath(root, "src", "runner.jl")
-        @eval AgentRuleLint begin
-            function run_check(r::AbstractString; kwargs...)
-                throw(ArgumentError("synthetic in-pipeline bug"))
-            end
-        end
+    function _julia_scope_probe(root::AbstractString, mode::AbstractString)
+        proj = scope_root
+        script = tempname() * ".jl"
         try
-            @test_throws AgentRuleLint.InternalError AgentRuleLint.check(root)
-            cd(root) do
-                @test AgentRuleLint.cli_main(["check"]) == 3
-            end
+            write(
+                script,
+                """
+                using AgentRuleLint
+                root = ARGS[1]
+                mode = ARGS[2]
+                runner = joinpath(dirname(pathof(AgentRuleLint)), "runner.jl")
+                Core.eval(
+                    AgentRuleLint,
+                    :(function run_check(r::AbstractString; kwargs...)
+                        throw(ArgumentError("synthetic in-pipeline bug"))
+                    end),
+                )
+                try
+                    if mode == "check"
+                        try
+                            AgentRuleLint.check(root)
+                            exit(11)
+                        catch err
+                            err isa AgentRuleLint.InternalError ? exit(0) : rethrow(err)
+                        end
+                    elseif mode == "cli"
+                        code = cd(root) do
+                            AgentRuleLint.cli_main(["check"])
+                        end
+                        exit(code == 3 ? 0 : 12)
+                    else
+                        exit(13)
+                    end
+                finally
+                    Core.eval(AgentRuleLint, :(include(\$runner)))
+                end
+                """,
+            )
+            cmd = `$(Base.julia_cmd()) --startup-file=no --project=$proj $script $root $mode`
+            return run(cmd)
         finally
-            @eval AgentRuleLint begin
-                include($src_runner)
-            end
+            rm(script, force = true)
         end
     end
 
+    @testset "stray ArgumentError in pipeline maps to internal error" begin
+        root = scope_root
+        @test _julia_scope_probe(root, "check").exitcode == 0
+        @test _julia_scope_probe(root, "cli").exitcode == 0
+    end
+
     @testset "invalid allow_paths keyword type is config fail-closed" begin
-        @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(SCOPE_ROOT; allow_paths = 123)
+        @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(scope_root; allow_paths = 123)
+    end
+
+    @testset "missing scope-paths rule is internal error" begin
+        base = AgentRuleLint.resolve_policy(scope_root)
+        policy = AgentRuleLint.PolicyBundle(
+            base.agentrulelint_version,
+            base.default_format,
+            base.max_hits_per_rule,
+            base.presets,
+            Dict{String, AgentRuleLint.RuleSpec}(),
+            base.project_rules,
+            base.on_allow_rule,
+            base.config_path,
+            base.config_source,
+            base.project_toml_policy,
+            base.protected_path_globs,
+        )
+        ev = AgentRuleLint.DiffPathEvent('M', "src/x.jl", "")
+        allow = AgentRuleLint.compile_allow_path_globs(["src/**"])
+        @test_throws AgentRuleLint.InternalError AgentRuleLint.enforce_scope_paths([ev], allow, policy)
     end
 
     @testset "in-scope diff passes" begin
