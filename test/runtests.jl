@@ -159,6 +159,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
         @test_throws JAILint.GitError JAILint.resolve_policy(ROOT; config_from = "not-a-ref-zzz")
     end
 
+    include("test_fingerprint_stability.jl")
     include("test_expect_audit.jl")
     include("test_adapter_fixes.jl")
     include("test_config_cli_fail_closed.jl")
