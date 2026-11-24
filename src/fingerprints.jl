@@ -12,27 +12,26 @@ function normalize_anchor_source_text(raw::AbstractString)
     return isempty(parts) ? "" : join(parts, " ")
 end
 
-function violation_anchor_text(source::AbstractString, d::Violation)
+"""Anchor text from pre-split normalized source lines (`Span` columns are codepoints)."""
+function violation_anchor_text(lines::Vector{String}, d::Violation)
     sp = d.span
     sp.start_line < 1 && return PATH_LEVEL_ANCHOR_MARKER
-    src = normalize_source(source)
-    lines = split(src, '\n')
     sp.start_line > length(lines) && return PATH_LEVEL_ANCHOR_MARKER
     if sp.start_line == sp.end_line
         line = lines[sp.start_line]
         sc = max(1, sp.start_col)
-        ec = min(length(line), max(sc, sp.end_col))
-        return normalize_anchor_source_text(line[sc:ec])
+        ec = max(sc, sp.end_col)
+        return normalize_anchor_source_text(slice_line_codepoint_cols(line, sc, ec))
     end
     parts = String[]
     for ln in sp.start_line:min(sp.end_line, length(lines))
         line = lines[ln]
         if ln == sp.start_line
             sc = max(1, sp.start_col)
-            push!(parts, line[sc:end])
+            push!(parts, slice_line_codepoint_cols(line, sc, length(line)))
         elseif ln == sp.end_line
-            ec = min(length(line), max(1, sp.end_col))
-            push!(parts, line[1:ec])
+            ec = max(1, sp.end_col)
+            push!(parts, slice_line_codepoint_cols(line, 1, ec))
         else
             push!(parts, line)
         end
@@ -81,12 +80,14 @@ function assign_diagnostic_fingerprints!(diags::Vector{Violation}, sources::Dict
         push!(get!(by_path, d.path, Int[]), i)
     end
     for (path, idxs) in by_path
-        source = get(sources, path, "")
+        raw = get(sources, path, "")
+        norm = normalize_source(raw)
+        lines = String[String(l) for l in split(norm, '\n')]
         sort!(idxs; by = i -> (diags[i].span, diags[i].rule_id, diags[i].message))
         occ = Dict{Tuple{String, String, String}, Int}()
         for i in idxs
             d = diags[i]
-            anchor = violation_anchor_text(source, d)
+            anchor = violation_anchor_text(lines, d)
             msg = normalize_anchor_tokens(d.message)
             key = (d.rule_id, anchor, msg)
             occ[key] = get(occ, key, 0) + 1
