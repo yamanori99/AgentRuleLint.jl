@@ -57,8 +57,6 @@ function run_project_rules(fc::FileContext, policy::PolicyBundle)
     diags = Violation[]
     tree = parse_source(source; filename = path)
     folds = collect_folded_string_exprs(tree, source)
-    occ_idx = Dict{String, Int}()
-
     for pr in policy.project_rules
         path_matches_glob(path, pr.paths) || continue
         rule_id = project_rule_id(pr)
@@ -72,12 +70,9 @@ function run_project_rules(fc::FileContext, policy::PolicyBundle)
                 keyspan = (fold.byte_start, fold.byte_end)
                 keyspan in seen_spans && continue
                 push!(seen_spans, keyspan)
-                occ_idx[rule_id] = get(occ_idx, rule_id, 0) + 1
-                idx = occ_idx[rule_id]
                 sp = span_from_byte_range(source, fold.byte_start, fold.byte_end)
                 anchor = sp.start_line
                 msg = "forbidden literal matched (folded)"
-                fp = diagnostic_fingerprint(rule_id, path, anchor, msg, idx)
                 push!(
                     diags,
                     Violation(
@@ -87,7 +82,7 @@ function run_project_rules(fc::FileContext, policy::PolicyBundle)
                         path,
                         sp,
                         anchor,
-                        fp,
+                        "",
                         :none,
                         false,
                         msg,
@@ -101,12 +96,9 @@ function run_project_rules(fc::FileContext, policy::PolicyBundle)
                 raw = _collect_string_chars(c, source, p)
                 raw === nothing && continue
                 occursin(lit, raw) || continue
-                occ_idx[rule_id] = get(occ_idx, rule_id, 0) + 1
-                idx = occ_idx[rule_id]
                 sp = span_from_byte_range(source, p, p + span(c) - 1)
                 anchor = sp.start_line
                 msg = "forbidden literal matched"
-                fp = diagnostic_fingerprint(rule_id, path, anchor, msg, idx)
                 push!(
                     diags,
                     Violation(
@@ -116,7 +108,7 @@ function run_project_rules(fc::FileContext, policy::PolicyBundle)
                         path,
                         sp,
                         anchor,
-                        fp,
+                        "",
                         :none,
                         false,
                         msg,

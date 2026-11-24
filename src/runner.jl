@@ -109,6 +109,9 @@ function run_check(root::AbstractString; kwargs...)
         append!(all_diags, unused_expect_diagnostics(fc.expects, used_total, fc, policy))
     end
 
+    sources = Dict{String, String}(fc.parsed.path => fc.parsed.normalized for fc in contexts)
+    assign_diagnostic_fingerprints!(all_diags, sources)
+
     all_diags = _unique_violations(all_diags)
     all_diags = sort(all_diags; by = d -> (d.path, d.span, d.rule_id))
 
