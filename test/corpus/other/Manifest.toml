@@ -1,0 +1,9 @@
+# Tracked sanity fixture outside test/corpus/manifest_sync/ (checked on full-tree lint).
+
+manifest_format = "2.0"
+julia_version = "1.13.0"
+project_hash = "cccccccccccccccccccccccccccccccccccccccc"
+
+[[deps.Foo]]
+uuid = "22222222-2222-2222-2222-222222222222"
+version = "1.0.0"

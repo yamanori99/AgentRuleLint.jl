@@ -120,46 +120,80 @@ function _custom_manifest_rel(proj::Dict, project_rel::AbstractString)
     return normalize_path(joinpath(dirname(project_rel), String(m)))
 end
 
+function _tracked_manifests_adjacent(dir::AbstractString, tracked::Vector{String})
+    d = normalize_path(dir)
+    out = String[]
+    for p in tracked
+        normalize_path(dirname(p)) == d || continue
+        _is_manifest_basename(basename(p)) || continue
+        push!(out, p)
+    end
+    return out
+end
+
+function _build_manifest_to_project_map(root::AbstractString, tracked::Vector{String})
+    tracked_set = Set(tracked)
+    manifest_to_project = Dict{String, String}()
+    for proj_rel in tracked
+        basename(proj_rel) == "Project.toml" || continue
+        text = _read_worktree_text(root, proj_rel)
+        proj = _parse_toml_or_throw(text, proj_rel)
+        for m in _tracked_manifests_adjacent(dirname(proj_rel), tracked)
+            if !haskey(manifest_to_project, m)
+                manifest_to_project[m] = proj_rel
+            end
+        end
+        custom = _custom_manifest_rel(proj, proj_rel)
+        if custom !== nothing && custom in tracked_set && !haskey(manifest_to_project, custom)
+            manifest_to_project[custom] = proj_rel
+        end
+    end
+    return manifest_to_project
+end
+
 function discover_manifest_project_pairs(root::AbstractString, tracked::Vector{String})
     tracked_set = Set(tracked)
-    manifest_paths = String[]
-    for p in tracked
-        _is_manifest_basename(basename(p)) && push!(manifest_paths, p)
-    end
-    for p in tracked
-        basename(p) == "Project.toml" || continue
-        text = _read_worktree_text(root, p)
-        proj = _parse_toml_or_throw(text, p)
-        custom = _custom_manifest_rel(proj, p)
-        custom === nothing && continue
-        custom in tracked_set || continue
-        custom in manifest_paths || push!(manifest_paths, custom)
-    end
-    sort!(unique!(manifest_paths))
+    manifest_to_project = _build_manifest_to_project_map(root, tracked)
     pairs = ManifestProjectContext[]
-    for m in manifest_paths
+    for (m, proj_rel) in manifest_to_project
         _manifest_sync_skip_path(m) && continue
-        proj_rel = normalize_path(joinpath(dirname(m), "Project.toml"))
-        proj_rel in tracked_set || continue
         text = _read_worktree_text(root, proj_rel)
         proj = _parse_toml_or_throw(text, proj_rel)
         ws = filter(s -> s in tracked_set, _workspace_subprojects(proj_rel, proj))
         push!(pairs, ManifestProjectContext(m, proj_rel, ws))
     end
-    return pairs
+    sort!(pairs, by = ctx -> ctx.manifest_rel)
+    orphans = String[]
+    for m in tracked
+        _is_manifest_basename(basename(m)) || continue
+        _manifest_sync_skip_path(m) && continue
+        haskey(manifest_to_project, m) && continue
+        push!(orphans, m)
+    end
+    sort!(unique!(orphans))
+    return pairs, orphans
 end
 
-function _manifest_dep_record(entry)
-    entry isa AbstractVector || return nothing
-    isempty(entry) && return nothing
+function _manifest_dep_record(pkg::AbstractString, entry, manifest_rel::AbstractString)
+    label = "deps.$pkg in $manifest_rel"
+    entry isa AbstractVector || throw(ParseError("$label must be an array of tables"))
+    isempty(entry) && throw(ParseError("$label must not be empty"))
     rec = first(entry)
-    rec isa Dict || return nothing
+    rec isa Dict || throw(ParseError("$label entry must be a table"))
     return rec
 end
 
-function _manifest_deps_map(man::Dict)
+function _manifest_dep_uuid!(rec::Dict, pkg::AbstractString, manifest_rel::AbstractString)
+    label = "deps.$pkg in $manifest_rel"
+    !haskey(rec, "uuid") && throw(ParseError("missing uuid in $label"))
+    u = rec["uuid"]
+    u isa AbstractString || throw(ParseError("uuid in $label must be a string"))
+    return String(strip(u))
+end
+
+function _manifest_deps_map(man::Dict, manifest_rel::AbstractString)
     raw = get(man, "deps", Dict())
-    raw isa Dict || throw(ParseError("manifest deps must be a table"))
+    raw isa Dict || throw(ParseError("manifest deps must be a table ($manifest_rel)"))
     names = Set{String}()
     uuids = Dict{String, String}()
     internal = Dict{String, Vector{String}}()
@@ -167,10 +201,9 @@ function _manifest_deps_map(man::Dict)
     repos = Dict{String, Dict{String, String}}()
     for (name, entry) in raw
         sn = String(name)
-        rec = _manifest_dep_record(entry)
-        rec === nothing && continue
+        rec = _manifest_dep_record(sn, entry, manifest_rel)
         push!(names, sn)
-        haskey(rec, "uuid") && (uuids[sn] = String(rec["uuid"]))
+        uuids[sn] = _manifest_dep_uuid!(rec, sn, manifest_rel)
         if haskey(rec, "deps")
             d = rec["deps"]
             d isa AbstractVector && (internal[sn] = String[string(x) for x in d])
@@ -248,11 +281,28 @@ end
 function _parse_manifest_format_version(raw)
     raw === nothing && return nothing
     s = raw isa AbstractString ? String(strip(raw)) : string(raw)
-    try
-        return VersionNumber(s)
-    catch
-        return nothing
+    return tryparse(VersionNumber, s)
+end
+
+function _report_orphan_tracked_manifests!(
+        diags::Vector{Violation},
+        orphans::Vector{String},
+        level::Symbol,
+        intent::String,
+        do_not::String,
+    )
+    for m in orphans
+        _push_ms_violation!(
+            diags,
+            level,
+            m,
+            1,
+            "tracked manifest has no tracked Project.toml",
+            intent,
+            do_not,
+        )
     end
+    return nothing
 end
 
 function manifest_format_minor_allowed(v::VersionNumber)
@@ -691,8 +741,9 @@ function run_manifest_sync(
     do_not = spec.do_not
     tracked = git_ls_tracked_files(root)
     tracked_set = Set(tracked)
-    pairs = discover_manifest_project_pairs(root, tracked)
+    pairs, orphans = discover_manifest_project_pairs(root, tracked)
     diags = Violation[]
+    _report_orphan_tracked_manifests!(diags, orphans, level, intent, do_not)
     for ctx in pairs
         _audit_manifest_pair!(diags, root, ctx, tracked_set, level, intent, do_not, diff_base)
     end
@@ -725,7 +776,7 @@ function _audit_manifest_pair!(
         )
     end
     _check_manifest_version_filename!(diags, level, ctx.manifest_rel, man, man_text, intent, do_not)
-    names, uuids, internal, paths, repos = _manifest_deps_map(man)
+    names, uuids, internal, paths, repos = _manifest_deps_map(man, ctx.manifest_rel)
     _check_manifest_internal_closure!(diags, level, ctx.manifest_rel, names, internal, intent, do_not)
     _check_uuid_uniqueness!(diags, level, ctx.manifest_rel, uuids, intent, do_not)
     wanted, pkg_src, pkg_text = _collect_project_uuids(root, ctx)

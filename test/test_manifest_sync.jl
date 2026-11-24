@@ -49,10 +49,49 @@
         end
     end
 
+    @testset "positive manifest_format 2.2 with environment metadata" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "positive_format_22"))
+        try
+            @test isempty(ms_violations(dir))
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
     @testset "positive workspace" begin
         dir = init_git_fixture(joinpath(FIXTURES, "positive_workspace"))
         try
             @test isempty(ms_violations(dir))
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "detector: unexpected manifest top-level key" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_unknown_top_level"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> occursin("unexpected manifest top-level key", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "detector: format 2.1 with format-2.2-only top-level key" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_format_21_with_22_key"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> occursin("unexpected manifest top-level key", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "detector: tracked manifest without tracked Project.toml" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_orphan_manifest"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> occursin("tracked manifest has no tracked Project.toml", v.message), viols)
         finally
             rm(dir, recursive = true, force = true)
         end
@@ -179,11 +218,13 @@
     end
 
     @testset "manifests outside fixture prefix are still checked" begin
+        OTHER = joinpath(ROOT, "test", "corpus", "other")
         dir = abspath(mktempdir())
         try
-            vendor = joinpath(dir, "vendor", "pkg")
-            mkpath(vendor)
-            cp(joinpath(FIXTURES, "negative_missing_dep"), vendor; force = true)
+            cp(OTHER, joinpath(dir, "other"); force = true)
+            proj = joinpath(dir, "other", "Project.toml")
+            proj_text = read(proj, String)
+            write(proj, replace(proj_text, "Foo" => "Bar", "22222222" => "33333333"))
             run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
             run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "t@test"]); dir = dir))
             run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "t"]); dir = dir))
@@ -191,7 +232,19 @@
             run(Cmd(["git", "-C", dir, "add", "-A"]))
             run(setenv(Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"]); dir = dir))
             viols = ms_violations(dir)
-            @test any(v -> v.path == "vendor/pkg/Project.toml" && occursin("missing from manifest", v.message), viols)
+            @test any(
+                v -> startswith(v.path, "other/") && occursin("missing from manifest", v.message),
+                viols,
+            )
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "parse error: malformed manifest dep entry" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_malformed_dep"))
+        try
+            @test_throws AgentRuleLint.ParseError ms_violations(dir)
         finally
             rm(dir, recursive = true, force = true)
         end
