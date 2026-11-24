@@ -83,7 +83,7 @@ function _macro_name_text(node::GreenNode, src::AbstractString, pos::Int)
     return ""
 end
 
-function _macrocall_name(node::GreenNode, src::AbstractString, pos::Int)
+function _ti_macrocall_name(node::GreenNode, src::AbstractString, pos::Int)
     summary(node) == "macrocall" || return ""
     for (c, cp) in _child_positions(node, pos)[1]
         summary(c) == "macro_name" || continue
@@ -181,7 +181,7 @@ function _top_level_include_paths(tree::GreenNode, src::AbstractString)
 end
 
 function _walk_tree_first_macro(node::GreenNode, pos::Int, src::AbstractString, want::String)
-    if summary(node) == "macrocall" && _macrocall_name(node, src, pos) == want
+    if summary(node) == "macrocall" && _ti_macrocall_name(node, src, pos) == want
         return (line_number_at_byte(src, pos), pos, pos + span(node) - 1)
     end
     for (c, cp) in _child_positions(node, pos)[1]
@@ -223,7 +223,7 @@ function _runtests_entries(tree::GreenNode, src::AbstractString)::Vector{Runtest
                 out,
                 RuntestsEntry(:include, path, sp.start_line, pos, pos + span(node) - 1),
             )
-        elseif s == "macrocall" && _macrocall_name(node, src, pos) == "testset"
+        elseif s == "macrocall" && _ti_macrocall_name(node, src, pos) == "testset"
             args, argpos = _macrocall_args(node, pos)
             isempty(args) && continue
             name = _folded_string_arg(args[1], src, argpos[1])
@@ -246,7 +246,7 @@ function _walk_count_test_macros!(
         names::Tuple{Vararg{String}},
     )
     if summary(node) == "macrocall"
-        m = _macrocall_name(node, src, pos)
+        m = _ti_macrocall_name(node, src, pos)
         if m in names
             counts[m] = get(counts, m, 0) + 1
         end
@@ -278,7 +278,7 @@ function _walk_test_integrity_node!(
     )
     s = summary(node)
     if s == "macrocall"
-        mname = _macrocall_name(node, source, pos)
+        mname = _ti_macrocall_name(node, source, pos)
         if mname == "test"
             args, argpos = _macrocall_args(node, pos)
             if !isempty(args)
@@ -444,7 +444,7 @@ function _walk_approx_snaps!(
             ),
         )
     end
-    if summary(node) == "macrocall" && _macrocall_name(node, src, pos) == "testset"
+    if summary(node) == "macrocall" && _ti_macrocall_name(node, src, pos) == "testset"
         args, argpos = _macrocall_args(node, pos)
         child_ts = ""
         if !isempty(args)
