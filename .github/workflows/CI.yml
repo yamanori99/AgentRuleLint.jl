@@ -15,16 +15,21 @@ permissions:
 
 jobs:
   test:
-    name: Julia ${{ matrix.version }} — test, Aqua, Runic
+    name: Julia ${{ matrix.label }} — test, Aqua, Runic
     runs-on: ubuntu-latest
     continue-on-error: ${{ matrix.allow_failure == true }}
     strategy:
       fail-fast: false
       matrix:
-        version:
-          - "1.13"
         include:
+          - version: "1.13"
+            label: "1.13"
+            allow_failure: false
+          - version: "~1.14.0-0"
+            label: "1.14-pre"
+            allow_failure: true
           - version: nightly
+            label: nightly
             allow_failure: true
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
