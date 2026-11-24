@@ -1,0 +1,97 @@
+name: Evasion or rule proposal
+description: Suggest a new check or an AST edge case; must not duplicate JETLS/Runic/Aqua/ExplicitImports
+title: "[evasion] "
+labels: ["evasion", "rule-proposal", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Propose patterns JAILint should catch or explicitly allow. Explain why JETLS, Runic, Aqua, or ExplicitImports does not already cover this.
+
+  - type: dropdown
+    id: rule_id
+    attributes:
+      label: Related rule (if any)
+      description: Existing rule closest to this gap, or "new rule"
+      options:
+        - New rule / no existing rule
+        - JA001 — protected-paths
+        - JA002 — scope-paths
+        - JA003 — ceiling-ratchet
+        - JA004 — expect-audit
+        - JA005 — manifest-sync
+        - JA006 — process-pattern (preset)
+        - JA007 — silent-catch
+        - JA008 — test-integrity
+        - JA009 — unsafe-boundary
+        - JP — extend project_rules pattern
+    validations:
+      required: true
+
+  - type: textarea
+    id: json_header
+    attributes:
+      label: JSON header line (if you ran JAILint)
+      description: Paste `{"type":"header",...}` if available; otherwise write `N/A — proposal only`.
+      placeholder: '{"type":"header",...}' or N/A — proposal only
+    validations:
+      required: true
+
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Reproduction or proposed pattern
+      description: Code that should warn/deny, or an evasion that today passes incorrectly.
+      render: julia
+    validations:
+      required: true
+      maxLength: 8000
+
+  - type: textarea
+    id: acceptable_idiom
+    attributes:
+      label: Acceptable Julia idioms to preserve
+      description: What similar code must **not** trigger (avoid false positives).
+    validations:
+      required: true
+
+  - type: textarea
+    id: ecosystem
+    attributes:
+      label: Non-duplication with other tools
+      description: Why this is not Runic formatting, JETLS typing, Aqua hygiene, or ExplicitImports scope.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ai_assisted
+    attributes:
+      label: AI-assisted report?
+      options:
+        - "No"
+        - "Yes — partially drafted"
+        - "Yes — fully drafted by agent"
+    validations:
+      required: true
+
+  - type: input
+    id: ai_model
+    attributes:
+      label: Model name (if AI-assisted)
+      placeholder: optional
+
+  - type: checkboxes
+    id: no_secrets
+    attributes:
+      label: Safety
+      options:
+        - label: I confirm this report contains no API keys, tokens, passwords, or private URLs with credentials.
+          required: true
+
+  - type: checkboxes
+    id: corpus_consent
+    attributes:
+      label: Golden corpus (MIT)
+      options:
+        - label: I agree my anonymized snippet may be committed under test/corpus/evasions/ under the repository MIT license.
+          required: false
