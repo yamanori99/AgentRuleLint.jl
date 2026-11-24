@@ -47,7 +47,7 @@ leaking repository-specific identifiers.
 Issue forms require:
 
 - **Rule ID** (dropdown) or project rule id
-- At least one **JSON header** line (`{"type":"header",...}`)
+- At least one **JSON header** line (`{"type":"header","version",...}`)
 - A **minimal Julia snippet** (length-limited; prefer `report` output)
 - **No secrets** confirmation
 - **MIT corpus consent** if you agree we may commit your snippet to

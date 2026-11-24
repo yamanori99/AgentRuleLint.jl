@@ -208,7 +208,7 @@
                 @test AgentRuleLint.cli_main(["check", "sample.jl", "--format", "human", "--output", out]) == 0
                 body = read(out, String)
                 @test !occursin("\"type\":\"header\"", replace(body, " " => ""))
-                @test occursin("AgentRuleLint", body) || occursin("complete", body)
+                @test occursin("Summary:", body)
             end
         finally
             rm(root, recursive = true, force = true)

@@ -1,0 +1,81 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/yamanori99/AgentRuleLint.jl/schemas/check-jsonl.schema.json",
+  "title": "AgentRuleLint check JSONL",
+  "description": "One JSON object per line from `agentrulelint check --format=json`. Fields marked unstable may change in 0.1.0 without a major bump.",
+  "type": "array",
+  "items": {
+    "oneOf": [
+      { "$ref": "#/$defs/header" },
+      { "$ref": "#/$defs/diagnostic" },
+      { "$ref": "#/$defs/summary" }
+    ]
+  },
+  "$defs": {
+    "header": {
+      "type": "object",
+      "required": ["type", "version", "julia_version", "parser", "config_source", "position_encoding"],
+      "properties": {
+        "type": { "const": "header" },
+        "version": { "type": "string" },
+        "julia_version": { "type": "string" },
+        "parser": { "type": "string", "description": "Unstable in 0.1.0." },
+        "config_source": { "type": "object" },
+        "position_encoding": { "const": "utf8-codepoint-1based" }
+      },
+      "additionalProperties": false
+    },
+    "diagnostic": {
+      "type": "object",
+      "required": [
+        "type",
+        "rule_id",
+        "origin",
+        "level",
+        "path",
+        "span",
+        "anchor_line",
+        "fingerprint",
+        "expect_status",
+        "suppressed",
+        "message"
+      ],
+      "properties": {
+        "type": { "const": "diagnostic" },
+        "rule_id": { "type": "string" },
+        "origin": { "type": "string" },
+        "level": { "type": "string" },
+        "path": { "type": "string" },
+        "span": {
+          "type": "object",
+          "required": ["start_line", "start_col", "end_line", "end_col"],
+          "properties": {
+            "start_line": { "type": "integer" },
+            "start_col": { "type": "integer" },
+            "end_line": { "type": "integer" },
+            "end_col": { "type": "integer" }
+          }
+        },
+        "anchor_line": { "type": "integer" },
+        "fingerprint": { "type": "string" },
+        "expect_status": { "type": "string" },
+        "suppressed": { "type": "boolean" },
+        "message": { "type": "string", "description": "Unstable in 0.1.0." }
+      },
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "required": ["type", "complete", "violations", "suppressed", "rules", "exit_code"],
+      "properties": {
+        "type": { "const": "summary" },
+        "complete": { "type": "boolean" },
+        "violations": { "type": "integer" },
+        "suppressed": { "type": "integer" },
+        "rules": { "type": "integer" },
+        "exit_code": { "type": "integer" }
+      },
+      "additionalProperties": false
+    }
+  }
+}

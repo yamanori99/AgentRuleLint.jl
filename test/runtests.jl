@@ -123,8 +123,9 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
             "d",
         )
         res = AgentRuleLint.CheckResult([d], true, 1, cs, :human, 20, 0, 1)
-        @test occursin("┌ Error", AgentRuleLint.format_human(res; root = ROOT))
-        @test occursin("RULE", AgentRuleLint.format_agent(res))
+        @test occursin("[Project]", AgentRuleLint.format_human(res; root = ROOT))
+        @test occursin("agentrulelint explain", AgentRuleLint.format_human(res; root = ROOT))
+        @test occursin("RULE", AgentRuleLint.format_agent(res; root = ROOT))
         @test occursin("\"type\":\"header\"", replace(AgentRuleLint.format_json(res), " " => ""))
     end
 
@@ -142,6 +143,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     @testset "CLI exit codes" begin
         cd(ROOT) do
             @test AgentRuleLint.cli_main(["explain", "expect-audit"]) == 0
+            @test AgentRuleLint.cli_main(["explain", "not-a-real-rule"]) == 2
             @test AgentRuleLint.cli_main(["check", "LICENSE"]) == 0
             @test AgentRuleLint.cli_main(["check", "test/corpus/split_string.jl"]) == 1
             @test AgentRuleLint.cli_main(["nope"]) == 2
@@ -188,6 +190,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     include("test_adapter_fixes.jl")
     include("test_config_cli_fail_closed.jl")
     include("test_output_width.jl")
+    include("test_output_formats.jl")
 
     Aqua.test_all(AgentRuleLint)
 

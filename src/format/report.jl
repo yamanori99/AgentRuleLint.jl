@@ -50,66 +50,213 @@ end
 
 function format_report(fingerprint::AbstractString, diagnostic::Violation, source::AbstractString)
     buf = IOBuffer()
-    header = Dict{String, Any}(
-        "type" => "header",
-        "agentrulelint_version" => string(pkgversion(AgentRuleLint)),
-        "julia_version" => string(VERSION),
-        "parser" => parser_rev_string(),
-        "position_encoding" => "utf8-codepoint-1based",
-    )
-    println(buf, _json_val(header))
-    println(buf, _json_val(Dict("rule_id" => diagnostic.rule_id)))
+    println(buf, "AgentRuleLint report v$(pkgversion(AgentRuleLint)) fingerprint=$fingerprint")
+    println(buf, "rule_id=$(diagnostic.rule_id)")
     skel = skeleton_ast_snippet(source)
     lines = split(normalize_source(source), '\n')
     line =
         diagnostic.anchor_line <= length(lines) ? String(lines[diagnostic.anchor_line]) : String(source)
     anon = anonymize_snippet(line)
-    println(
-        buf,
-        _json_val(
-            Dict(
-                "fingerprint" => fingerprint,
-                "snippet" => anon,
-                "pattern_hash" => pattern_hash(skel),
-            ),
-        ),
-    )
+    println(buf, anon)
+    println(buf, "pattern_hash=$(pattern_hash(skel))")
     return String(take!(buf))
 end
 
-function explain_rule(id::AbstractString)
-    id = String(id)
-    if id == "expect-audit"
-        return """
-        expect-audit
+function _explain_registry_blurb(id::String)
+    specs = Dict(
+        "protected-paths" => (
+            "Block edits to protected policy and workflow paths.",
+            "Do not modify `.AgentRuleLintConfig.toml`, workflows, or manifests without review.",
+            :forbid,
+            :agentrulelint,
+            "",
+            "N/A (integrity guard on path diffs).",
+        ),
+        "scope-paths" => (
+            "Enforce trusted path allowlists for agent edits.",
+            "Do not touch paths outside configured allowlists.",
+            :forbid,
+            :agentrulelint,
+            "",
+            "N/A (diff scope only).",
+        ),
+        "ceiling-ratchet" => (
+            "Keep violation ceilings monotonic.",
+            "Do not ratchet ceilings upward without review.",
+            :forbid,
+            :agentrulelint,
+            "",
+            "Compared against `.agentrulelint/ceilings.toml`.",
+        ),
+        "manifest-sync" => (
+            "Tracked Manifest must match Project.toml.",
+            "Do not commit a stale Manifest.",
+            :forbid,
+            :agentrulelint,
+            "",
+            "N/A.",
+        ),
+        "shell-safety/process-pattern" => (
+            "Flag hazardous shell / Cmd patterns (preset).",
+            "Do not spawn unreviewed shell pipelines.",
+            :deny,
+            :preset,
+            "",
+            "# agentrulelint-expect: shell-safety/process-pattern reason=\"...\" on the following line.",
+        ),
+        "silent-catch" => (
+            "Detect swallowed exceptions.",
+            "Do not use empty catch blocks without expects.",
+            :deny,
+            :agentrulelint,
+            "",
+            "# agentrulelint-expect: silent-catch reason=\"...\" on the anchor line.",
+        ),
+        "test-integrity" => (
+            "Detect hollow or weakened tests.",
+            "Do not delete assertions to silence CI.",
+            :forbid,
+            :agentrulelint,
+            "",
+            "N/A.",
+        ),
+        "unsafe-boundary" => (
+            "Flag eval, ccall, and unsafe_* at boundaries.",
+            "Do not bypass sandboxing via reflection.",
+            :deny,
+            :agentrulelint,
+            "",
+            "# agentrulelint-expect: unsafe-boundary reason=\"...\"",
+        ),
+    )
+    return get(specs, id, nothing)
+end
 
-        Anchor line: first non-blank code line after contiguous `# agentrulelint-expect:` lines
-        that matches the target syntax kind for the referenced rule (e.g. `try`, `@eval`, `@test*`).
-
-        Syntax: `# agentrulelint-expect: <rule-id> reason="..."` (ASCII, standalone line only; non-empty reason).
-
-        Suppresses only violations whose anchor_line matches that line.
-        Expects are forbidden above `catch`, inside `# runic: off` regions, inside multiline
-        call arguments, and with blank lines before the anchor. Forbidden placements do not
-        suppress violations. Multiline-call placement uses the same forbid level as other
-        expect-audit integrity findings.
-        """
-    elseif startswith(id, "project/")
-        return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
-    else
-        specs = (
-            "protected-paths" => "forbid edits to protected policy and workflow paths.",
-            "scope-paths" => "enforce trusted path allowlists.",
-            "ceiling-ratchet" => "keep violation/expect ceilings monotonic.",
-            "manifest-sync" => "tracked Manifest must match Project.toml.",
-            "shell-safety/process-pattern" => "preset: hazardous shell / Cmd patterns.",
-            "silent-catch" => "detect swallowed exceptions.",
-            "test-integrity" => "detect hollow or weakened tests.",
-            "unsafe-boundary" => "flag eval, ccall, and unsafe_* at boundaries.",
-        )
-        for (slug, blurb) in specs
-            id == slug && return "$slug — $blurb (planned built-in / preset)."
-        end
-        return "Unknown rule id: $(id)"
+function _known_rule_ids(root::AbstractString)
+    policy = resolve_policy(root)
+    init_registry!(policy)
+    ids = String[]
+    for (id, _) in policy.rules
+        push!(ids, id)
     end
+    for pr in policy.project_rules
+        push!(ids, project_rule_id(pr))
+    end
+    for id in keys(BUILTIN_RULES)
+        id in ids || push!(ids, id)
+    end
+    blurb_ids = String[
+        "protected-paths",
+        "scope-paths",
+        "ceiling-ratchet",
+        "manifest-sync",
+        "shell-safety/process-pattern",
+        "silent-catch",
+        "test-integrity",
+        "unsafe-boundary",
+    ]
+    for id in blurb_ids
+        id in ids || push!(ids, id)
+    end
+    return sort(unique(ids))
+end
+
+function explain_rule_unknown(id::AbstractString; root::AbstractString = pwd())
+    needle = String(strip(id))
+    return needle ∉ _known_rule_ids(root)
+end
+
+function explain_rule(id::AbstractString; root::AbstractString = pwd())
+    needle = String(strip(id))
+    explain_rule_unknown(needle; root = root) &&
+        throw(ArgumentError("unknown rule id: $needle"))
+    policy = resolve_policy(root)
+    init_registry!(policy)
+    if needle == "expect-audit"
+        spec = get(policy.rules, "expect-audit", BUILTIN_RULES["expect-audit"])
+        return """
+        rule_id: expect-audit
+        origin: $(origin_label(spec.origin))
+        level: $(spec.level)
+
+        intent:
+        $(spec.intent)
+
+        do_not:
+        $(spec.do_not)
+
+        expect_anchor:
+        First non-blank code line after contiguous `# agentrulelint-expect:` lines that matches the target syntax kind.
+
+        example:
+        # agentrulelint-expect: expect-audit reason="documented suppression"
+        @eval :ok
+        """
+    end
+    if startswith(needle, "project/")
+        short = needle[9:end]
+        for pr in policy.project_rules
+            pr.id == short || continue
+            return """
+            rule_id: $(project_rule_id(pr))
+            origin: [Project]
+            level: $(pr.level)
+
+            intent:
+            $(pr.intent)
+
+            do_not:
+            $(pr.do_not)
+
+            expect_anchor:
+            Same as expect-audit when referenced by rule id $(project_rule_id(pr)).
+
+            example:
+            x = "forbidden_literal"  # matched when configured in forbid_literals
+            """
+        end
+        throw(ArgumentError("unknown rule id: $needle"))
+    end
+    if haskey(policy.rules, needle)
+        spec = policy.rules[needle]
+        blurb = _explain_registry_blurb(needle)
+        anchor = blurb === nothing ? "N/A." : blurb[6]
+        example = needle == "expect-audit" ? "" : blurb === nothing ? "N/A." : blurb[6]
+        return """
+        rule_id: $needle
+        origin: $(origin_label(spec.origin))
+        level: $(spec.level)
+
+        intent:
+        $(spec.intent)
+
+        do_not:
+        $(spec.do_not)
+
+        expect_anchor:
+        $anchor
+
+        example:
+        $example
+        """
+    end
+    blurb = _explain_registry_blurb(needle)
+    blurb === nothing && throw(ArgumentError("unknown rule id: $needle"))
+    return """
+    rule_id: $needle
+    origin: $(origin_label(blurb[4]))
+    level: $(blurb[3])
+
+    intent:
+    $(blurb[1])
+
+    do_not:
+    $(blurb[2])
+
+    expect_anchor:
+    $(blurb[6])
+
+    example:
+    $(blurb[6])
+    """
 end
