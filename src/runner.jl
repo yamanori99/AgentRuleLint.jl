@@ -115,6 +115,8 @@ function run_check(root::AbstractString; kwargs...)
             append!(all_diags, expect_audit_text_diagnostics(fc, policy))
         end
         append!(all_diags, forbid_rule_suppression_attempt(fc.expects, policy, fc))
+        julia_source_path(fc.parsed.path) &&
+            append!(all_diags, run_silent_catch(fc, policy))
         append!(all_diags, run_project_rules(fc, policy))
     end
 

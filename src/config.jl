@@ -14,6 +14,7 @@ const TOP_LEVEL_CONFIG_KEYS = Set(
 )
 const RULE_TABLE_KEYS = Set(["level", "intent", "do_not"])
 const EXPECT_AUDIT_RULE_KEYS = Set(["level", "intent", "do_not", "on_allow_rule"])
+const SILENT_CATCH_RULE_KEYS = Set(["level", "intent", "do_not", "warn_counts_as_handling"])
 const PROJECT_RULE_KEYS = Set(
     [
         "id",
@@ -43,6 +44,16 @@ function _parse_rule_level(raw, label::String)
     sym in VALID_RULE_LEVELS ||
         throw(ConfigError("unknown rule level '$raw' in $label (expected forbid|deny|allow|warn)"))
     return sym
+end
+
+function _parse_warn_counts_as_handling(raw, label::String)
+    if raw isa Bool
+        return raw ? "true" : "false"
+    end
+    s = raw isa AbstractString ? lowercase(strip(raw)) : ""
+    s in ("true", "false", "1", "0", "yes", "no") ||
+        throw(ConfigError("unknown warn_counts_as_handling '$raw' in $label (expected true|false)"))
+    return s in ("true", "1", "yes") ? "true" : "false"
 end
 
 function _parse_on_allow_rule(raw, label::String)
@@ -158,13 +169,26 @@ function _load_rules_table(raw::Dict)
     rules = Dict{String, RuleSpec}()
     for (id, content) in _collect_rule_tables(raw)
         validate_kebab_rule_id(id, "rules.$id")
-        allowed = id == "expect-audit" ? EXPECT_AUDIT_RULE_KEYS : RULE_TABLE_KEYS
+        allowed = if id == "expect-audit"
+            EXPECT_AUDIT_RULE_KEYS
+        elseif id == "silent-catch"
+            SILENT_CATCH_RULE_KEYS
+        else
+            RULE_TABLE_KEYS
+        end
         _reject_unknown_keys!(content, allowed, "rules.$id")
         level = haskey(content, "level") ?
             _parse_rule_level(content["level"], "rules.$id.level") : :deny
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
-        rules[id] = RuleSpec(id, :agentrulelint, level, intent, do_not, Dict{Symbol, String}())
+        extra = Dict{Symbol, String}()
+        if id == "silent-catch" && haskey(content, "warn_counts_as_handling")
+            extra[:warn_counts_as_handling] = _parse_warn_counts_as_handling(
+                content["warn_counts_as_handling"],
+                "rules.silent-catch.warn_counts_as_handling",
+            )
+        end
+        rules[id] = RuleSpec(id, :agentrulelint, level, intent, do_not, extra)
     end
     return rules
 end
@@ -336,6 +360,14 @@ function default_policy(root::AbstractString)
             "Keep suppression comments auditable and fail-closed.",
             "Use inline or block comment expects to hide violations.",
             Dict{Symbol, String}(),
+        ),
+        "silent-catch" => RuleSpec(
+            "silent-catch",
+            :agentrulelint,
+            :deny,
+            "Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths.",
+            "Use empty catch bodies, log-only handlers, or partial branches without rethrow to silence errors.",
+            Dict{Symbol, String}(:warn_counts_as_handling => "false"),
         ),
     )
     cs = ConfigSource(:builtin, "", "", "")

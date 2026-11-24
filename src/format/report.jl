@@ -94,6 +94,22 @@ function explain_rule(id::AbstractString)
         suppress violations. Multiline-call placement uses the same forbid level as other
         expect-audit integrity findings.
         """
+    elseif id == "silent-catch"
+        return """
+        silent-catch
+
+        Anchor line: the `try` keyword line of the `try`/`catch` (or `try`/`catch`/`finally`) expression.
+
+        Flags catch-all handlers whose body does not rethrow or throw on unhandled paths: empty catch,
+        assignments or `nothing` only, log-only handlers, and `if` branches without a propagating `else`.
+
+        Legitimate patterns include `e isa T || rethrow()`, `if e isa T ... else rethrow() end`,
+        unconditional `rethrow()` / `throw(...)`, and `err isa InterruptException && rethrow()`
+        followed by a typed `throw`.
+
+        Configure whether `@warn ... exception=...` alone counts as handling via
+        `[rules.silent-catch]` `warn_counts_as_handling` (default: false).
+        """
     elseif startswith(id, "project/")
         return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
     else
@@ -103,7 +119,6 @@ function explain_rule(id::AbstractString)
             "ceiling-ratchet" => "keep violation/expect ceilings monotonic.",
             "manifest-sync" => "tracked Manifest must match Project.toml.",
             "shell-safety/process-pattern" => "preset: hazardous shell / Cmd patterns.",
-            "silent-catch" => "detect swallowed exceptions.",
             "test-integrity" => "detect hollow or weakened tests.",
             "unsafe-boundary" => "flag eval, ccall, and unsafe_* at boundaries.",
         )
