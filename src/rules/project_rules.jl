@@ -1,42 +1,3 @@
-const _GLOB_REGEX_META = ('^', '$', '.', '|', '?', '+', '(', ')', '[', ']', '{', '}', '\\')
-
-function _glob_regex_escape(pattern::AbstractString)
-    out = IOBuffer()
-    for c in pattern
-        if c == '*'
-            write(out, '*')
-        elseif c in _GLOB_REGEX_META
-            write(out, '\\', c)
-        else
-            write(out, c)
-        end
-    end
-    return String(take!(out))
-end
-
-const _GLOB_DOUBLE_STAR = string('*', '*')
-
-function _simple_glob_match(path::String, pattern::String)
-    if pattern == _GLOB_DOUBLE_STAR
-        return true
-    end
-    if endswith(pattern, "/" * _GLOB_DOUBLE_STAR)
-        prefix = pattern[1:(end - 3)]
-        return startswith(path, prefix * "/") || path == prefix
-    end
-    if occursin('*', pattern)
-        esc = _glob_regex_escape(pattern)
-        rx = Regex("^" * replace(esc, "*" => ".*") * "\$")
-        return occursin(rx, path)
-    end
-    return path == pattern || basename(path) == pattern
-end
-
-function path_matches_glob(path::AbstractString, globs::Vector{String})
-    p = replace(String(path), '\\' => '/')
-    return any(g -> _simple_glob_match(p, String(g)), globs)
-end
-
 function _effective_project_level(policy::PolicyBundle, pr::ProjectRule)
     lvl = pr.level
     if lvl == :allow
@@ -51,72 +12,148 @@ function _effective_project_level(policy::PolicyBundle, pr::ProjectRule)
     return lvl
 end
 
-function run_project_rules(fc::FileContext, policy::PolicyBundle)
+function _text_literal_spans(source::AbstractString, lit::AbstractString)
+    out = Tuple{Int, Int}[]
+    start = firstindex(source)
+    while true
+        r = findnext(lit, source, start)
+        r === nothing && break
+        push!(out, (first(r), last(r)))
+        start = last(r) < lastindex(source) ? nextind(source, last(r)) : lastindex(source) + 1
+        start > lastindex(source) && break
+    end
+    return out
+end
+
+function _push_project_violation!(
+        diags::Vector{Violation},
+        rule_id::String,
+        eff_level::Symbol,
+        path::String,
+        source::AbstractString,
+        byte_start::Int,
+        byte_end::Int,
+        msg::String,
+        intent::String,
+        do_not::String,
+    )
+    sp = span_from_byte_range(source, byte_start, byte_end)
+    push!(
+        diags,
+        Violation(
+            rule_id,
+            :project,
+            eff_level,
+            path,
+            sp,
+            sp.start_line,
+            "",
+            :none,
+            false,
+            msg,
+            intent,
+            do_not,
+        ),
+    )
+    return nothing
+end
+
+function _run_project_rules_julia!(
+        diags::Vector{Violation},
+        fc::FileContext,
+        pr::ProjectRule,
+        rule_id::String,
+        eff_level::Symbol,
+    )
     path = fc.parsed.path
     source = fc.parsed.normalized
-    diags = Violation[]
     tree = parse_source(source; filename = path)
     folds = collect_folded_string_exprs(tree, source)
+    for lit in pr.forbid_literals
+        seen_spans = Set{Tuple{Int, Int}}()
+        for fold in folds
+            occursin(lit, fold.value) || continue
+            keyspan = (fold.byte_start, fold.byte_end)
+            keyspan in seen_spans && continue
+            push!(seen_spans, keyspan)
+            msg = "forbidden literal matched (folded)"
+            _push_project_violation!(
+                diags,
+                rule_id,
+                eff_level,
+                path,
+                source,
+                fold.byte_start,
+                fold.byte_end,
+                msg,
+                pr.intent,
+                pr.do_not,
+            )
+        end
+        for (c, p) in _child_positions(tree, 1)[1]
+            summary(c) == "string" || continue
+            raw = _collect_string_chars(c, source, p)
+            raw === nothing && continue
+            occursin(lit, raw) || continue
+            msg = "forbidden literal matched"
+            _push_project_violation!(
+                diags,
+                rule_id,
+                eff_level,
+                path,
+                source,
+                p,
+                p + span(c) - 1,
+                msg,
+                pr.intent,
+                pr.do_not,
+            )
+        end
+    end
+    return nothing
+end
+
+function _run_project_rules_text!(
+        diags::Vector{Violation},
+        fc::FileContext,
+        pr::ProjectRule,
+        rule_id::String,
+        eff_level::Symbol,
+    )
+    path = fc.parsed.path
+    source = fc.parsed.normalized
+    for lit in pr.forbid_literals
+        for (bs, be) in _text_literal_spans(source, lit)
+            msg = "forbidden literal matched"
+            _push_project_violation!(
+                diags,
+                rule_id,
+                eff_level,
+                path,
+                source,
+                bs,
+                be,
+                msg,
+                pr.intent,
+                pr.do_not,
+            )
+        end
+    end
+    return nothing
+end
+
+function run_project_rules(fc::FileContext, policy::PolicyBundle)
+    path = fc.parsed.path
+    diags = Violation[]
     for pr in policy.project_rules
-        path_matches_glob(path, pr.paths) || continue
+        path_matches_glob(path, pr.path_regexes) || continue
         rule_id = project_rule_id(pr)
         eff_level = _effective_project_level(policy, pr)
         eff_level == :allow && continue
-
-        for lit in pr.forbid_literals
-            seen_spans = Set{Tuple{Int, Int}}()
-            for fold in folds
-                occursin(lit, fold.value) || continue
-                keyspan = (fold.byte_start, fold.byte_end)
-                keyspan in seen_spans && continue
-                push!(seen_spans, keyspan)
-                sp = span_from_byte_range(source, fold.byte_start, fold.byte_end)
-                anchor = sp.start_line
-                msg = "forbidden literal matched (folded)"
-                push!(
-                    diags,
-                    Violation(
-                        rule_id,
-                        :project,
-                        eff_level,
-                        path,
-                        sp,
-                        anchor,
-                        "",
-                        :none,
-                        false,
-                        msg,
-                        pr.intent,
-                        pr.do_not,
-                    ),
-                )
-            end
-            for (c, p) in _child_positions(tree, 1)[1]
-                summary(c) == "string" || continue
-                raw = _collect_string_chars(c, source, p)
-                raw === nothing && continue
-                occursin(lit, raw) || continue
-                sp = span_from_byte_range(source, p, p + span(c) - 1)
-                anchor = sp.start_line
-                msg = "forbidden literal matched"
-                push!(
-                    diags,
-                    Violation(
-                        rule_id,
-                        :project,
-                        eff_level,
-                        path,
-                        sp,
-                        anchor,
-                        "",
-                        :none,
-                        false,
-                        msg,
-                        pr.intent,
-                        pr.do_not,
-                    ),
-                )
-            end
+        if julia_source_path(path)
+            _run_project_rules_julia!(diags, fc, pr, rule_id, eff_level)
+        else
+            _run_project_rules_text!(diags, fc, pr, rule_id, eff_level)
         end
     end
     return diags

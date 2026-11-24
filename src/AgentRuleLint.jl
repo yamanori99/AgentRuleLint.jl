@@ -13,6 +13,7 @@ const AGENTRULELINT_VERSION = pkgversion(@__MODULE__)
 
 include("types.jl")
 include("fingerprints.jl")
+include("path_glob.jl")
 include("syntax/SyntaxAdapter.jl")
 include("config.jl")
 include("diff.jl")
