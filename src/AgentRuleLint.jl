@@ -22,6 +22,7 @@ include("expect.jl")
 include("rules/registry.jl")
 include("rules/project_rules.jl")
 include("rules/protected_paths.jl")
+include("rules/scope_paths.jl")
 include("runner.jl")
 include("format/json.jl")
 include("format/width.jl")
@@ -29,7 +30,18 @@ include("format/human.jl")
 include("format/agent.jl")
 include("format/report.jl")
 
+function _validate_check_keywords!(kwargs)
+    allow_raw = get(kwargs, :allow_paths, nothing)
+    allow_raw === nothing && return kwargs
+    diff_base = get(kwargs, :diff_base, nothing)
+    allow_paths = _resolve_allow_paths_kw(allow_raw)
+    validate_allow_paths_kw(allow_paths, diff_base)
+    nt = NamedTuple(kwargs)
+    return merge(nt, (; allow_paths = allow_paths))
+end
+
 function check(root::AbstractString; kwargs...)
+    kwargs = _validate_check_keywords!(kwargs)
     try
         return run_check(root; kwargs...)
     catch err
@@ -57,6 +69,7 @@ function _parse_cli_args(cmd::String, rest::Vector{String})
         :diff_mode => false,
         :output => nothing,
         :paths => String[],
+        :allow_paths => nothing,
         :write_ratchet => false,
     )
     i = 1
@@ -90,6 +103,16 @@ function _parse_cli_args(cmd::String, rest::Vector{String})
             opts[:output] = rest[i + 1]
             i += 2
             continue
+        elseif a == "--allow-paths" && i + 1 <= length(rest)
+            opts[:allow_paths] !== nothing &&
+                throw(ArgumentError("duplicate --allow-paths"))
+            opts[:allow_paths] = parse_allow_paths_cli(rest[i + 1])
+            i += 2
+            continue
+        elseif startswith(a, "--allow-paths=")
+            opts[:allow_paths] !== nothing &&
+                throw(ArgumentError("duplicate --allow-paths"))
+            opts[:allow_paths] = parse_allow_paths_cli(a[(length("--allow-paths=") + 1):end])
         elseif a == "--write"
             cmd == "ratchet" || throw(
                 ArgumentError("unknown option for $cmd: --write (use agentrulelint ratchet --write)"),
@@ -145,6 +168,15 @@ function _emit(result::CheckResult, fmt::Symbol, opts)
     end
 end
 
+function _resolve_allow_paths_kw(raw)
+    raw === nothing && return nothing
+    raw isa Vector{Regex} && return raw
+    if raw isa AbstractVector
+        return compile_allow_path_globs(String[string(x) for x in raw])
+    end
+    throw(ConfigError("allow_paths must be a vector of glob strings or compiled Regex values"))
+end
+
 function _resolve_diff_kw(opts)
     if opts[:diff_base] !== nothing
         return resolve_diff_base_arg(opts[:diff_base])
@@ -163,6 +195,7 @@ function _cli_check(positional::Vector{String}, opts)
         config_path = opts[:config_path],
         config_from = opts[:config_from],
         diff_base = _resolve_diff_kw(opts),
+        allow_paths = opts[:allow_paths],
     )
     fmt = _resolve_emit_format(result, opts)
     _emit(result, fmt, opts)
@@ -252,6 +285,7 @@ function _print_cli_help(cmd::String)
               --config <path>             Alternate config file path
               --config-from <git-ref>     Load .AgentRuleLintConfig.toml from a git ref
               --diff [<base-ref>]         Limit to changed files/lines vs base (default: HEAD^1)
+              --allow-paths GLOB,...      Trusted allowlist for scope-paths (requires --diff; not from config)
               --output <path>             Write formatted output to <path>
 
             Config is fail-closed: unknown keys, rule levels, preset names, or default_format values error.

@@ -103,6 +103,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     init_registry!(policy)
     paths_kw = get(kwargs, :paths, String[])
     diff_base = get(kwargs, :diff_base, nothing)
+    allow_paths = validate_allow_paths_kw(_resolve_allow_paths_kw(get(kwargs, :allow_paths, nothing)), diff_base)
     diff_scope = diff_base === nothing ? nothing : build_diff_scope(root, diff_base)
     project_regexes = project_rule_path_regexes(policy)
     rel_files = discover_files(root; paths = paths_kw, diff_base = diff_base, project_regexes = project_regexes)
@@ -151,6 +152,11 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
 
     if diff_base !== nothing
         append!(all_diags, enforce_protected_paths(root, diff_base, policy))
+    end
+    if allow_paths !== nothing
+        base = something(diff_base)
+        events = git_diff_path_events(root, base)
+        append!(all_diags, enforce_scope_paths(events, allow_paths, policy))
     end
 
     ceilings_path = joinpath(abspath(root), CEILINGS_REL)
