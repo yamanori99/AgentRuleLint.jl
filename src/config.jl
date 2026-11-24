@@ -155,6 +155,16 @@ function _collect_rule_tables(raw::Dict)
     return out
 end
 
+function _validate_shell_safety_preset!(presets::Vector{String}, rules::Dict{String, RuleSpec})
+    haskey(rules, SHELL_SAFETY_PRESET_ID) || return
+    "shell-safety" in presets && return
+    throw(
+        ConfigError(
+            "rules.$SHELL_SAFETY_PRESET_ID requires presets = [\"shell-safety\"] (preset table without active preset)",
+        ),
+    )
+end
+
 function _load_shell_safety_config(presets::Vector{String}, rules::Dict{String, RuleSpec})
     active = "shell-safety" in presets
     !active && return ShellSafetyConfig()
@@ -169,13 +179,7 @@ function _load_rules_table(raw::Dict)
     rules = Dict{String, RuleSpec}()
     for (id, content) in _collect_rule_tables(raw)
         id == SHELL_SAFETY_PRESET_ID || validate_kebab_rule_id(id, "rules.$id")
-        allowed = if id == "expect-audit"
-            EXPECT_AUDIT_RULE_KEYS
-        elseif id == SHELL_SAFETY_PRESET_ID
-            RULE_TABLE_KEYS
-        else
-            RULE_TABLE_KEYS
-        end
+        allowed = id == "expect-audit" ? EXPECT_AUDIT_RULE_KEYS : RULE_TABLE_KEYS
         _reject_unknown_keys!(content, allowed, "rules.$id")
         level = haskey(content, "level") ?
             _parse_rule_level(content["level"], "rules.$id.level") : :deny
@@ -269,6 +273,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
         String[]
     end
     rules = _load_rules_table(raw)
+    _validate_shell_safety_preset!(presets, rules)
     pr_raw = get(raw, "project_rules", [])
     pr_raw isa AbstractVector || throw(ConfigError("project_rules must be an array"))
     project = _load_project_rules(pr_raw)

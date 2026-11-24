@@ -6,19 +6,35 @@ const _SHELL_SAFETY_DO_NOT =
 const _SHELL_HAZARD_PATTERNS = [
     (r"\bpkill\b", "pkill"),
     (r"\bkillall\b", "killall"),
-    (r"\bsh\b\s+-c\b", "sh -c"),
-    (r"\bbash\b\s+-c\b", "bash -c"),
     (r"\bssh\b.*\s--\s", "ssh --"),
     (r"\bsudo\b", "sudo"),
 ]
 
-function _cmd_argv_hazard(cmd::AbstractString)
-    for (rx, label) in _SHELL_HAZARD_PATTERNS
-        occursin(rx, cmd) && return label
-    end
+"""True when a dashed shell option carries `-c` (e.g. `-c`, `-lc`, `-cl`, `-ec`)."""
+function _option_includes_dash_c(opt::AbstractString)
+    startswith(opt, "-") || return false
+    opt == "-c" && return true
+    return length(opt) > 2 && occursin('c', opt[2:end])
+end
+
+function _shell_dash_c_label(cmd::AbstractString)
     tokens = split(cmd; limit = 0)
     for i in 1:(length(tokens) - 1)
-        (tokens[i] == "sh" || tokens[i] == "bash") && tokens[i + 1] == "-c" && return "$(tokens[i]) -c"
+        shell = tokens[i]
+        shell in ("sh", "bash") || continue
+        if tokens[i + 1] == "-c" || _option_includes_dash_c(tokens[i + 1])
+            return "$(shell) -c"
+        end
+    end
+    return occursin(r"\bsh\b\s+-c", cmd) ? "sh -c" :
+        occursin(r"\bbash\b\s+-c", cmd) ? "bash -c" : nothing
+end
+
+function _cmd_argv_hazard(cmd::AbstractString)
+    dash = _shell_dash_c_label(cmd)
+    dash !== nothing && return dash
+    for (rx, label) in _SHELL_HAZARD_PATTERNS
+        occursin(rx, cmd) && return label
     end
     return nothing
 end

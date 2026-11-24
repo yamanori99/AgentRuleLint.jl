@@ -136,8 +136,14 @@ function _fold_vect_strings(node::GreenNode, src::AbstractString, pos::Int, dept
     vals = String[]
     for (c, p) in _child_positions(node, pos)[1]
         JuliaSyntax.is_trivia(head(c)) && continue
-        summary(c) == "string" || return nothing
-        v = _fold_atom(c, src, p, depth + 1, steps)
+        sk = string(kind(c))
+        sk in ("()", ",") && continue
+        v = if summary(c) == "string"
+            _fold_atom(c, src, p, depth + 1, steps)
+        else
+            folded = try_fold_expr(c, src, p, depth, steps)
+            folded === nothing ? nothing : folded.value
+        end
         v === nothing && return nothing
         push!(vals, v)
     end

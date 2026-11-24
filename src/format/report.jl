@@ -102,7 +102,10 @@ function explain_rule(id::AbstractString)
 
         Opt-in via `presets = ["shell-safety"]` in `.AgentRuleLintConfig.toml`. Uses the Syntax-layer
         constant folder and `collect_cmd_string_literals` to find `pkill`, `killall`, `sh -c` /
-        `bash -c`, `ssh --`, and `sudo` in folded command text.
+        `bash -c`, `ssh --`, and `sudo` in folded command text. Dashed options containing `c`
+        (`-c`, `-lc`, `-cl`, `-ec`) after `sh`/`bash` count as `-c` (combined login/exec flags).
+
+        `[rules.\"shell-safety/process-pattern\"]` without `presets = [\"shell-safety\"]` is ConfigError.
 
         Static folding limits: runtime Cmd values, string/cmd interpolation, and symbols outside
         the shared fold budget are not analyzed (see `collect_cmd_string_literals` docstring).
