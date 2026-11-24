@@ -187,8 +187,13 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     include("test_expect_audit.jl")
     include("test_silent_catch.jl")
     include("test_adapter_fixes.jl")
+    include("test_diff_mode.jl")
+    include("test_ceiling_ratchet.jl")
+    include("test_diff_name_status_parser.jl")
+    include("test_protected_paths.jl")
     include("test_config_cli_fail_closed.jl")
     include("test_output_width.jl")
+    include("test_app_cli.jl")
 
     Aqua.test_all(AgentRuleLint)
 
