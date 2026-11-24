@@ -2,7 +2,7 @@
 name: ci-and-lint-triage
 description: >
   Fix CI or lint failures without weakening gates. Use when Actions lint, Runic,
-  JETLS, or Pkg.test fails on a JAILint.jl change.
+  JETLS, or Pkg.test fails on a AgentRuleLint.jl change.
 ---
 
 # CI and lint triage

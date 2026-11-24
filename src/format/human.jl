@@ -20,7 +20,7 @@ function format_human(result::CheckResult; root::AbstractString = pwd())
     shown = Dict{String, Int}()
     omitted = Dict{String, Int}()
     max_hits = result.max_hits_per_rule
-    println(buf, "JAILint v$(pkgversion(JAILint)) (pos: utf8-codepoint-1based)")
+    println(buf, "AgentRuleLint v$(pkgversion(AgentRuleLint)) (pos: utf8-codepoint-1based)")
     println(buf)
     for d in result.violations
         d.suppressed && continue

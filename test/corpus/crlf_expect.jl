@@ -1,2 +1,2 @@
-# jailint-expect: expect-audit reason="crlf"
+# agentrulelint-expect: expect-audit reason="crlf"
 x = INTERNAL_CODENAME

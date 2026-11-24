@@ -1,4 +1,4 @@
-module JAILint
+module AgentRuleLint
 
 using JuliaSyntax
 using PrecompileTools
@@ -9,7 +9,7 @@ using SHA: sha1
 export CheckResult, RuleSpec, Span, Violation, check
 export ConfigError, GitError, InternalError, ParseError
 
-const JAILINT_VERSION = pkgversion(@__MODULE__)
+const AGENTRULELINT_VERSION = pkgversion(@__MODULE__)
 
 include("types.jl")
 include("fingerprints.jl")
@@ -82,7 +82,7 @@ function _parse_cli_args(cmd::String, rest::Vector{String})
             continue
         elseif a == "--write"
             cmd == "ratchet" || throw(
-                ArgumentError("unknown option for $cmd: --write (use jailint ratchet --write)"),
+                ArgumentError("unknown option for $cmd: --write (use agentrulelint ratchet --write)"),
             )
             opts[:write_ratchet] = true
         elseif startswith(a, "-")
@@ -97,16 +97,16 @@ end
 
 function _emit_fail_closed(err, io = stderr)
     if err isa InternalError
-        println(io, "JAILint internal error: ", err.msg)
+        println(io, "AgentRuleLint internal error: ", err.msg)
         return 3
     elseif is_fail_closed(err)
-        println(io, "JAILint fail-closed: ", sprint(showerror, err))
+        println(io, "AgentRuleLint fail-closed: ", sprint(showerror, err))
         return 2
     elseif err isa ArgumentError
-        println(io, "JAILint: ", err.msg)
+        println(io, "AgentRuleLint: ", err.msg)
         return 2
     else
-        println(io, "JAILint bug: ", sprint(showerror, err))
+        println(io, "AgentRuleLint bug: ", sprint(showerror, err))
         return 3
     end
 end
@@ -181,7 +181,7 @@ function _cli_ratchet(positional::Vector{String}, opts)
         diff_base = opts[:diff_base],
     )
     ratchet_write!(root, result)
-    println("Wrote $(abspath(joinpath(root, ".jailint/ceilings.toml")))")
+    println("Wrote $(abspath(joinpath(root, ".agentrulelint/ceilings.toml")))")
     return result.exit_code
 end
 
@@ -189,21 +189,21 @@ function _print_cli_help(cmd::String)
     if cmd == "check" || cmd == "help" || cmd == "-h" || cmd == "--help" || cmd == ""
         println(
             """
-            Usage: jailint check [paths...] [options]
-                   jailint explain <rule-id>
-                   jailint ratchet --write [paths...] [options]
-                   jailint report <fingerprint>
+            Usage: agentrulelint check [paths...] [options]
+                   agentrulelint explain <rule-id>
+                   agentrulelint ratchet --write [paths...] [options]
+                   agentrulelint report <fingerprint>
 
             Commands:
               check    Lint Julia sources (default). Reads ceilings; does not write them.
               explain  Print rule intent and anchor semantics for <rule-id>.
-              ratchet  Update .jailint/ceilings.toml from current violation counts (--write required).
+              ratchet  Update .agentrulelint/ceilings.toml from current violation counts (--write required).
               report   Emit anonymized JSON for a diagnostic fingerprint.
 
             Options (check and ratchet --write):
               --format human|json|agent   Output format (default: config default_format; invalid values exit 2)
               --config <path>             Alternate config file path
-              --config-from <git-ref>     Load .JAILintConfig.toml from a git ref
+              --config-from <git-ref>     Load .AgentRuleLintConfig.toml from a git ref
               --diff <base-ref>           Limit to files changed vs <base-ref>
               --output <path>             Write formatted output to <path>
 
@@ -213,16 +213,16 @@ function _print_cli_help(cmd::String)
     elseif cmd == "ratchet"
         println(
             """
-            Usage: jailint ratchet --write [paths...] [options]
+            Usage: agentrulelint ratchet --write [paths...] [options]
 
-            Writes .jailint/ceilings.toml from current violation counts. --write is required.
+            Writes .agentrulelint/ceilings.toml from current violation counts. --write is required.
             A plain check run never updates ceilings.
 
-            Options: same as jailint check (see jailint --help).
+            Options: same as agentrulelint check (see agentrulelint --help).
             """,
         )
     else
-        println("Run jailint --help for usage.")
+        println("Run agentrulelint --help for usage.")
     end
     return nothing
 end
@@ -249,7 +249,7 @@ function cli_main(args::AbstractVector{<:AbstractString})::Int
             _cli_explain(positional, opts)
         elseif cmd == "ratchet"
             opts[:write_ratchet] ||
-                throw(ArgumentError("ratchet requires --write (updates .jailint/ceilings.toml)"))
+                throw(ArgumentError("ratchet requires --write (updates .agentrulelint/ceilings.toml)"))
             _cli_ratchet(positional, opts)
         elseif cmd == "report"
             _cli_report(positional, opts)
@@ -276,4 +276,4 @@ end
     end
 end
 
-end # module JAILint
+end # module AgentRuleLint

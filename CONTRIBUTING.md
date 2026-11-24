@@ -1,6 +1,6 @@
-# Contributing to JAILint.jl
+# Contributing to AgentRuleLint.jl
 
-Thank you for helping improve JAILint—whether you are a human maintainer or an
+Thank you for helping improve AgentRuleLint—whether you are a human maintainer or an
 agent filing structured feedback. This project favors **constructive** reports
 that become golden corpus tests, not drive-by complaints.
 
@@ -21,21 +21,21 @@ that become golden corpus tests, not drive-by complaints.
 From the repository root, with the same Julia version as CI (1.13+):
 
 ```bash
-julia --startup-file=no --project=. -m JAILint check --format=json PATH > /tmp/jailint.jsonl
+julia --startup-file=no --project=. -m AgentRuleLint check --format=json PATH > /tmp/agentrulelint.jsonl
 ```
 
 Or for agent-friendly output:
 
 ```bash
-julia --startup-file=no --project=. -m JAILint check --format=agent PATH
+julia --startup-file=no --project=. -m AgentRuleLint check --format=agent PATH
 ```
 
-### 2. Capture a `jailint report` bundle (recommended)
+### 2. Capture a `agentrulelint report` bundle (recommended)
 
 When you have a diagnostic **fingerprint** from JSON or agent output:
 
 ```bash
-julia --startup-file=no --project=. -m JAILint report 'v1:YOUR_FINGERPRINT'
+julia --startup-file=no --project=. -m AgentRuleLint report 'v1:YOUR_FINGERPRINT'
 ```
 
 Paste the emitted JSON lines into the issue form’s **JSON header** field and
@@ -76,7 +76,7 @@ auto-closed for incomplete reports.
   manifests, protected paths, expect hygiene, and test integrity.
 - **Explicitness / boundary contracts** (`silent-catch`, `unsafe-boundary`, opt-in presets): judged by
   noise budget on the reference corpus plus either a clean fix or a reason-bearing
-  `# jailint-expect:` / `# SAFETY:` annotation.
+  `# agentrulelint-expect:` / `# SAFETY:` annotation.
 
 ### Groups × profiles
 
@@ -109,13 +109,13 @@ Under `test/corpus/`:
   match before and after `Runic.format_str` (see `test/test_runic_invariance.jl`).
 
 When proposing corpus entries, strip secrets, tokens, and customer paths. Prefer
-`jailint report` anonymization.
+`agentrulelint report` anonymization.
 
 ## Development setup
 
 ```bash
-git clone https://github.com/yamanori99/JAILint.jl.git
-cd JAILint.jl
+git clone https://github.com/yamanori99/AgentRuleLint.jl.git
+cd AgentRuleLint.jl
 julia --project=. -e 'using Pkg; Pkg.instantiate()'
 julia --project=. -e 'using Pkg; Pkg.test()'
 ```
@@ -123,9 +123,9 @@ julia --project=. -e 'using Pkg; Pkg.test()'
 From the repository root (after `Pkg.instantiate()`):
 
 ```bash
-julia --startup-file=no --project=. -m JAILint check
-julia --startup-file=no --project=. -m JAILint check src --format=agent
-julia --startup-file=no --project=. -m JAILint explain expect-audit
+julia --startup-file=no --project=. -m AgentRuleLint check
+julia --startup-file=no --project=. -m AgentRuleLint check src --format=agent
+julia --startup-file=no --project=. -m AgentRuleLint explain expect-audit
 ```
 
 Runic checks use an isolated env at `test/runic_env/` (CI and local tests).
