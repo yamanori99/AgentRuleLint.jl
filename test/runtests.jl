@@ -17,6 +17,32 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
         @test full.byte_end >= full.byte_start
     end
 
+    @testset "reduce(*, strings) folding" begin
+        hit = "x = reduce(*, [\"INT\", \"ERNAL_CODENAME\"])\n"
+        tree = JAILint.parse_source(hit)
+        folds = JAILint.collect_folded_string_exprs(tree, hit)
+        vals = [f.value for f in folds]
+        @test "INTERNAL_CODENAME" in vals
+        @test "INTINT" ∉ vals
+
+        miss = "x = reduce(*, [\"INT\", \"FOO\"])\n"
+        tree2 = JAILint.parse_source(miss)
+        vals2 = [f.value for f in JAILint.collect_folded_string_exprs(tree2, miss)]
+        @test "INTFOO" in vals2
+        @test "INTINTFOO" ∉ vals2
+    end
+
+    @testset "fold step budget" begin
+        src = "a = \"x\" * \"y\"\nb = \"p\" * \"q\"\nc = \"r\" * \"s\"\n"
+        tree = JAILint.parse_source(src)
+        full = JAILint.collect_folded_string_exprs(tree, src)
+        @test length(full) >= 3
+        # Budget exhaustion returns folds collected so far (not an empty vector).
+        partial = JAILint.collect_folded_string_exprs(tree, src; max_steps = 15)
+        @test !isempty(partial)
+        @test length(partial) < length(full)
+    end
+
     @testset "parse fail-closed" begin
         @test_throws JAILint.ParseError JAILint.parse_source("x = (\n")
     end
@@ -30,6 +56,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
             "utf8_multibyte.jl" => false,
             "bom_utf8.jl" => false,
             "reduce_nonconcat.jl" => false,
+            "reduce_star.jl" => true,
         )
         for (file, want_hit) in expect_hits
             res = JAILint.check(ROOT; paths = [joinpath("test", "corpus", file)])

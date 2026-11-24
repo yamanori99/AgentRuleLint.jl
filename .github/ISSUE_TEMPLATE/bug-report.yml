@@ -23,7 +23,7 @@ body:
         - silent-catch
         - test-integrity
         - unsafe-boundary
-        - JP — project rule
+        - project/<id> (specify in description)
     validations:
       required: true
 

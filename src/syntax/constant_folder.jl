@@ -4,10 +4,16 @@ const KChar = JuliaSyntax.K"Char"
 
 const FOLD_MAX_DEPTH = 48
 const FOLD_MAX_STEPS = 16_000
+const FOLD_BUDGET_MSG = "constant fold step budget exceeded"
+const _ACTIVE_FOLD_LIMIT = Ref(FOLD_MAX_STEPS)
 
 function _fold_budget!(n::Ref{Int})
     n[] += 1
-    return n[] > FOLD_MAX_STEPS && throw(ArgumentError("constant fold step budget exceeded"))
+    return n[] > _ACTIVE_FOLD_LIMIT[] && throw(ArgumentError(FOLD_BUDGET_MSG))
+end
+
+function _fold_budget_exceeded(err)::Bool
+    return err isa ArgumentError && err.msg == FOLD_BUDGET_MSG
 end
 
 function _align_byte_index(src::AbstractString, i::Int)
@@ -251,8 +257,7 @@ function try_fold_expr(
             summary(coll) == "vect" || return nothing
             strings = _fold_vect_strings(coll, src, argpos[2], depth, steps)
             strings === nothing && return nothing
-            val = foldl(*, strings; init = strings[1])
-            length(strings) == 1 && (val = strings[1])
+            val = join(strings)
             return FoldedStringExpr(val, pos, byte_end)
         elseif fname == "String"
             ch = children(node)
@@ -307,16 +312,28 @@ function _walk_collect_folds(
     return
 end
 
-function collect_folded_string_exprs(tree::GreenNode, source::AbstractString)::Vector{FoldedStringExpr}
+function collect_folded_string_exprs(
+        tree::GreenNode,
+        source::AbstractString;
+        max_steps::Int = FOLD_MAX_STEPS,
+    )::Vector{FoldedStringExpr}
     src = normalize_source(source)
     steps = Ref(0)
     out = FoldedStringExpr[]
+    prev_limit = _ACTIVE_FOLD_LIMIT[]
+    _ACTIVE_FOLD_LIMIT[] = max_steps
     try
         _walk_collect_folds(tree, src, 1, 0, steps, out)
     catch err
-        err isa ArgumentError && return FoldedStringExpr[]
-        err isa InterruptException && rethrow()
-        throw(err)
+        if _fold_budget_exceeded(err)
+            return out
+        elseif err isa InterruptException
+            rethrow()
+        else
+            throw(err)
+        end
+    finally
+        _ACTIVE_FOLD_LIMIT[] = prev_limit
     end
     return out
 end

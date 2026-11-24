@@ -24,7 +24,7 @@ body:
         - silent-catch
         - test-integrity
         - unsafe-boundary
-        - JP — extend project_rules pattern
+        - project/<id> (extend [[project_rules]] pattern)
     validations:
       required: true
 

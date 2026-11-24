@@ -13,5 +13,5 @@ Pkg.activate(; temp=true)
 Pkg.develop(PackageSpec(; path=pwd()))
 Pkg.add("Aqua")
 using Aqua, JAILint
-Aqua.test_all(JAILint; ambiguities = false, unbound_args = false)
+Aqua.test_all(JAILint)
 '
