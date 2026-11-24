@@ -15,7 +15,8 @@ function line_is_catch_header(line_code::AbstractString)
 end
 
 const _RULE_ANCHOR_RX = Dict(
-    "silent-catch" => r"^(try|catch)\b",
+    # Suppression anchors on the guarded construct (`try`), not on `catch` (placement above catch is forbidden).
+    "silent-catch" => r"^try\b",
     "unsafe-boundary" => r"^(@eval\b|ccall\b|@ccall\b|unsafe_\w+)",
     "test-integrity" => r"^@test",
     "shell-safety/process-pattern" => r"^(run\(|`|\bCmd\()",
@@ -47,22 +48,42 @@ function first_code_line_after(source::AbstractString, last_line::Int)
     return 0
 end
 
-"""
-    resolve_expect_anchor_line(group, source) -> (anchor_line::Int, mismatch::Bool)
-
-Anchor line for a contiguous expect group: first non-blank code line after the group
-that matches at least one `rule_ref` in the group. If the first such line matches none,
-`mismatch` is true and anchor_line is that line (suppression will not apply).
-"""
-function resolve_expect_anchor_line(group::Vector{ExpectLine}, source::AbstractString)
-    isempty(group) && return 0, false
+"""Anchor line for a contiguous expect block: first non-blank code line after the last expect."""
+function group_attachment_code_line(group::Vector{ExpectLine}, source::AbstractString)
+    isempty(group) && return 0, ""
+    src = normalize_source(source)
     last_e = maximum(e.line for e in group)
-    li = first_code_line_after(source, last_e)
-    li == 0 && return 0, false
-    lines = split(normalize_source(source), '\n')
-    code = code_prefix_on_line(lines[li])
-    matched = any(rule_anchor_matches(ex.rule_ref, code) for ex in group)
-    return li, !matched
+    li = first_code_line_after(src, last_e)
+    li == 0 && return 0, ""
+    lines = split(src, '\n')
+    return li, code_prefix_on_line(lines[li])
+end
+
+"""
+    expects_eligible_for_suppression(expects, source) -> Vector{ExpectLine}
+
+Fail-closed: forbidden or mis-anchored expects are excluded before suppression runs.
+"""
+function expects_eligible_for_suppression(expects::Vector{ExpectLine}, source::AbstractString)
+    isempty(expects) && return ExpectLine[]
+    src = normalize_source(source)
+    runic_regions = runic_off_regions(src)
+    call_arg_lines = multiline_call_interior_lines(src)
+    eligible = ExpectLine[]
+    for g in contiguous_expect_groups(expects)
+        anchor_li, code = group_attachment_code_line(g, src)
+        anchor_li == 0 && continue
+        last_e = maximum(e.line for e in g)
+        anchor_li > last_e + 1 && continue
+        line_is_catch_header(code) && continue
+        for ex in g
+            line_in_runic_off_region(ex.line, runic_regions) && continue
+            ex.line in call_arg_lines && continue
+            rule_anchor_matches(ex.rule_ref, code) || continue
+            push!(eligible, ex)
+        end
+    end
+    return eligible
 end
 
 function _walk_green(node::GreenNode, pos::Int, src::AbstractString, out::Set{Int})

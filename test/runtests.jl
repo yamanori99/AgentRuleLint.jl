@@ -82,6 +82,13 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
             res.violations,
         )
         @test block
+        trail = any(
+            d -> d.path == "test/corpus/trailing_expect.jl" &&
+                d.rule_id == "expect-audit" &&
+                occursin("trailing inline", d.message),
+            res.violations,
+        )
+        @test trail
     end
 
     @testset "syntax error file fail-closed" begin

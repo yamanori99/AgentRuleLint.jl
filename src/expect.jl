@@ -60,32 +60,39 @@ function detect_inline_expect_trailing(source::AbstractString)
     return diags
 end
 
+function _push_malformed!(diags::Vector{Tuple{Int, String}}, seen::Set{Tuple{Int, String}}, line::Int, msg::String)
+    key = (line, msg)
+    key in seen && return
+    push!(seen, key)
+    push!(diags, key)
+    return
+end
+
 function detect_malformed_jailint(source::AbstractString)
     src = normalize_source(source)
     diags = Vector{Tuple{Int, String}}()
+    seen = Set{Tuple{Int, String}}()
+    for d in detect_inline_expect_trailing(src)
+        d in seen && continue
+        push!(seen, d)
+        push!(diags, d)
+    end
     standalone = standalone_comment_lines(src)
     for (i, line) in enumerate(split(src, '\n'))
         stripped = strip(line)
-        if occursin("jailint-expect:", line)
-            idx = findfirst("# jailint-expect:", line)
-            if idx !== nothing
-                cut = idx isa AbstractRange ? first(idx) : idx
-                cut = cut isa Integer ? cut : first(cut)
-                code = cut > 1 ? strip(line[1:prevind(line, cut)]) : ""
-                !isempty(code) && push!(diags, (i, "trailing inline expect"))
-            end
-        end
         startswith(stripped, "#") || continue
         body = strip(stripped[2:end])
         occursin(JAILINT_PREFIX, body) || continue
         if haskey(standalone, i)
             if startswith(body, "jailint-expect:")
                 parsed = parse_expect_body(body)
-                parsed === nothing && push!(diags, (i, "malformed expect"))
-                parsed !== nothing && parsed.status == :malformed &&
-                    push!(diags, (i, String(parsed.message)))
+                if parsed === nothing
+                    _push_malformed!(diags, seen, i, "malformed expect")
+                elseif parsed.status == :malformed
+                    _push_malformed!(diags, seen, i, String(parsed.message))
+                end
             elseif startswith(body, "jailint")
-                push!(diags, (i, "malformed # jailint* directive"))
+                _push_malformed!(diags, seen, i, "malformed # jailint* directive")
             end
         end
     end
@@ -124,11 +131,6 @@ function contiguous_expect_groups(expects::Vector{ExpectLine})
     return groups
 end
 
-function anchor_after_group(group::Vector{ExpectLine}, source::AbstractString)
-    anchor, mismatch = resolve_expect_anchor_line(group, source)
-    mismatch && return 0
-    return anchor
-end
 
 function _push_expect_violation!(
         diags::Vector{Violation},
@@ -164,11 +166,14 @@ end
 
 
 function apply_expect_suppression!(diags::Vector{Violation}, expects::Vector{ExpectLine}, source::AbstractString)
-    groups = contiguous_expect_groups(expects)
     anchors = Dict{Int, Vector{ExpectLine}}()
-    for g in groups
-        al = anchor_after_group(g, source)
-        al > 0 && (anchors[al] = g)
+    for g in contiguous_expect_groups(expects)
+        anchor_li, _ = group_attachment_code_line(g, source)
+        anchor_li == 0 && continue
+        bucket = get!(anchors, anchor_li, ExpectLine[])
+        for ex in g
+            push!(bucket, ex)
+        end
     end
     used_expect = Set{Int}()
     for (i, d) in enumerate(diags)
@@ -223,7 +228,6 @@ function expect_audit_diagnostics(fc::FileContext, policy::PolicyBundle)
 
     runic_regions = runic_off_regions(source)
     call_arg_lines = multiline_call_interior_lines(source)
-    lines = split(source, '\n')
 
     for ex in fc.expects
         if line_in_runic_off_region(ex.line, runic_regions)
@@ -237,35 +241,35 @@ function expect_audit_diagnostics(fc::FileContext, policy::PolicyBundle)
             path,
             source,
             ex.line,
-            :warn,
+            lvl,
         )
     end
 
     groups = contiguous_expect_groups(fc.expects)
     for g in groups
         last_e = maximum(e.line for e in g)
-        anchor, mismatch = resolve_expect_anchor_line(g, source)
-        code_li = first_code_line_after(source, last_e)
+        code_li, code = group_attachment_code_line(g, source)
         if code_li > 0
-            code = code_prefix_on_line(lines[code_li])
-            line_is_catch_header(code) &&
-                _push_expect_violation!(diags, "expect forbidden above catch", rule, path, source, last_e, lvl)
-        end
-        mismatch && code_li > 0 && begin
-            for ex in g
-                _push_expect_violation!(
-                    diags,
-                    "expect not anchored to rule target syntax",
-                    rule,
-                    path,
-                    source,
-                    ex.line,
-                    lvl,
-                )
+            if line_is_catch_header(code)
+                for ex in g
+                    _push_expect_violation!(diags, "expect forbidden above catch", rule, path, source, ex.line, lvl)
+                end
+            else
+                for ex in g
+                    rule_anchor_matches(ex.rule_ref, code) || _push_expect_violation!(
+                        diags,
+                        "expect not anchored to rule target syntax",
+                        rule,
+                        path,
+                        source,
+                        ex.line,
+                        lvl,
+                    )
+                end
             end
         end
-        anchor == 0 && continue
-        if anchor > last_e + 1
+        code_li == 0 && continue
+        if code_li > last_e + 1
             for ex in g
                 _push_expect_violation!(
                     diags,
