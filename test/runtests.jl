@@ -183,6 +183,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     end
 
     include("test_fingerprint_stability.jl")
+    include("test_project_rules_paths.jl")
     include("test_expect_audit.jl")
     include("test_adapter_fixes.jl")
     include("test_config_cli_fail_closed.jl")

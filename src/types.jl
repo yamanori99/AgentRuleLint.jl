@@ -87,6 +87,7 @@ struct ProjectRule
     id::String
     level::Symbol
     paths::Vector{String}
+    path_regexes::Vector{Regex}
     forbid_literals::Vector{String}
     intent::String
     do_not::String
