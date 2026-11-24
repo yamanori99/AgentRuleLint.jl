@@ -1,0 +1,112 @@
+name: Bug report
+description: Crash, unexpected exit 2/3, or fail-closed error
+title: "[bug] "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Exit codes: `0` ok, `1` violations, `2` fail-closed, `3` internal bug. Include JSON header and stack trace when possible.
+
+  - type: dropdown
+    id: rule_id
+    attributes:
+      label: Rule ID (if applicable)
+      options:
+        - Not rule-specific / CLI or config
+        - protected-paths
+        - scope-paths
+        - ceiling-ratchet
+        - expect-audit
+        - manifest-sync
+        - shell-safety/process-pattern
+        - silent-catch
+        - test-integrity
+        - unsafe-boundary
+        - project/<id> (specify in description)
+    validations:
+      required: true
+
+  - type: dropdown
+    id: exit_code
+    attributes:
+      label: Observed exit code
+      options:
+        - "2 — fail-closed (config/git/parse)"
+        - "3 — internal error"
+        - "1 — unexpected violations"
+        - "0 — unexpected success"
+        - Other / unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: json_header
+    attributes:
+      label: JSON header line
+      description: From `jailint check --format=json` if check ran; else minimal `{"type":"header","jailint_version":"..."}` you can construct.
+    validations:
+      required: true
+
+  - type: textarea
+    id: config
+    attributes:
+      label: Minimal .JAILintConfig.toml
+      description: Redact secrets; use smallest config that reproduces the bug.
+      render: shell
+    validations:
+      required: false
+      maxLength: 4000
+
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Steps / snippet
+      description: Command line, files, or Julia snippet (length-limited).
+      render: julia
+    validations:
+      required: true
+      maxLength: 8000
+
+  - type: textarea
+    id: stacktrace
+    attributes:
+      label: Stack trace or stderr
+      description: Full Julia stack trace if exit 3 or uncaught error.
+      render: shell
+    validations:
+      required: false
+      maxLength: 12000
+
+  - type: dropdown
+    id: ai_assisted
+    attributes:
+      label: AI-assisted report?
+      options:
+        - "No"
+        - "Yes — partially drafted"
+        - "Yes — fully drafted by agent"
+    validations:
+      required: true
+
+  - type: input
+    id: ai_model
+    attributes:
+      label: Model name (if AI-assisted)
+      placeholder: optional
+
+  - type: checkboxes
+    id: no_secrets
+    attributes:
+      label: Safety
+      options:
+        - label: I confirm this report contains no API keys, tokens, passwords, or private URLs with credentials.
+          required: true
+
+  - type: checkboxes
+    id: corpus_consent
+    attributes:
+      label: Golden corpus (MIT)
+      options:
+        - label: I agree any attached reproduction may be added to test/corpus/ under the MIT license after anonymization.
+          required: false

@@ -1,0 +1,32 @@
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directories:
+      - "/"
+      - "/.github/actions/*"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+
+  # Root JuliaSyntax comes from [sources] (git rev); registry bumps apply to other directories.
+  - package-ecosystem: julia
+    directories:
+      - "/"
+      - "/.github/runic"
+      - "/test/runic_env"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    labels:
+      - dependencies
+    ignore:
+      - dependency-name: SHA
+      - dependency-name: StyledStrings
+      - dependency-name: TOML
+      - dependency-name: Test

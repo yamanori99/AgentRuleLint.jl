@@ -1,0 +1,90 @@
+name: False positive
+description: A JAILint rule fired on correct, idiomatic Julia code
+title: "[false-positive] "
+labels: ["false-positive", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Help us tighten rules without adversarial framing. Prefer output from `jailint report` or `jailint check --format=json`. See [CONTRIBUTING.md](../CONTRIBUTING.md).
+
+  - type: dropdown
+    id: rule_id
+    attributes:
+      label: Rule ID
+      description: Canonical slug (`rule-id`, `preset/rule`, or `project/id`)
+      options:
+        - protected-paths
+        - scope-paths
+        - ceiling-ratchet
+        - expect-audit
+        - manifest-sync
+        - shell-safety/process-pattern
+        - silent-catch
+        - test-integrity
+        - unsafe-boundary
+        - project/... (specify in snippet)
+        - Other / unknown
+    validations:
+      required: true
+
+  - type: textarea
+    id: json_header
+    attributes:
+      label: JSON header line
+      description: Required first JSONL record from `jailint check --format=json` or `jailint report` (`{"type":"header",...}`).
+      placeholder: '{"type":"header","jailint_version":"0.1.0",...}'
+    validations:
+      required: true
+
+  - type: textarea
+    id: snippet
+    attributes:
+      label: Minimal reproduction (Julia)
+      description: Smallest `.jl` snippet or anonymized block from `jailint report` (max ~120 lines).
+      render: julia
+    validations:
+      required: true
+      maxLength: 8000
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: Why should this be allowed? Cite idiomatic Julia or project policy.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ai_assisted
+    attributes:
+      label: AI-assisted report?
+      options:
+        - "No"
+        - "Yes — partially drafted"
+        - "Yes — fully drafted by agent"
+    validations:
+      required: true
+
+  - type: input
+    id: ai_model
+    attributes:
+      label: Model name (if AI-assisted)
+      description: e.g. Composer, Claude, GPT — leave empty if not applicable.
+      placeholder: optional
+
+  - type: checkboxes
+    id: no_secrets
+    attributes:
+      label: Safety
+      options:
+        - label: I confirm this report contains no API keys, tokens, passwords, or private URLs with credentials.
+          required: true
+
+  - type: checkboxes
+    id: corpus_consent
+    attributes:
+      label: Golden corpus (MIT)
+      options:
+        - label: I agree my anonymized snippet may be committed under test/corpus/false_positives/ under the repository MIT license.
+          required: false

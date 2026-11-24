@@ -1,0 +1,15 @@
+jailint_version = "=0.1.0"
+default_format = "human"
+max_hits_per_rule = 20
+
+[rules.expect-audit]
+level = "forbid"
+on_allow_rule = "warn"
+
+[[project_rules]]
+id = "no-internal-codename"
+level = "deny"
+paths = ["test/corpus/**", "src/**"]
+forbid_literals = ["INTERNAL_CODENAME"]
+intent = "Keep internal codenames out of public package files."
+do_not = "Split or dynamically concatenate forbidden strings to bypass the check."
