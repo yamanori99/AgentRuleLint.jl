@@ -1,7 +1,7 @@
 # uses normalize_source, standalone_comment_lines, span_for_line from SyntaxAdapter scope
 
-const EXPECT_PREFIX = "jailint-expect:"
-const JAILINT_PREFIX = "jailint"
+const EXPECT_PREFIX = "agentrulelint-expect:"
+const AGENTRULELINT_PREFIX = "agentrulelint"
 
 const _MALFORMED_EXPECT = (
     status = :malformed,
@@ -40,7 +40,7 @@ function scan_block_comments(source::AbstractString)
     for m in eachmatch(pattern, source)
         inner = m.captures[1]
         inner === nothing && continue
-        occursin("jailint-expect:", inner) || continue
+        occursin("agentrulelint-expect:", inner) || continue
         line = line_number_at_byte(source, m.offset)
         push!(errs, (line, "block comment expect forbidden"))
     end
@@ -50,7 +50,7 @@ end
 function detect_inline_expect_trailing(source::AbstractString)
     diags = Vector{Tuple{Int, String}}()
     for (i, line) in enumerate(split(normalize_source(source), '\n'))
-        pos = findfirst("# jailint-expect:", line)
+        pos = findfirst("# agentrulelint-expect:", line)
         pos === nothing && continue
         cut = pos isa AbstractRange ? first(pos) : pos
         cut = cut isa Integer ? cut : first(cut)
@@ -68,7 +68,7 @@ function _push_malformed!(diags::Vector{Tuple{Int, String}}, seen::Set{Tuple{Int
     return
 end
 
-function detect_malformed_jailint(source::AbstractString)
+function detect_malformed_agentrulelint(source::AbstractString)
     src = normalize_source(source)
     diags = Vector{Tuple{Int, String}}()
     seen = Set{Tuple{Int, String}}()
@@ -82,17 +82,17 @@ function detect_malformed_jailint(source::AbstractString)
         stripped = strip(line)
         startswith(stripped, "#") || continue
         body = strip(stripped[2:end])
-        occursin(JAILINT_PREFIX, body) || continue
+        occursin(AGENTRULELINT_PREFIX, body) || continue
         if haskey(standalone, i)
-            if startswith(body, "jailint-expect:")
+            if startswith(body, "agentrulelint-expect:")
                 parsed = parse_expect_body(body)
                 if parsed === nothing
                     _push_malformed!(diags, seen, i, "malformed expect")
                 elseif parsed.status == :malformed
                     _push_malformed!(diags, seen, i, String(parsed.message))
                 end
-            elseif startswith(body, "jailint")
-                _push_malformed!(diags, seen, i, "malformed # jailint* directive")
+            elseif startswith(body, "agentrulelint")
+                _push_malformed!(diags, seen, i, "malformed # agentrulelint* directive")
             end
         end
     end
@@ -148,7 +148,7 @@ function _push_expect_violation!(
         diags,
         Violation(
             "expect-audit",
-            :jailint,
+            :agentrulelint,
             lvl,
             path,
             span,
@@ -212,7 +212,7 @@ function expect_audit_diagnostics(fc::FileContext, policy::PolicyBundle)
     path = fc.parsed.path
 
     seen = Set{Tuple{Int, String}}()
-    for (line_no, msg) in detect_malformed_jailint(source)
+    for (line_no, msg) in detect_malformed_agentrulelint(source)
         key = (line_no, msg)
         key in seen && continue
         push!(seen, key)
@@ -303,7 +303,7 @@ function unused_expect_diagnostics(expects::Vector{ExpectLine}, used::Set{Int}, 
             diags,
             Violation(
                 "expect-audit",
-                :jailint,
+                :agentrulelint,
                 lvl,
                 path,
                 span,
@@ -334,7 +334,7 @@ function forbid_rule_suppression_attempt(expects::Vector{ExpectLine}, policy::Po
             diags,
             Violation(
                 "expect-audit",
-                :jailint,
+                :agentrulelint,
                 lvl,
                 path,
                 span,

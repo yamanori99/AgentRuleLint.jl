@@ -12,6 +12,6 @@ using Pkg
 Pkg.activate(; temp=true)
 Pkg.develop(PackageSpec(; path=pwd()))
 Pkg.add("Aqua")
-using Aqua, JAILint
-Aqua.test_all(JAILint)
+using Aqua, AgentRuleLint
+Aqua.test_all(AgentRuleLint)
 '

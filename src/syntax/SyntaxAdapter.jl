@@ -1,4 +1,4 @@
-# Syntax layer (included inside JAILint after types.jl)
+# Syntax layer (included inside AgentRuleLint after types.jl)
 
 include("normalize.jl")
 include("parser.jl")

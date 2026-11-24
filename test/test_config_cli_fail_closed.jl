@@ -1,9 +1,9 @@
 @testset "config and CLI fail-closed" begin
-    ver = string(pkgversion(JAILint))
+    ver = string(pkgversion(AgentRuleLint))
 
     function minimal_config(extra::AbstractString = "")
         """
-        jailint_version = \"=$(ver)\"
+        agentrulelint_version = \"=$(ver)\"
         $extra
         """
     end
@@ -11,8 +11,8 @@
     @testset "config unknown top-level key" begin
         root = mktempdir()
         try
-            write(joinpath(root, ".JAILintConfig.toml"), minimal_config("oops = true\n"))
-            @test_throws JAILint.ConfigError JAILint.check(root)
+            write(joinpath(root, ".AgentRuleLintConfig.toml"), minimal_config("oops = true\n"))
+            @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
         end
@@ -28,8 +28,8 @@
                 typo = true
                 """,
             )
-            write(joinpath(root, ".JAILintConfig.toml"), cfg)
-            @test_throws JAILint.ConfigError JAILint.check(root)
+            write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+            @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
         end
@@ -48,8 +48,8 @@
                 extra = 1
                 """,
             )
-            write(joinpath(root, ".JAILintConfig.toml"), cfg)
-            @test_throws JAILint.ConfigError JAILint.check(root)
+            write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+            @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
         end
@@ -64,8 +64,8 @@
                 level = \"mystery\"
                 """,
             )
-            write(joinpath(root, ".JAILintConfig.toml"), cfg)
-            @test_throws JAILint.ConfigError JAILint.check(root)
+            write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+            @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
         end
@@ -75,10 +75,10 @@
         root = mktempdir()
         try
             write(
-                joinpath(root, ".JAILintConfig.toml"),
+                joinpath(root, ".AgentRuleLintConfig.toml"),
                 minimal_config("presets = [\"not-a-real-preset\"]\n"),
             )
-            @test_throws JAILint.ConfigError JAILint.check(root)
+            @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
         end
@@ -88,10 +88,10 @@
         root = mktempdir()
         try
             write(
-                joinpath(root, ".JAILintConfig.toml"),
+                joinpath(root, ".AgentRuleLintConfig.toml"),
                 minimal_config("default_format = \"xml\"\n"),
             )
-            @test_throws JAILint.ConfigError JAILint.check(root)
+            @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
         end
@@ -107,8 +107,8 @@
                 on_allow_rule = \"nope\"
                 """,
             )
-            write(joinpath(root, ".JAILintConfig.toml"), cfg)
-            @test_throws JAILint.ConfigError JAILint.check(root)
+            write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+            @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
         end
@@ -116,39 +116,39 @@
 
     @testset "CLI unknown flag" begin
         cd(ROOT) do
-            @test JAILint.cli_main(["check", "--bogus"]) == 2
+            @test AgentRuleLint.cli_main(["check", "--bogus"]) == 2
         end
     end
 
     @testset "CLI invalid format" begin
         cd(ROOT) do
-            @test JAILint.cli_main(["check", "--format", "xml"]) == 2
-            @test JAILint.cli_main(["check", "--format=yaml"]) == 2
+            @test AgentRuleLint.cli_main(["check", "--format", "xml"]) == 2
+            @test AgentRuleLint.cli_main(["check", "--format=yaml"]) == 2
         end
     end
 
     @testset "CLI check rejects --write" begin
         cd(ROOT) do
-            @test JAILint.cli_main(["check", "--write"]) == 2
+            @test AgentRuleLint.cli_main(["check", "--write"]) == 2
         end
     end
 
     @testset "CLI ratchet requires --write" begin
         cd(ROOT) do
-            @test JAILint.cli_main(["ratchet"]) == 2
-            @test JAILint.cli_main(["ratchet", "--help"]) == 0
+            @test AgentRuleLint.cli_main(["ratchet"]) == 2
+            @test AgentRuleLint.cli_main(["ratchet", "--help"]) == 0
         end
     end
 
     @testset "emit format uses check policy not disk reload" begin
         dir = abspath(mktempdir())
         try
-            ver = string(pkgversion(JAILint))
+            ver = string(pkgversion(AgentRuleLint))
             cfg_head = """
-            jailint_version = \"=$(ver)\"
+            agentrulelint_version = \"=$(ver)\"
             default_format = \"json\"
             """
-            write(joinpath(dir, ".JAILintConfig.toml"), cfg_head)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg_head)
             write(joinpath(dir, "ok.jl"), "1\n")
             run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
             run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "j@test"]); dir = dir))
@@ -161,14 +161,14 @@
                 ),
             )
             write(
-                joinpath(dir, ".JAILintConfig.toml"),
-                "jailint_version = \"=$(ver)\"\ndefault_format = \"human\"\n",
+                joinpath(dir, ".AgentRuleLintConfig.toml"),
+                "agentrulelint_version = \"=$(ver)\"\ndefault_format = \"human\"\n",
             )
-            res = JAILint.check(dir; config_from = "HEAD", paths = ["ok.jl"])
+            res = AgentRuleLint.check(dir; config_from = "HEAD", paths = ["ok.jl"])
             @test res.default_format == :json
             out = joinpath(dir, "emit.txt")
             cd(dir) do
-                @test JAILint.cli_main(["check", "--config-from", "HEAD", "ok.jl", "--output", out]) == 0
+                @test AgentRuleLint.cli_main(["check", "--config-from", "HEAD", "ok.jl", "--output", out]) == 0
             end
             body = read(out, String)
             @test occursin("\"type\":\"header\"", replace(body, " " => ""))
@@ -182,12 +182,12 @@
         try
             write(joinpath(root, "sample.jl"), "x = 1\n")
             write(
-                joinpath(root, ".JAILintConfig.toml"),
+                joinpath(root, ".AgentRuleLintConfig.toml"),
                 minimal_config("default_format = \"json\"\n"),
             )
             out = joinpath(root, "out.txt")
             cd(root) do
-                @test JAILint.cli_main(["check", "sample.jl", "--output", out]) == 0
+                @test AgentRuleLint.cli_main(["check", "sample.jl", "--output", out]) == 0
                 body = read(out, String)
                 @test occursin("\"type\":\"header\"", replace(body, " " => ""))
             end
@@ -201,15 +201,15 @@
         try
             write(joinpath(root, "sample.jl"), "x = 1\n")
             write(
-                joinpath(root, ".JAILintConfig.toml"),
+                joinpath(root, ".AgentRuleLintConfig.toml"),
                 minimal_config("default_format = \"json\"\n"),
             )
             out = joinpath(root, "out.txt")
             cd(root) do
-                @test JAILint.cli_main(["check", "sample.jl", "--format", "human", "--output", out]) == 0
+                @test AgentRuleLint.cli_main(["check", "sample.jl", "--format", "human", "--output", out]) == 0
                 body = read(out, String)
                 @test !occursin("\"type\":\"header\"", replace(body, " " => ""))
-                @test occursin("JAILint", body) || occursin("complete", body)
+                @test occursin("AgentRuleLint", body) || occursin("complete", body)
             end
         finally
             rm(root, recursive = true, force = true)
@@ -220,10 +220,29 @@
         root = mktempdir()
         try
             write(
-                joinpath(root, ".JAILintConfig.toml"),
+                joinpath(root, ".AgentRuleLintConfig.toml"),
                 minimal_config("max_hits_per_rule = \"twenty\"\n"),
             )
-            @test_throws JAILint.ConfigError JAILint.check(root)
+            @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
+        finally
+            rm(root, recursive = true, force = true)
+        end
+    end
+
+    @testset "legacy config filename without new config" begin
+        root = mktempdir()
+        try
+            legacy = joinpath(root, "." * "JAI" * "LintConfig.toml")
+            write(legacy, minimal_config())
+            err = nothing
+            try
+                AgentRuleLint.check(root)
+            catch e
+                err = e
+            end
+            @test err isa AgentRuleLint.ConfigError
+            @test occursin("legacy config", err.msg)
+            @test occursin(".AgentRuleLintConfig.toml", err.msg)
         finally
             rm(root, recursive = true, force = true)
         end
@@ -231,7 +250,7 @@
 
     @testset "CLI unknown command" begin
         cd(ROOT) do
-            @test JAILint.cli_main(["nope"]) == 2
+            @test AgentRuleLint.cli_main(["nope"]) == 2
         end
     end
 end

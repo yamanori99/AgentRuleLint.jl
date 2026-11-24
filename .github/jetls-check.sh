@@ -13,7 +13,7 @@ shopt -s nullglob
 # test/runtests.jl — its test-only deps (Aqua, Runic env) are absent from the
 # JETLS app environment and produce toplevel errors.
 files=(
-    src/JAILint.jl
+    src/AgentRuleLint.jl
 )
 
 if ((${#files[@]} == 0)); then

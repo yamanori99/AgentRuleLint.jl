@@ -1,4 +1,4 @@
-using JAILint
+using AgentRuleLint
 using Test
 
 const RUNIC_ENV = joinpath(@__DIR__, "runic_env")
@@ -31,12 +31,12 @@ end
         formatted = runic_format_str(src)
         tmp = mktempdir()
         write(joinpath(tmp, f), src)
-        write(joinpath(tmp, ".JAILintConfig.toml"), read(joinpath(root, ".JAILintConfig.toml"), String))
-        before = JAILint.run_check(tmp; paths = [f]).violations
+        write(joinpath(tmp, ".AgentRuleLintConfig.toml"), read(joinpath(root, ".AgentRuleLintConfig.toml"), String))
+        before = AgentRuleLint.run_check(tmp; paths = [f]).violations
         write(joinpath(tmp, f), formatted)
-        after = JAILint.run_check(tmp; paths = [f]).violations
+        after = AgentRuleLint.run_check(tmp; paths = [f]).violations
         sig(v) =
-            diagnostic_signatures(JAILint.CheckResult(v, true, 0, JAILint.ConfigSource(), :human, 20, 0, 0))
+            diagnostic_signatures(AgentRuleLint.CheckResult(v, true, 0, AgentRuleLint.ConfigSource(), :human, 20, 0, 0))
         @test sig(before) == sig(after)
     end
 end

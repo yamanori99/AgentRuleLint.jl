@@ -1,4 +1,4 @@
-jailint_version = "=0.1.0"
+agentrulelint_version = "=0.1.0"
 default_format = "human"
 max_hits_per_rule = 20
 

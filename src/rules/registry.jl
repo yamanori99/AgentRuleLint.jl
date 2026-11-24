@@ -13,7 +13,7 @@ function init_registry!(policy::PolicyBundle)
         register_builtin!(
             RuleSpec(
                 "expect-audit",
-                :jailint,
+                :agentrulelint,
                 :forbid,
                 "Keep suppression comments auditable.",
                 "Hide violations with unapproved expects.",

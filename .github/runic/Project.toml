@@ -1,5 +1,5 @@
 # Canonical Runic pin (CI runic-action and install-agent-tools.sh read [compat] Runic = "=x.y.z").
-name = "JAILintRunicPin"
+name = "AgentRuleLintRunicPin"
 uuid = "f3a8b2c1-9d4e-4f5a-8b6c-1e2d3f4a5b6c"
 version = "0.0.0"
 

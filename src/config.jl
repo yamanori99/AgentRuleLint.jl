@@ -1,11 +1,11 @@
 using TOML
 
-const CONFIG_FILENAME = ".JAILintConfig.toml"
-const CEILINGS_REL = ".jailint/ceilings.toml"
+const CONFIG_FILENAME = ".AgentRuleLintConfig.toml"
+const CEILINGS_REL = ".agentrulelint/ceilings.toml"
 
 const TOP_LEVEL_CONFIG_KEYS = Set(
     [
-        "jailint_version",
+        "agentrulelint_version",
         "default_format",
         "max_hits_per_rule",
         "presets",
@@ -101,12 +101,12 @@ function _parse_version_pin(raw::AbstractString)
     return VersionNumber(s)
 end
 
-function validate_jailint_version!(toml_version::VersionNumber, pkg::VersionNumber)
+function validate_agentrulelint_version!(toml_version::VersionNumber, pkg::VersionNumber)
     pkg_major, pkg_minor = pkg.major, pkg.minor
     return if toml_version.major != pkg_major || toml_version.minor != pkg_minor
         throw(
             ConfigError(
-                "jailint_version pin $(toml_version) does not match JAILint $(pkg)",
+                "agentrulelint_version pin $(toml_version) does not match AgentRuleLint $(pkg)",
             ),
         )
     end
@@ -164,7 +164,7 @@ function _load_rules_table(raw::Dict)
             _parse_rule_level(content["level"], "rules.$id.level") : :deny
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
-        rules[id] = RuleSpec(id, :jailint, level, intent, do_not, Dict{Symbol, String}())
+        rules[id] = RuleSpec(id, :agentrulelint, level, intent, do_not, Dict{Symbol, String}())
     end
     return rules
 end
@@ -224,9 +224,9 @@ end
 
 function build_policy(raw::Dict, config_path::String, config_source::ConfigSource)
     _reject_unknown_top_level!(raw)
-    ver_raw = _require_string(raw, "jailint_version", CONFIG_FILENAME)
+    ver_raw = _require_string(raw, "agentrulelint_version", CONFIG_FILENAME)
     ver = _parse_version_pin(ver_raw)
-    validate_jailint_version!(ver, JAILINT_VERSION)
+    validate_agentrulelint_version!(ver, AGENTRULELINT_VERSION)
     fmt = if haskey(raw, "default_format")
         _parse_default_format(raw["default_format"], CONFIG_FILENAME)
     else
@@ -269,7 +269,7 @@ function load_policy(root::AbstractString; config_path = nothing)
     return policy_from_dict(raw, cfg; config_source = cs)
 end
 
-"""Load `.jailint/ceilings.toml`. Enforcement (`ceiling-ratchet`) is not wired in `run_check` yet."""
+"""Load `.agentrulelint/ceilings.toml`. Enforcement (`ceiling-ratchet`) is not wired in `run_check` yet."""
 function load_ceilings(root::AbstractString)
     path = joinpath(abspath(root), CEILINGS_REL)
     !isfile(path) && return CeilingEntry(Dict(), Dict())
@@ -320,12 +320,25 @@ function load_policy_from_ref(root::AbstractString, ref::AbstractString)
     end
 end
 
+function _legacy_config_path(root::AbstractString)
+    return joinpath(abspath(root), "." * "JAI" * "LintConfig.toml")
+end
+
+function _reject_legacy_config!(root::AbstractString)
+    legacy = _legacy_config_path(root)
+    new_cfg = joinpath(abspath(root), CONFIG_FILENAME)
+    if isfile(legacy) && !isfile(new_cfg)
+        throw(ConfigError("legacy config file present; rename it to $(CONFIG_FILENAME)"))
+    end
+    return nothing
+end
+
 function default_policy(root::AbstractString)
-    ver = JAILINT_VERSION
+    ver = AGENTRULELINT_VERSION
     rules = Dict{String, RuleSpec}(
         "expect-audit" => RuleSpec(
             "expect-audit",
-            :jailint,
+            :agentrulelint,
             :forbid,
             "Keep suppression comments auditable and fail-closed.",
             "Use inline or block comment expects to hide violations.",
@@ -355,5 +368,6 @@ function resolve_policy(root::AbstractString; config_path = nothing, config_from
     if isfile(cfg)
         return load_policy(root; config_path = cfg)
     end
+    _reject_legacy_config!(root)
     return default_policy(root)
 end

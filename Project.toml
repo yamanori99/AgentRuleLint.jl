@@ -1,4 +1,4 @@
-name = "JAILint"
+name = "AgentRuleLint"
 uuid = "c092dd98-a32b-4bb3-9a47-6744e45ef2e3"
 authors = ["Takanori Yamamoto"]
 version = "0.1.0-DEV"

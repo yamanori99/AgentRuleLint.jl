@@ -1,10 +1,10 @@
-# AGENTS.md — JAILint.jl automation guide
+# AGENTS.md — AgentRuleLint.jl automation guide
 
 Concise instructions for humans and coding agents working in this repository.
 
 ## 1. Core principles
 
-JAILint is a **deterministic, fail-closed** Julia invariant linter. It does not execute PR code, does not call `eval`, does not use the network, and does not rely on type inference. Rules operate on parsed syntax and configured policy only.
+AgentRuleLint is a **deterministic, fail-closed** Julia invariant linter. It does not execute PR code, does not call `eval`, does not use the network, and does not rely on type inference. Rules operate on parsed syntax and configured policy only.
 
 Before fixing lint, test, or CI failures:
 
@@ -18,7 +18,7 @@ Canonical **slug-only** rule IDs (no numeric `JA*` / `JP:` codes):
 
 | Form | Example |
 | --- | --- |
-| Built-in `[JAILint]` | `expect-audit`, `protected-paths` |
+| Built-in `[AgentRuleLint]` | `expect-audit`, `protected-paths` |
 | Preset `[Preset]` | `shell-safety/process-pattern` |
 | Project `[Project]` | `project/no-internal-codename` (declare `id = "no-internal-codename"` under `[[project_rules]]`) |
 
@@ -49,6 +49,6 @@ Confirm `Pkg.test()` runs **Aqua** and `test/test_runic_invariance.jl` and that 
 
 ## 5. Hygiene
 
-- Do not silently edit protected policy/workflow files (`.JAILintConfig.toml`, `AGENTS.md`, `.github/workflows/**`) unless explicitly requested.
+- Do not silently edit protected policy/workflow files (`.AgentRuleLintConfig.toml`, `AGENTS.md`, `.github/workflows/**`) unless explicitly requested.
 - Merge `origin/main`; do not rebase or force-push this branch.
 - Do not post GitHub comments, reviews, or merges directly.
