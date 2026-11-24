@@ -3,8 +3,83 @@ using TOML
 const CONFIG_FILENAME = ".JAILintConfig.toml"
 const CEILINGS_REL = ".jailint/ceilings.toml"
 
-_rule_level(s::AbstractString) = Symbol(lowercase(s))
-_rule_level(s::Symbol) = s
+const TOP_LEVEL_CONFIG_KEYS = Set(
+    [
+        "jailint_version",
+        "default_format",
+        "max_hits_per_rule",
+        "presets",
+        "project_rules",
+    ]
+)
+const RULE_TABLE_KEYS = Set(["level", "intent", "do_not"])
+const EXPECT_AUDIT_RULE_KEYS = Set(["level", "intent", "do_not", "on_allow_rule"])
+const PROJECT_RULE_KEYS = Set(
+    [
+        "id",
+        "level",
+        "paths",
+        "forbid_literals",
+        "intent",
+        "do_not",
+    ]
+)
+const VALID_RULE_LEVELS = Set([:forbid, :deny, :allow, :warn])
+const VALID_ON_ALLOW_RULE = Set([:error, :warn, :allow])
+const VALID_OUTPUT_FORMATS = Set([:human, :json, :agent])
+const KNOWN_PRESET_NAMES = Set(["shell-safety/process-pattern"])
+
+function _reject_unknown_keys!(dict::Dict, allowed::Set{String}, label::String)
+    for k in keys(dict)
+        String(k) in allowed || throw(ConfigError("unknown key '$k' in $label"))
+    end
+    return nothing
+end
+
+function _parse_rule_level(raw, label::String)
+    s = raw isa AbstractString ? lowercase(strip(raw)) : raw isa Symbol ? lowercase(string(raw)) : ""
+    s == "" && throw(ConfigError("missing rule level in $label"))
+    sym = Symbol(s)
+    sym in VALID_RULE_LEVELS ||
+        throw(ConfigError("unknown rule level '$raw' in $label (expected forbid|deny|allow|warn)"))
+    return sym
+end
+
+function _parse_on_allow_rule(raw, label::String)
+    s = raw isa AbstractString ? lowercase(strip(raw)) : ""
+    sym = Symbol(s)
+    sym in VALID_ON_ALLOW_RULE ||
+        throw(
+        ConfigError(
+            "unknown on_allow_rule '$raw' in $label (expected error|warn|allow)",
+        ),
+    )
+    return sym
+end
+
+function _parse_default_format(raw, label::String)
+    s = raw isa AbstractString ? lowercase(strip(raw)) : ""
+    sym = Symbol(s)
+    sym in VALID_OUTPUT_FORMATS ||
+        throw(ConfigError("unknown default_format '$raw' in $label (expected human|json|agent)"))
+    return sym
+end
+
+function _parse_preset_list(raw, label::String)
+    raw isa AbstractVector || throw(ConfigError("$label must be an array"))
+    out = String[]
+    for (i, p) in enumerate(raw)
+        p isa AbstractString || throw(ConfigError("$label[$i] must be a string"))
+        name = String(p)
+        name in KNOWN_PRESET_NAMES ||
+            throw(ConfigError("unknown preset '$name' in $label"))
+        push!(out, name)
+    end
+    return out
+end
+
+_rule_level(s::AbstractString) = _parse_rule_level(s, "rule level")
+_rule_level(s::Symbol) = s in VALID_RULE_LEVELS ? s : throw(ConfigError("unknown rule level '$s'"))
 
 function _require_string(dict, key, path)
     haskey(dict, key) || throw(ConfigError("missing key '$key' in $path"))
@@ -54,33 +129,75 @@ function load_toml_file(path::String)
     end
 end
 
-function _load_rules_table(raw::Dict)
-    rules = Dict{String, RuleSpec}()
+function _collect_rule_tables(raw::Dict)
+    out = Tuple{String, Dict}[]
+    seen = Set{String}()
+    if haskey(raw, "rules")
+        box = raw["rules"]
+        box isa Dict || throw(ConfigError("rules must be a table"))
+        for (id, content) in box
+            sid = String(id)
+            sid in seen && throw(ConfigError("duplicate rules.$sid"))
+            push!(seen, sid)
+            content isa Dict || throw(ConfigError("rules.$sid must be a table"))
+            push!(out, (sid, content))
+        end
+    end
     for (section, content) in raw
         startswith(section, "rules.") || continue
         id = section[7:end]
+        id in seen && throw(ConfigError("duplicate rules.$id"))
+        push!(seen, id)
+        content isa Dict || throw(ConfigError("$section must be a table"))
+        push!(out, (id, content))
+    end
+    return out
+end
+
+function _load_rules_table(raw::Dict)
+    rules = Dict{String, RuleSpec}()
+    for (id, content) in _collect_rule_tables(raw)
         validate_kebab_rule_id(id, "rules.$id")
-        content isa Dict || throw(ConfigError("rules.$id must be a table"))
-        level = _rule_level(get(content, "level", "deny"))
+        allowed = id == "expect-audit" ? EXPECT_AUDIT_RULE_KEYS : RULE_TABLE_KEYS
+        _reject_unknown_keys!(content, allowed, "rules.$id")
+        level = haskey(content, "level") ?
+            _parse_rule_level(content["level"], "rules.$id.level") : :deny
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
-        extra_keys = filter(k -> k ∉ ("level", "intent", "do_not"), collect(keys(content)))
-        extra = Dict{Symbol, String}(Symbol(k) => string(content[k]) for k in extra_keys)
-        rules[id] = RuleSpec(id, :jailint, level, intent, do_not, extra)
+        rules[id] = RuleSpec(id, :jailint, level, intent, do_not, Dict{Symbol, String}())
     end
     return rules
+end
+
+function _expect_audit_table(raw::Dict)
+    for (id, content) in _collect_rule_tables(raw)
+        id == "expect-audit" && return content
+    end
+    return nothing
 end
 
 function _load_project_rules(raw::Vector)
     out = ProjectRule[]
     for (i, entry) in enumerate(raw)
         entry isa Dict || throw(ConfigError("project_rules[$i] must be a table"))
-        id = validate_kebab_rule_id(_require_string(entry, "id", "project_rules[$i]"), "project_rules[$i]")
-        level = _rule_level(get(entry, "level", "deny"))
-        paths = get(entry, "paths", String[])
-        paths = [String(p) for p in paths]
-        literals = get(entry, "forbid_literals", String[])
-        literals = [String(l) for l in literals]
+        label = "project_rules[$i]"
+        _reject_unknown_keys!(entry, PROJECT_RULE_KEYS, label)
+        id = validate_kebab_rule_id(_require_string(entry, "id", label), label)
+        level = haskey(entry, "level") ? _parse_rule_level(entry["level"], "$label.level") : :deny
+        paths_raw = get(entry, "paths", String[])
+        paths_raw isa AbstractVector || throw(ConfigError("$label.paths must be an array"))
+        paths = String[]
+        for (j, p) in enumerate(paths_raw)
+            p isa AbstractString || throw(ConfigError("$label.paths[$j] must be a string"))
+            push!(paths, String(p))
+        end
+        literals_raw = get(entry, "forbid_literals", String[])
+        literals_raw isa AbstractVector || throw(ConfigError("$label.forbid_literals must be an array"))
+        literals = String[]
+        for (j, l) in enumerate(literals_raw)
+            l isa AbstractString || throw(ConfigError("$label.forbid_literals[$j] must be a string"))
+            push!(literals, String(l))
+        end
         intent = _opt_string(entry, "intent")
         do_not = _opt_string(entry, "do_not")
         push!(out, ProjectRule(id, level, paths, literals, intent, do_not))
@@ -88,19 +205,53 @@ function _load_project_rules(raw::Vector)
     return out
 end
 
+function _reject_unknown_top_level!(raw::Dict)
+    for (k, v) in raw
+        sk = String(k)
+        if sk in TOP_LEVEL_CONFIG_KEYS
+            continue
+        elseif sk == "rules"
+            v isa Dict || throw(ConfigError("rules must be a table"))
+            continue
+        elseif startswith(sk, "rules.")
+            v isa Dict || throw(ConfigError("$sk must be a table"))
+            continue
+        end
+        throw(ConfigError("unknown config key '$sk' in $CONFIG_FILENAME"))
+    end
+    return nothing
+end
+
 function build_policy(raw::Dict, config_path::String, config_source::ConfigSource)
+    _reject_unknown_top_level!(raw)
     ver_raw = _require_string(raw, "jailint_version", CONFIG_FILENAME)
     ver = _parse_version_pin(ver_raw)
     validate_jailint_version!(ver, JAILINT_VERSION)
-    fmt = Symbol(get(raw, "default_format", "human"))
-    max_hits = Int(get(raw, "max_hits_per_rule", 20))
-    presets = [String(p) for p in get(raw, "presets", String[])]
+    fmt = if haskey(raw, "default_format")
+        _parse_default_format(raw["default_format"], CONFIG_FILENAME)
+    else
+        :human
+    end
+    max_hits = if haskey(raw, "max_hits_per_rule")
+        v = raw["max_hits_per_rule"]
+        v isa Integer || throw(ConfigError("max_hits_per_rule must be an integer"))
+        Int(v)
+    else
+        20
+    end
+    presets = if haskey(raw, "presets")
+        _parse_preset_list(raw["presets"], "presets")
+    else
+        String[]
+    end
     rules = _load_rules_table(raw)
-    project = _load_project_rules(get(raw, "project_rules", []))
+    pr_raw = get(raw, "project_rules", [])
+    pr_raw isa AbstractVector || throw(ConfigError("project_rules must be an array"))
+    project = _load_project_rules(pr_raw)
     on_allow = :warn
-    if haskey(raw, "rules.expect-audit")
-        es = raw["rules.expect-audit"]
-        es isa Dict && haskey(es, "on_allow_rule") && (on_allow = Symbol(es["on_allow_rule"]))
+    es = _expect_audit_table(raw)
+    if es !== nothing && haskey(es, "on_allow_rule")
+        on_allow = _parse_on_allow_rule(es["on_allow_rule"], "rules.expect-audit.on_allow_rule")
     end
     return PolicyBundle(ver, fmt, max_hits, presets, rules, project, on_allow, config_path, config_source)
 end
