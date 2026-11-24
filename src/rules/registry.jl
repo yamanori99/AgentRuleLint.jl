@@ -33,5 +33,17 @@ function init_registry!(policy::PolicyBundle)
             ),
         )
     end
+    if get(policy.rules, "protected-paths", nothing) === nothing
+        register_builtin!(
+            RuleSpec(
+                "protected-paths",
+                :agentrulelint,
+                :forbid,
+                "Protect designated policy, lockfiles, and workflow paths from silent edits.",
+                "Edit protected files, weaken compat, or rename paths to evade review.",
+                Dict{Symbol, String}(),
+            ),
+        )
+    end
     return nothing
 end
