@@ -52,6 +52,7 @@ struct CheckResult
     complete::Bool
     exit_code::Int
     config_source::ConfigSource
+    default_format::Symbol
     max_hits_per_rule::Int
     suppressed_count::Int
     violation_count::Int

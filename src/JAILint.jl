@@ -37,11 +37,16 @@ function check(root::AbstractString; kwargs...)
     end
 end
 
-function _parse_cli_args(args::Vector{String})
-    cmd = isempty(args) ? "check" : args[1]
-    rest = length(args) > 1 ? args[2:end] : String[]
+function _parse_cli_format(raw::AbstractString)
+    sym = Symbol(lowercase(strip(raw)))
+    sym in VALID_OUTPUT_FORMATS ||
+        throw(ArgumentError("unknown --format value '$raw' (expected human|json|agent)"))
+    return sym
+end
+
+function _parse_cli_args(cmd::String, rest::Vector{String})
     opts = Dict{Symbol, Any}(
-        :format => :human,
+        :format => nothing,
         :config_path => nothing,
         :config_from => nothing,
         :diff_base => nothing,
@@ -54,11 +59,11 @@ function _parse_cli_args(args::Vector{String})
     while i <= length(rest)
         a = rest[i]
         if a == "--format" && i + 1 <= length(rest)
-            opts[:format] = Symbol(rest[i + 1])
+            opts[:format] = _parse_cli_format(rest[i + 1])
             i += 2
             continue
         elseif startswith(a, "--format=")
-            opts[:format] = Symbol(a[(length("--format=") + 1):end])
+            opts[:format] = _parse_cli_format(a[(length("--format=") + 1):end])
         elseif a == "--config" && i + 1 <= length(rest)
             opts[:config_path] = rest[i + 1]
             i += 2
@@ -76,6 +81,9 @@ function _parse_cli_args(args::Vector{String})
             i += 2
             continue
         elseif a == "--write"
+            cmd == "ratchet" || throw(
+                ArgumentError("unknown option for $cmd: --write (use jailint ratchet --write)"),
+            )
             opts[:write_ratchet] = true
         elseif startswith(a, "-")
             throw(ArgumentError("unknown option: $a"))
@@ -84,7 +92,7 @@ function _parse_cli_args(args::Vector{String})
         end
         i += 1
     end
-    return cmd, positional, opts
+    return positional, opts
 end
 
 function _emit_fail_closed(err, io = stderr)
@@ -103,8 +111,19 @@ function _emit_fail_closed(err, io = stderr)
     end
 end
 
-function _emit(result::CheckResult, opts)
+function _resolve_emit_format(result::CheckResult, opts)
     fmt = opts[:format]
+    if fmt === nothing
+        return result.default_format
+    end
+    fmt in VALID_OUTPUT_FORMATS ||
+        throw(ArgumentError("unknown --format value '$fmt' (expected human|json|agent)"))
+    return fmt
+end
+
+function _emit(result::CheckResult, fmt::Symbol, opts)
+    fmt in VALID_OUTPUT_FORMATS ||
+        throw(ArgumentError("unknown --format value '$fmt' (expected human|json|agent)"))
     text = fmt == :json ? format_json(result) :
         fmt == :agent ? format_agent(result) :
         format_human(result)
@@ -126,8 +145,8 @@ function _cli_check(positional::Vector{String}, opts)
         config_from = opts[:config_from],
         diff_base = opts[:diff_base],
     )
-    opts[:write_ratchet] && ratchet_write!(root, result)
-    _emit(result, opts)
+    fmt = _resolve_emit_format(result, opts)
+    _emit(result, fmt, opts)
     return result.exit_code
 end
 
@@ -166,22 +185,74 @@ function _cli_ratchet(positional::Vector{String}, opts)
     return result.exit_code
 end
 
+function _print_cli_help(cmd::String)
+    if cmd == "check" || cmd == "help" || cmd == "-h" || cmd == "--help" || cmd == ""
+        println(
+            """
+            Usage: jailint check [paths...] [options]
+                   jailint explain <rule-id>
+                   jailint ratchet --write [paths...] [options]
+                   jailint report <fingerprint>
+
+            Commands:
+              check    Lint Julia sources (default). Reads ceilings; does not write them.
+              explain  Print rule intent and anchor semantics for <rule-id>.
+              ratchet  Update .jailint/ceilings.toml from current violation counts (--write required).
+              report   Emit anonymized JSON for a diagnostic fingerprint.
+
+            Options (check and ratchet --write):
+              --format human|json|agent   Output format (default: config default_format; invalid values exit 2)
+              --config <path>             Alternate config file path
+              --config-from <git-ref>     Load .JAILintConfig.toml from a git ref
+              --diff <base-ref>           Limit to files changed vs <base-ref>
+              --output <path>             Write formatted output to <path>
+
+            Config is fail-closed: unknown keys, rule levels, preset names, or default_format values error.
+            """,
+        )
+    elseif cmd == "ratchet"
+        println(
+            """
+            Usage: jailint ratchet --write [paths...] [options]
+
+            Writes .jailint/ceilings.toml from current violation counts. --write is required.
+            A plain check run never updates ceilings.
+
+            Options: same as jailint check (see jailint --help).
+            """,
+        )
+    else
+        println("Run jailint --help for usage.")
+    end
+    return nothing
+end
+
 function cli_main(args::AbstractVector{<:AbstractString})::Int
     argvec = String[string(a) for a in args]
     try
-        cmd, positional, opts = _parse_cli_args(argvec)
+        cmd = isempty(argvec) ? "check" : argvec[1]
+        if cmd == "help" || cmd == "-h" || cmd == "--help"
+            _print_cli_help("help")
+            return 0
+        end
+        rest = length(argvec) > 1 ? argvec[2:end] : String[]
+        known_cmds = ("check", "explain", "ratchet", "report")
+        cmd in known_cmds || throw(ArgumentError("unknown command: $cmd"))
+        if "--help" in rest || "-h" in rest
+            _print_cli_help(cmd)
+            return 0
+        end
+        positional, opts = _parse_cli_args(cmd, rest)
         return if cmd == "check"
             _cli_check(positional, opts)
         elseif cmd == "explain"
             _cli_explain(positional, opts)
         elseif cmd == "ratchet"
-            opts[:write_ratchet] = true
+            opts[:write_ratchet] ||
+                throw(ArgumentError("ratchet requires --write (updates .jailint/ceilings.toml)"))
             _cli_ratchet(positional, opts)
         elseif cmd == "report"
             _cli_report(positional, opts)
-        elseif cmd == "help" || cmd == "-h" || cmd == "--help"
-            println("Usage: jailint check [paths...] | explain <id> | ratchet --write | report <fingerprint>")
-            0
         else
             throw(ArgumentError("unknown command: $cmd"))
         end

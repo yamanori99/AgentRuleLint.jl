@@ -36,7 +36,7 @@ end
         write(joinpath(tmp, f), formatted)
         after = JAILint.run_check(tmp; paths = [f]).violations
         sig(v) =
-            diagnostic_signatures(JAILint.CheckResult(v, true, 0, JAILint.ConfigSource(), 20, 0, 0))
+            diagnostic_signatures(JAILint.CheckResult(v, true, 0, JAILint.ConfigSource(), :human, 20, 0, 0))
         @test sig(before) == sig(after)
     end
 end

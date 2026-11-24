@@ -120,6 +120,7 @@ function run_check(root::AbstractString; kwargs...)
         true,
         exit,
         policy.config_source,
+        policy.default_format,
         policy.max_hits_per_rule,
         scount,
         vcount,
