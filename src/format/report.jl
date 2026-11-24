@@ -77,6 +77,20 @@ function format_report(fingerprint::AbstractString, diagnostic::Violation, sourc
     return String(take!(buf))
 end
 
+function _explain_from_policy_rule(id::AbstractString)
+    root = pwd()
+    policy = resolve_policy(root)
+    rule = get(policy.rules, String(id), nothing)
+    rule === nothing && return nothing
+    return """
+    $(id)
+
+    intent: $(rule.intent)
+
+    do_not: $(rule.do_not)
+    """
+end
+
 function explain_rule(id::AbstractString)
     id = String(id)
     if id == "expect-audit"
@@ -94,48 +108,44 @@ function explain_rule(id::AbstractString)
         suppress violations. Multiline-call placement uses the same forbid level as other
         expect-audit integrity findings.
         """
-    elseif id == "test-integrity"
-        policy = try
-            resolve_policy(pwd())
-        catch
-            default_policy(pwd())
-        end
-        rule = get(policy.rules, id, nothing)
-        extra_intent = rule === nothing ? "" : rule.intent
-        extra_do_not = rule === nothing ? "" : rule.do_not
+    elseif id == "protected-paths"
         return """
-        test-integrity
+        protected-paths
 
-        Anchor line: the `@test*` macro call (or `exit(...)` / `include(...)` line when the suite driver changes).
+        Group: integrity. Level: forbid (no inline expects).
 
-        $(extra_intent)
+        Runs only with `--diff <base>`. Reports nothing on a full-tree `check` without `--diff`.
 
-        do_not: $(extra_do_not)
+        Auto-protected paths include `.AgentRuleLintConfig.toml`, `.agentrulelint/**`
+        (except `.agentrulelint/ceilings.toml` when the diff is monotonic non-increasing),
+        `.JETLSConfig.toml`, `Manifest*.toml`, `JuliaManifest.toml`, `LocalPreferences.toml`,
+        and every repo-relative `Project.toml`.
 
-        Detects only: (1) `@test` conditions trivially true after constant folding (including `const` aliases);
-        (2) in `--diff` mode, increased `@test_skip` / `@test_broken` counts per file vs base;
-        (3) `@test_throws Exception` or `ErrorException` (including `Base.Exception`);
-        (4) in `--diff` mode, top-level `include(...)` or `@testset` entries removed from `test/runtests.jl` by path/name;
-        (5) `exit(...)` or `Base.exit(...)` in `test/runtests.jl` or a statically included test file;
-        (6) in `--diff` mode, literal `atol`/`rtol` loosening in `isapprox`/`≈` vs base (named tolerance constants are a known blind spot).
+        `project_toml_policy = "semantic"` (default) allows adding `[deps]` entries and `[compat]`
+        for newly added deps. Any change to `[sources]` or `[workspace]`, compat removal, or any
+        compat string change (loosening is any non-identical string; no semver reasoning in 0.1.0),
+        or any other top-level key change is a violation.
 
-        Diff deletion checks flag removed `test/runtests.jl` or included test files still listed in the base driver; a rename plus a matching `include` update for the new path in the same diff is allowed.
+        Declared `paths = [{ glob = "...", reason = "..." }]` under `[rules.protected-paths]` use
+        project-rule path-glob syntax; the reason appears in the message.
 
-        `isapprox` pairing uses `@testset` name (or `<toplevel>`), per–testset ordinal for identical positional shapes, and a normalized positional-argument signature. Unpaired calls are skipped (no guess).
+        Missing or unparsable TOML on either side of a compared change fails closed (exit 2).
 
-        Does not count static `@test` totals (refactor false positives). Always-failing tests remain JETLS / the test runner's job.
+        Integrity level: `protected-paths`, `ceiling-ratchet`, and `scope-paths` must always use
+        `level = "forbid"` in config. Any other level is a ConfigError (exit 2). Rename or copy
+        of a protected path is never semantically exempt (including Project.toml and ceilings.toml).
         """
     elseif startswith(id, "project/")
         return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
     else
+        policy_line = _explain_from_policy_rule(id)
+        policy_line !== nothing && return policy_line
         specs = (
-            "protected-paths" => "forbid edits to protected policy and workflow paths.",
             "scope-paths" => "enforce trusted path allowlists.",
             "ceiling-ratchet" => "keep violation/expect ceilings monotonic.",
             "manifest-sync" => "tracked Manifest must match Project.toml.",
             "shell-safety/process-pattern" => "preset: hazardous shell / Cmd patterns.",
             "silent-catch" => "detect swallowed exceptions.",
-            "test-integrity" => "detect hollow or weakened tests.",
             "unsafe-boundary" => "flag eval, ccall, and unsafe_* at boundaries.",
         )
         for (slug, blurb) in specs

@@ -29,10 +29,22 @@
         @test all(d -> occursin("overly broad", d.message), broad)
     end
 
-    @testset "explain" begin
-        out = AgentRuleLint.explain_rule("test-integrity")
-        @test occursin("constant folding", out)
+    @testset "explain uses policy registry only" begin
+        out = cd(root) do
+            AgentRuleLint.explain_rule("test-integrity")
+        end
+        @test occursin("intent:", out)
         @test occursin("do_not:", out)
+        @test occursin("hollow or weakened tests", out)
+        bad = abspath(mktempdir())
+        try
+            write(joinpath(bad, ".AgentRuleLintConfig.toml"), "agentrulelint_version = \"=99.99.99\"\n")
+            cd(bad) do
+                @test AgentRuleLint.cli_main(["explain", "test-integrity"]) == 2
+            end
+        finally
+            rm(bad, recursive = true, force = true)
+        end
     end
 
     function init_git_repo!(dir)
@@ -142,6 +154,60 @@
                 )
                 @test !isempty(hits)
                 @test first(hits).path == "test/new_skip.jl"
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "diff: path events are fail-closed (unknown status)" begin
+        @test_throws AgentRuleLint.GitError AgentRuleLint._parse_diff_path_events_payload("U\0weird\0")
+    end
+
+    @testset "diff: renamed test file without runtests update is flagged" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            mkpath(joinpath(dir, "test"))
+            write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
+            write(joinpath(dir, "test", "case.jl"), "@test 1 == 1\n")
+            git_commit_all!(dir, "base")
+            run(setenv(Cmd(["git", "-C", dir, "mv", "test/case.jl", "test/renamed.jl"]); dir = dir))
+            write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
+            git_commit_all!(dir, "rename only")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                hits = filter(
+                    d -> d.rule_id == "test-integrity" && occursin("deleted test file", d.message),
+                    res.violations,
+                )
+                @test any(d -> occursin("case.jl", d.message), hits)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "diff: renamed test file with matching include update is allowed" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            mkpath(joinpath(dir, "test"))
+            write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
+            write(joinpath(dir, "test", "case.jl"), "@test 1 == 1\n")
+            git_commit_all!(dir, "base")
+            run(setenv(Cmd(["git", "-C", dir, "mv", "test/case.jl", "test/renamed.jl"]); dir = dir))
+            write(joinpath(dir, "test", "runtests.jl"), "include(\"renamed.jl\")\n")
+            git_commit_all!(dir, "rename and fix driver")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                deleted_hits = filter(
+                    d -> d.rule_id == "test-integrity" && occursin("deleted test file", d.message),
+                    res.violations,
+                )
+                @test isempty(deleted_hits)
             end
         finally
             rm(dir, recursive = true, force = true)

@@ -718,10 +718,12 @@ function _push_deleted_test_file!(
     return nothing
 end
 
-function _rename_covers_include(old_rel::String, head_includes::Set{String}, renames::Vector{GitDiffRename})
-    for r in renames
-        _include_paths_match(r.old_path, old_rel) || continue
-        new_rel = _normalize_test_include_path(r.new_path)
+function _rename_covers_include(old_rel::String, head_includes::Set{String}, events::Vector{DiffPathEvent})
+    for ev in events
+        ev.status != 'R' && continue
+        isempty(ev.old_path) && continue
+        _include_paths_match(ev.old_path, old_rel) || continue
+        new_rel = _normalize_test_include_path(ev.path)
         new_rel in head_includes && return true
         any(inc -> _include_paths_match(inc, new_rel), head_includes) && return true
     end
@@ -734,7 +736,7 @@ function _diff_deleted_test_files!(
         diff_base::AbstractString,
         diff_scope::DiffScope,
         contexts::Vector{FileContext},
-        renames::Vector{GitDiffRename},
+        path_events::Vector{DiffPathEvent},
     )
     diags = Violation[]
     sha = git_resolve_commit_sha(root, diff_base)
@@ -758,18 +760,19 @@ function _diff_deleted_test_files!(
     end
 
     deleted_paths = Set{String}()
-    for f in diff_scope.files
-        f.status == 'D' || continue
-        startswith(f.path, "test/") || continue
-        push!(deleted_paths, _normalize_test_include_path(f.path))
-    end
-    for r in renames
-        push!(deleted_paths, _normalize_test_include_path(r.old_path))
+    for ev in path_events
+        if ev.status == 'D'
+            startswith(ev.path, "test/") &&
+                push!(deleted_paths, _normalize_test_include_path(ev.path))
+        elseif ev.status == 'R' && !isempty(ev.old_path)
+            startswith(ev.old_path, "test/") &&
+                push!(deleted_paths, _normalize_test_include_path(ev.old_path))
+        end
     end
 
     for rel in deleted_paths
         rel == _normalize_test_include_path(RUNTESTS_REL) && continue
-        _rename_covers_include(rel, head_includes, renames) && continue
+        _rename_covers_include(rel, head_includes, path_events) && continue
         covered = false
         for base_inc in base_includes
             _include_paths_match(base_inc, rel) || continue
@@ -823,8 +826,8 @@ function run_test_integrity(
 
     sha = git_resolve_commit_sha(root, diff_base)
     if diff_scope !== nothing
-        _, renames = git_diff_paths_and_renames(root, diff_base)
-        append!(diags, _diff_deleted_test_files!(policy, root, diff_base, diff_scope, contexts, renames))
+        path_events = git_diff_path_events(root, diff_base)
+        append!(diags, _diff_deleted_test_files!(policy, root, diff_base, diff_scope, contexts, path_events))
     end
     for fc in contexts
         path = fc.parsed.path

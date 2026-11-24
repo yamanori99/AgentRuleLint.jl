@@ -157,7 +157,12 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     end
 
     if diff_scope !== nothing
-        all_diags = filter_diff_violations!(all_diags, diff_scope)
+        path_events = git_diff_path_events(root, diff_base)
+        all_diags = filter_diff_violations!(all_diags, diff_scope, path_events)
+    end
+
+    if diff_base !== nothing
+        append!(all_diags, enforce_protected_paths(root, diff_base, policy))
     end
 
     ceilings_path = joinpath(abspath(root), CEILINGS_REL)
