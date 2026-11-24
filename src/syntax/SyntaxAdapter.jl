@@ -3,4 +3,5 @@
 include("normalize.jl")
 include("parser.jl")
 include("comments.jl")
+include("expect_placement.jl")
 include("constant_folder.jl")

@@ -16,12 +16,16 @@ function parse_expect_body(body::AbstractString)
     rest = strip(body[(length(EXPECT_PREFIX) + 1):end])
     isempty(rest) &&
         return (; _MALFORMED_EXPECT..., message = "empty expect")
-    m = match(r"^(\S+)\s+reason=\"([^\"]*)\"$", rest)
+    if match(r"^\S+\s+reason=\"\"\s*$", rest) !== nothing
+        return (; _MALFORMED_EXPECT..., message = "empty reason")
+    end
+    m = match(r"^(\S+)\s+reason=\"([^\"]+)\"$", rest)
     m === nothing && return (; _MALFORMED_EXPECT..., message = "missing reason=\"...\"")
     rule_ref = m.captures[1]
     reason = m.captures[2]
     rule_ref === nothing && return (; _MALFORMED_EXPECT..., message = "missing rule id")
     reason === nothing && return (; _MALFORMED_EXPECT..., message = "missing reason")
+    isempty(strip(String(reason))) && return (; _MALFORMED_EXPECT..., message = "empty reason")
     return (
         status = :ok,
         rule_ref = String(rule_ref),
@@ -57,27 +61,32 @@ function detect_inline_expect_trailing(source::AbstractString)
 end
 
 function detect_malformed_jailint(source::AbstractString)
+    src = normalize_source(source)
     diags = Vector{Tuple{Int, String}}()
-    for (i, line) in enumerate(split(normalize_source(source), '\n'))
+    standalone = standalone_comment_lines(src)
+    for (i, line) in enumerate(split(src, '\n'))
         stripped = strip(line)
+        if occursin("jailint-expect:", line)
+            idx = findfirst("# jailint-expect:", line)
+            if idx !== nothing
+                cut = idx isa AbstractRange ? first(idx) : idx
+                cut = cut isa Integer ? cut : first(cut)
+                code = cut > 1 ? strip(line[1:prevind(line, cut)]) : ""
+                !isempty(code) && push!(diags, (i, "trailing inline expect"))
+            end
+        end
         startswith(stripped, "#") || continue
         body = strip(stripped[2:end])
         occursin(JAILINT_PREFIX, body) || continue
-        if startswith(body, "jailint-expect:")
-            parsed = parse_expect_body(body)
-            parsed === nothing && push!(diags, (i, "malformed expect"))
-            parsed !== nothing && parsed.status == :malformed &&
-                push!(diags, (i, parsed.message))
-        elseif startswith(body, "jailint") && !startswith(body, EXPECT_PREFIX)
-            # other jailint* on standalone line without valid expect
-            idx = findfirst('#', line)
-            code_before = idx === nothing ? line : line[1:prevind(line, idx)]
-            isempty(strip(code_before)) || continue
-        end
-        m = match(r"(?i)#.*\bjailint\b", line)
-        if m !== nothing && occursin("jailint-expect:", line)
-            code = strip(split(line, "# jailint-expect:")[1])
-            !isempty(code) && push!(diags, (i, "trailing inline expect"))
+        if haskey(standalone, i)
+            if startswith(body, "jailint-expect:")
+                parsed = parse_expect_body(body)
+                parsed === nothing && push!(diags, (i, "malformed expect"))
+                parsed !== nothing && parsed.status == :malformed &&
+                    push!(diags, (i, String(parsed.message)))
+            elseif startswith(body, "jailint")
+                push!(diags, (i, "malformed # jailint* directive"))
+            end
         end
     end
     return diags
@@ -116,13 +125,41 @@ function contiguous_expect_groups(expects::Vector{ExpectLine})
 end
 
 function anchor_after_group(group::Vector{ExpectLine}, source::AbstractString)
-    last_expect = maximum(e.line for e in group)
-    lines = split(source, '\n')
-    for li in (last_expect + 1):length(lines)
-        isempty(strip(lines[li])) && continue
-        return li
-    end
-    return 0
+    anchor, mismatch = resolve_expect_anchor_line(group, source)
+    mismatch && return 0
+    return anchor
+end
+
+function _push_expect_violation!(
+        diags::Vector{Violation},
+        msg::String,
+        rule,
+        path::String,
+        source::AbstractString,
+        line_no::Int,
+        lvl::Symbol,
+    )
+    _, span = span_for_line(source, line_no)
+    intent = rule === nothing ? "" : rule.intent
+    do_not = rule === nothing ? "" : rule.do_not
+    push!(
+        diags,
+        Violation(
+            "expect-audit",
+            :jailint,
+            lvl,
+            path,
+            span,
+            line_no,
+            diagnostic_fingerprint("expect-audit", path, line_no, msg, 1),
+            :unfulfilled,
+            false,
+            msg,
+            intent,
+            do_not,
+        ),
+    )
+    return
 end
 
 
@@ -167,116 +204,77 @@ function expect_audit_diagnostics(fc::FileContext, policy::PolicyBundle)
     diags = Violation[]
     rule = get(policy.rules, "expect-audit", nothing)
     lvl = rule === nothing ? :forbid : rule.level
-    intent = rule === nothing ? "" : rule.intent
-    do_not = rule === nothing ? "" : rule.do_not
     path = fc.parsed.path
 
-    for (line_no, msg) in detect_inline_expect_trailing(source)
-        _, span = span_for_line(source, line_no)
-        fp = diagnostic_fingerprint("expect-audit", path, line_no, msg, 1)
-        push!(
-            diags,
-            Violation("expect-audit", :jailint, lvl, path, span, line_no, fp, :unfulfilled, false, msg, intent, do_not),
-        )
-    end
-
-    comments = standalone_comment_lines(source)
-    for (line_no, body) in comments
-        occursin(JAILINT_PREFIX, body) || continue
-        if startswith(body, "jailint") && !startswith(body, EXPECT_PREFIX)
-            msg = "malformed # jailint* directive"
-            _, span = span_for_line(source, line_no)
-            push!(
-                diags,
-                Violation(
-                    "expect-audit",
-                    :jailint,
-                    lvl,
-                    path,
-                    span,
-                    line_no,
-                    diagnostic_fingerprint("expect-audit", path, line_no, msg, 1),
-                    :unfulfilled,
-                    false,
-                    msg,
-                    intent,
-                    do_not,
-                ),
-            )
-        elseif startswith(body, EXPECT_PREFIX)
-            parsed = parse_expect_body(body)
-            if parsed === nothing || parsed.status == :malformed
-                msg = parsed === nothing ? "malformed expect" : String(parsed.message)
-                _, span = span_for_line(source, line_no)
-                push!(
-                    diags,
-                    Violation(
-                        "expect-audit",
-                        :jailint,
-                        lvl,
-                        path,
-                        span,
-                        line_no,
-                        diagnostic_fingerprint("expect-audit", path, line_no, msg, 1),
-                        :unfulfilled,
-                        false,
-                        msg,
-                        intent,
-                        do_not,
-                    ),
-                )
-            end
-        end
+    seen = Set{Tuple{Int, String}}()
+    for (line_no, msg) in detect_malformed_jailint(source)
+        key = (line_no, msg)
+        key in seen && continue
+        push!(seen, key)
+        _push_expect_violation!(diags, msg, rule, path, source, line_no, lvl)
     end
 
     for (line_no, msg) in scan_block_comments(source)
-        _, span = span_for_line(source, line_no)
-        push!(
+        key = (line_no, msg)
+        key in seen && continue
+        push!(seen, key)
+        _push_expect_violation!(diags, msg, rule, path, source, line_no, lvl)
+    end
+
+    runic_regions = runic_off_regions(source)
+    call_arg_lines = multiline_call_interior_lines(source)
+    lines = split(source, '\n')
+
+    for ex in fc.expects
+        if line_in_runic_off_region(ex.line, runic_regions)
+            msg = "expect inside runic:off region forbidden"
+            _push_expect_violation!(diags, msg, rule, path, source, ex.line, lvl)
+        end
+        ex.line in call_arg_lines && _push_expect_violation!(
             diags,
-            Violation(
-                "expect-audit",
-                :jailint,
-                lvl,
-                path,
-                span,
-                line_no,
-                diagnostic_fingerprint("expect-audit", path, line_no, msg, 1),
-                :unfulfilled,
-                false,
-                msg,
-                intent,
-                do_not,
-            ),
+            "expect inside multiline call arguments",
+            rule,
+            path,
+            source,
+            ex.line,
+            :warn,
         )
     end
 
-    # blank line breaking attachment -> unused expect (fail-closed)
     groups = contiguous_expect_groups(fc.expects)
     for g in groups
-        anchor = anchor_after_group(g, source)
-        anchor == 0 && continue
-        # check blank line between last expect and anchor
         last_e = maximum(e.line for e in g)
+        anchor, mismatch = resolve_expect_anchor_line(g, source)
+        code_li = first_code_line_after(source, last_e)
+        if code_li > 0
+            code = code_prefix_on_line(lines[code_li])
+            line_is_catch_header(code) &&
+                _push_expect_violation!(diags, "expect forbidden above catch", rule, path, source, last_e, lvl)
+        end
+        mismatch && code_li > 0 && begin
+            for ex in g
+                _push_expect_violation!(
+                    diags,
+                    "expect not anchored to rule target syntax",
+                    rule,
+                    path,
+                    source,
+                    ex.line,
+                    lvl,
+                )
+            end
+        end
+        anchor == 0 && continue
         if anchor > last_e + 1
             for ex in g
-                _, span = span_for_line(source, ex.line)
-                msg = "blank line breaking expect attachment (unused)"
-                push!(
+                _push_expect_violation!(
                     diags,
-                    Violation(
-                        "expect-audit",
-                        :jailint,
-                        lvl,
-                        path,
-                        span,
-                        ex.line,
-                        diagnostic_fingerprint("expect-audit", path, ex.line, msg, 1),
-                        :unfulfilled,
-                        false,
-                        msg,
-                        intent,
-                        do_not,
-                    ),
+                    "blank line breaking expect attachment (unused)",
+                    rule,
+                    path,
+                    source,
+                    ex.line,
+                    lvl,
                 )
             end
         end

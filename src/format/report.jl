@@ -83,11 +83,13 @@ function explain_rule(id::AbstractString)
         return """
         expect-audit
 
-        Anchor line: first non-blank code line after contiguous `# jailint-expect:` lines.
+        Anchor line: first non-blank code line after contiguous `# jailint-expect:` lines
+        that matches the target syntax kind for the referenced rule (e.g. `try`, `@eval`, `@test*`).
 
-        Syntax: `# jailint-expect: <rule-id> reason="..."` (ASCII, standalone line only).
+        Syntax: `# jailint-expect: <rule-id> reason="..."` (ASCII, standalone line only; non-empty reason).
 
         Suppresses only violations whose anchor_line matches that line.
+        Expects are forbidden above `catch`, inside `# runic: off` regions, and with blank lines before the anchor.
         """
     elseif startswith(id, "project/")
         return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
