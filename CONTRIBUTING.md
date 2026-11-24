@@ -60,19 +60,51 @@ If the report was **AI-assisted**, say so and name the model (helps us tune
 
 | Issue type | Typical landing zone |
 | --- | --- |
-| False positive | `test/corpus/false_positives/` regression |
-| Evasion proposal | `test/corpus/evasions/` + rule or preset design |
+| False positive | `test/corpus/` regression fixture |
+| Evasion proposal | `test/corpus/` + rule or preset design |
 | Bug | Unit test at the fail-closed boundary or syntax adapter |
 
 Triage automation may label and comment on missing fields; issues are **not**
 auto-closed for incomplete reports.
+
+## Rule admission and design policy
+
+### Integrity vs explicitness
+
+- **Integrity guards** (`protected-paths`, `scope-paths`, `ceiling-ratchet`, `expect-audit`,
+  `manifest-sync`, `test-integrity`): near-zero false-positive bar; fail closed on policy,
+  manifests, protected paths, expect hygiene, and test integrity.
+- **Explicitness / boundary contracts** (`silent-catch`, `unsafe-boundary`, opt-in presets): judged by
+  noise budget on the reference corpus plus either a clean fix or a reason-bearing
+  `# jailint-expect:` / `# SAFETY:` annotation.
+
+### Groups × profiles
+
+Rules carry a **group** (`integrity`, `correctness`, `explicitness`, `boundary`,
+`nursery`) and a **profile** (`adopt`, `standard`, `agent`). New rules require
+`intent`, `do_not`, `fix` guidance, an anchor definition, golden plus adversarial
+evasion corpus entries, and a **Runic invariance** test. Retired rule slug IDs are never
+reused.
+
+### Non-goals (NG1–NG5)
+
+1. **NG1:** No mandates for exhaustive type annotations or rigid hierarchies that break
+   idiomatic generic Julia.
+2. **NG2:** Do not replace Julia’s exception model with `Result`-style wrappers; target
+   silent swallowing, not exceptions themselves.
+3. **NG3:** Do not ban idiomatic top-level metaprogramming or macro DSLs; target
+   runtime evaluation and boundary escapes.
+4. **NG4:** Do not duplicate JETLS, JET, Aqua, Runic, ExplicitImports, ReLint/Argus,
+   Fatou, or test-framework duties.
+5. **NG5:** Reject rules that are easier to satisfy via cosmetic syntax evasion than
+   via a real fix (validate against an adversarial evasion corpus before adoption).
 
 ## Golden corpus
 
 Under `test/corpus/`:
 
 - **Existing fixtures** exercise constant folding, UTF-8, and expect anchors.
-- New issues may add files under `false_positives/` or `evasions/` after review.
+- New issues may add files under `test/corpus/` after review.
 - Every corpus `.jl` file participates in **Runic invariance**: diagnostics must
   match before and after `Runic.format_str` (see `test/test_runic_invariance.jl`).
 

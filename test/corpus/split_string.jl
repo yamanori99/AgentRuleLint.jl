@@ -1,1 +1,1 @@
-a = string("hel", "lo")
+secret = "INT" * "ERNAL_CODENAME"

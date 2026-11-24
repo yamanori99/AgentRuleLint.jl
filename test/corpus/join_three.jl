@@ -1,1 +1,1 @@
-x = join(["a", "b"], "", " ")
+x = join(["INT", "ERNAL_CODENAME"], "")

@@ -1,6 +1,6 @@
-const BUILTIN_RULES = Dict{String, LoadedRule}()
+const BUILTIN_RULES = Dict{String, RuleSpec}()
 
-function register_builtin!(r::LoadedRule)
+function register_builtin!(r::RuleSpec)
     return BUILTIN_RULES[r.id] = r
 end
 
@@ -9,26 +9,17 @@ function init_registry!(policy::PolicyBundle)
     for (_, r) in policy.rules
         register_builtin!(r)
     end
-    return get(policy.rules, "expect-audit", nothing) === nothing &&
+    if get(policy.rules, "expect-audit", nothing) === nothing
         register_builtin!(
-        LoadedRule(
-            "JA004",
-            "expect-audit",
-            :jailint,
-            :forbid,
-            "Keep suppression comments auditable.",
-            "Hide violations with unapproved expects.",
-            NamedTuple(),
-        ),
-    )
-end
-
-function builtin_rule_meta(code::String)
-    if code == "JA004"
-        return (
-            intent = "Validate expect comments and suppression anchors.",
-            do_not = "Use malformed or misplaced expects.",
+            RuleSpec(
+                "expect-audit",
+                :jailint,
+                :forbid,
+                "Keep suppression comments auditable.",
+                "Hide violations with unapproved expects.",
+                NamedTuple(),
+            ),
         )
     end
-    return (intent = "", do_not = "")
+    return nothing
 end

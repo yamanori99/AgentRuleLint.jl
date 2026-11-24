@@ -1,1 +1,1 @@
-msg = "hello" * " " * "world"
+msg = "INT" * "ERNAL_CODENAME"

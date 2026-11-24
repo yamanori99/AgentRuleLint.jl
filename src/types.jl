@@ -1,18 +1,5 @@
 # Immutable value types for JAILint (parse-don't-validate).
 
-const RuleOrigin = Union{Val{:jailint}, Val{:preset}, Val{:project}}
-const RuleLevel = Union{Val{:forbid}, Val{:deny}, Val{:warn}, Val{:allow}}
-const ExpectStatus = Union{Val{:none}, Val{:fulfilled}, Val{:unfulfilled}}
-
-rule_origin_symbol(::Val{:jailint}) = :jailint
-rule_origin_symbol(::Val{:preset}) = :preset
-rule_origin_symbol(::Val{:project}) = :project
-
-rule_level_symbol(::Val{:forbid}) = :forbid
-rule_level_symbol(::Val{:deny}) = :deny
-rule_level_symbol(::Val{:warn}) = :warn
-rule_level_symbol(::Val{:allow}) = :allow
-
 struct Span
     start_line::Int
     start_col::Int
@@ -27,7 +14,25 @@ function Base.isless(a::Span, b::Span)
         (b.start_line, b.start_col, b.end_line, b.end_col)
 end
 
-struct Diagnostic
+struct ConfigSource
+    kind::Symbol
+    path::String
+    ref::String
+    sha::String
+end
+
+ConfigSource() = ConfigSource(:builtin, "", "", "")
+
+function config_source_dict(cs::ConfigSource)
+    d = Dict{String, Any}("kind" => string(cs.kind))
+    !isempty(cs.path) && (d["path"] = cs.path)
+    !isempty(cs.ref) && (d["ref"] = cs.ref)
+    !isempty(cs.sha) && (d["sha"] = cs.sha)
+    return d
+end
+
+"""Single lint finding (`rule_id` is always a canonical slug)."""
+struct Violation
     rule_id::String
     origin::Symbol
     level::Symbol
@@ -43,10 +48,11 @@ struct Diagnostic
 end
 
 struct CheckResult
-    diagnostics::Vector{Diagnostic}
+    violations::Vector{Violation}
     complete::Bool
     exit_code::Int
-    config_source::Dict{String, Any}
+    config_source::ConfigSource
+    max_hits_per_rule::Int
     suppressed_count::Int
     violation_count::Int
 end
@@ -67,8 +73,7 @@ struct InternalError <: Exception
     msg::String
 end
 
-struct LoadedRule
-    code::String
+struct RuleSpec
     id::String
     origin::Symbol
     level::Symbol
@@ -91,11 +96,11 @@ struct PolicyBundle
     default_format::Symbol
     max_hits_per_rule::Int
     presets::Vector{String}
-    rules::Dict{String, LoadedRule}
+    rules::Dict{String, RuleSpec}
     project_rules::Vector{ProjectRule}
     on_allow_rule::Symbol
     config_path::String
-    source::Dict{String, Any}
+    config_source::ConfigSource
 end
 
 struct CeilingEntry
@@ -119,7 +124,7 @@ end
 struct FileContext
     parsed::ParsedFile
     expects::Vector{ExpectLine}
-    expect_errors::Vector{Diagnostic}
+    expect_errors::Vector{Violation}
 end
 
 struct RuleRunContext
@@ -130,9 +135,21 @@ struct RuleRunContext
     parser_rev::String
 end
 
-RuleOriginType(o::Symbol) =
-    o == :jailint ? Val(:jailint) :
-    o == :preset ? Val(:preset) : Val(:project)
+struct FoldedStringExpr
+    value::String
+    byte_start::Int
+    byte_end::Int
+end
+
+const KEBAB_ID = r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+
+function validate_kebab_rule_id(id::AbstractString, label::AbstractString)
+    s = String(id)
+    occursin('/', s) && throw(ConfigError("$label: id must not contain '/' ($(s))"))
+    match(KEBAB_ID, s) === nothing &&
+        throw(ConfigError("$label: invalid kebab-case id ($(s))"))
+    return s
+end
 
 is_fail_closed(err) =
     err isa ConfigError || err isa GitError || err isa ParseError
@@ -140,5 +157,24 @@ is_fail_closed(err) =
 origin_label(o::Symbol) =
     o == :jailint ? "[JAILint]" : o == :preset ? "[Preset]" : "[Project]"
 
-rule_display_id(r::LoadedRule) = "$(r.code) $(r.id)"
-project_rule_id(pr::ProjectRule) = "JP:$(pr.id)"
+rule_display_id(r::RuleSpec) = r.id
+project_rule_id(pr::ProjectRule) = "project/$(pr.id)"
+
+function rule_ref_matches(rule_ref::String, diagnostic_rule_id::String)
+    r = strip(rule_ref)
+    d = strip(diagnostic_rule_id)
+    r == d && return true
+    d == "project/$r" && return true
+    return false
+end
+
+function is_forbid_rule(policy::PolicyBundle, rule_ref::String)
+    r = strip(rule_ref)
+    for (_, spec) in policy.rules
+        (spec.id == r || r == spec.id) && spec.level == :forbid && return true
+    end
+    for pr in policy.project_rules
+        (r == pr.id || r == project_rule_id(pr)) && pr.level == :forbid && return true
+    end
+    return false
+end

@@ -14,15 +14,15 @@ body:
       label: Rule ID (if applicable)
       options:
         - Not rule-specific / CLI or config
-        - JA001 — protected-paths
-        - JA002 — scope-paths
-        - JA003 — ceiling-ratchet
-        - JA004 — expect-audit
-        - JA005 — manifest-sync
-        - JA006 — process-pattern
-        - JA007 — silent-catch
-        - JA008 — test-integrity
-        - JA009 — unsafe-boundary
+        - protected-paths
+        - scope-paths
+        - ceiling-ratchet
+        - expect-audit
+        - manifest-sync
+        - shell-safety/process-pattern
+        - silent-catch
+        - test-integrity
+        - unsafe-boundary
         - JP — project rule
     validations:
       required: true

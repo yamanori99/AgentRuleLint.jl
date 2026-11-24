@@ -2,11 +2,11 @@ function format_agent(result::CheckResult; max_hits::Int = 20)
     buf = IOBuffer()
     println(buf, "JAILINT $(result.exit_code == 0 ? "OK" : "FAIL") v$(pkgversion(JAILint)) pos=utf8-codepoint-1based violations=$(result.violation_count)")
     println(buf)
-    by_rule = Dict{String, Vector{Diagnostic}}()
-    for d in result.diagnostics
+    by_rule = Dict{String, Vector{Violation}}()
+    for d in result.violations
         d.suppressed && continue
         d.expect_status == :fulfilled && continue
-        push!(get!(by_rule, d.rule_id, Diagnostic[]), d)
+        push!(get!(by_rule, d.rule_id, Violation[]), d)
     end
     for (rid, ds) in sort(collect(by_rule))
         lvl = ds[1].level

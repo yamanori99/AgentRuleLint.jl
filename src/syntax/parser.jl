@@ -1,14 +1,22 @@
 const PARSER_TREE = JuliaSyntax.GreenNode
 
 function parse_source(text::AbstractString; syntax_version = VERSION, filename = nothing)
-    return parseall(
-        PARSER_TREE,
-        text;
-        version = syntax_version,
-        filename = filename,
-        ignore_errors = true,
-        ignore_warnings = true,
-    )
+    try
+        return parseall(
+            PARSER_TREE,
+            text;
+            version = syntax_version,
+            filename = filename,
+            ignore_errors = false,
+            ignore_warnings = true,
+        )
+    catch err
+        if err isa JuliaSyntax.ParseError
+            label = filename === nothing ? "source" : string(filename)
+            throw(ParseError("syntax error in $label: $(err)"))
+        end
+        rethrow()
+    end
 end
 
 function parser_rev_string()
@@ -17,6 +25,5 @@ end
 
 function self_check_parser(text::AbstractString)
     tree = parse_source(text)
-    meta_tree = Meta.parseall(text)
-    return tree !== nothing && meta_tree !== nothing
+    return tree !== nothing
 end

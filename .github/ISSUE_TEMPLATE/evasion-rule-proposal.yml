@@ -15,15 +15,15 @@ body:
       description: Existing rule closest to this gap, or "new rule"
       options:
         - New rule / no existing rule
-        - JA001 — protected-paths
-        - JA002 — scope-paths
-        - JA003 — ceiling-ratchet
-        - JA004 — expect-audit
-        - JA005 — manifest-sync
-        - JA006 — process-pattern (preset)
-        - JA007 — silent-catch
-        - JA008 — test-integrity
-        - JA009 — unsafe-boundary
+        - protected-paths
+        - scope-paths
+        - ceiling-ratchet
+        - expect-audit
+        - manifest-sync
+        - shell-safety/process-pattern
+        - silent-catch
+        - test-integrity
+        - unsafe-boundary
         - JP — extend project_rules pattern
     validations:
       required: true

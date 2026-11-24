@@ -43,7 +43,7 @@ editing contest.
 ```bash
 julia --startup-file=no --project=. -m JAILint check
 julia --startup-file=no --project=. -m JAILint check src --format=agent
-julia --startup-file=no --project=. -m JAILint explain JA004
+julia --startup-file=no --project=. -m JAILint explain expect-audit
 ```
 
 Place `.JAILintConfig.toml` at the repository root (see
@@ -55,7 +55,7 @@ Place `.JAILintConfig.toml` at the repository root (see
 | Command | Purpose |
 | --- | --- |
 | `check [paths...]` | Run rules on paths or the whole tree (or diff-scoped files with `--diff`) |
-| `explain <code\|id>` | Human-readable rule documentation (e.g. `JA004`, `expect-audit`) |
+| `explain <rule-id>` | Human-readable rule documentation (e.g. `expect-audit`, `project/foo`) |
 | `ratchet --write` | Persist violation counts to `.jailint/ceilings.toml` after review |
 | `report <fingerprint>` | Offline anonymized reproduction bundle (`header`, `rule_id`, `pattern_hash`) |
 
@@ -95,9 +95,9 @@ Julia API: `JAILint.check(root; ...) -> CheckResult`. The CLI is a thin adapter.
 
 | Label | Source |
 | --- | --- |
-| `[JAILint]` | Built-in standards (`JA001`–`JA009`, …) |
-| `[Preset]` | Opt-in tables in config (e.g. `shell-safety` → `JA006`) |
-| `[Project]` | `[[project_rules]]` in `.JAILintConfig.toml` (`JP:<id>`) |
+| `[JAILint]` | Built-in standards (`protected-paths`, `expect-audit`, …) |
+| `[Preset]` | Opt-in tables (e.g. `shell-safety/process-pattern`) |
+| `[Project]` | `[[project_rules]]` in `.JAILintConfig.toml` (`project/<id>`) |
 
 **Syntax adapter:** `JuliaSyntax` API churn stays under `src/syntax/`.
 `# jailint-expect:` lines are detected via the tokenizer as standalone comment
@@ -110,18 +110,21 @@ pure over `FileContext` and do not perform their own git I/O.
 
 ## 0.1.0-DEV rule map (summary)
 
-| Code | Rule ID | Level | Layer |
+**Implemented in this dev tree:** `expect-audit` and `[[project_rules]]` (`project/<id>`).
+Other built-in rows are **roadmap** (planned for 0.1.0 / 0.2.0), not active yet.
+
+| Rule ID | Status | Level | Layer |
 | --- | --- | --- | --- |
-| JA001 | protected-paths | forbid | Diff + config semantics |
-| JA002 | scope-paths | forbid | Trusted `--allow-paths` enforcement |
-| JA003 | ceiling-ratchet | forbid | `.jailint/ceilings.toml` monotonic caps |
-| JA004 | expect-audit | forbid | `# jailint-expect:` line anchors |
-| JA005 | manifest-sync | deny | Tracked Manifest vs Project |
-| JA006 | process-pattern | deny | Preset: shell / `Cmd` hazards |
-| JA007 | silent-catch | deny | Swallowed exceptions |
-| JA008 | test-integrity | deny | Weakened or hollow tests |
-| JA009 | unsafe-boundary | warn | `eval`, `ccall`, `unsafe_*`, … |
-| JP:* | (project `id`) | (config) | Declarative `forbid_literals` |
+| protected-paths | planned | forbid | Diff + config semantics |
+| scope-paths | planned | forbid | Trusted `--allow-paths` enforcement |
+| ceiling-ratchet | planned | forbid | `.jailint/ceilings.toml` monotonic caps |
+| expect-audit | **implemented** | forbid | `# jailint-expect:` line anchors |
+| manifest-sync | planned | deny | Tracked Manifest vs Project |
+| shell-safety/process-pattern | planned | deny | Preset: shell / `Cmd` hazards |
+| silent-catch | planned | deny | Swallowed exceptions |
+| test-integrity | planned | deny | Weakened or hollow tests |
+| unsafe-boundary | planned | warn | `eval`, `ccall`, `unsafe_*`, … |
+| project/(config `id`) | **implemented** | (config) | Declarative `forbid_literals` |
 
 Run `jailint explain <id>` for anchor and expect details. Runic **invariance**
 is tested: formatting must not change diagnostic signatures on the golden
@@ -155,7 +158,7 @@ scope** for 0.1.0 (process isolation deferred).
 | Tool | Owns | JAILint behavior |
 | --- | --- | --- |
 | **Runic** | Formatting, whitespace | No format rules; expects on standalone lines; Runic invariance tested |
-| **JETLS** | Types, undefined refs, inference tests | Run alongside; protect `.JETLSConfig.toml`; JA008 avoids “always failing” tests |
+| **JETLS** | Types, undefined refs, inference tests | Run alongside; protect `.JETLSConfig.toml`; `test-integrity` avoids “always failing” tests |
 | **Aqua** | Ambiguities, deps hygiene, piracy | Delegate package health; JAILint self-tests with Aqua |
 | **ExplicitImports** | Import hygiene | No duplicate import rules |
 | **CodeRabbit** | Semantic PR review | No auto PR comments; deterministic rules only; JSON/SARIF friendly |

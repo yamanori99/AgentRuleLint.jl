@@ -2,9 +2,14 @@ function _git_root(path::AbstractString)
     root = abspath(String(path))
     isdir(root) || throw(GitError("not a directory: $root"))
     try
-        out = strip(String(read(`git -C $root rev-parse --show-toplevel`)))
+        out = strip(
+            String(
+                read(Cmd(["git", "-C", root, "rev-parse", "--show-toplevel", "--end-of-options"])),
+            ),
+        )
         return out
-    catch
+    catch err
+        err isa InterruptException && rethrow()
         throw(GitError("not a git repository: $root"))
     end
 end
@@ -17,10 +22,24 @@ end
 
 function git_diff_name_status(root::AbstractString, base::AbstractString)
     root = _git_root(root)
-    cmd = `git -C $root diff -z --no-ext-diff --no-textconv --name-status $(base)`
+    cmd = Cmd(
+        [
+            "git",
+            "-C",
+            root,
+            "diff",
+            "-z",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--end-of-options",
+            base,
+        ],
+    )
     try
         bytes = read(cmd)
-    catch
+    catch err
+        err isa InterruptException && rethrow()
         throw(GitError("git diff failed for base=$(base)"))
     end
     isempty(bytes) && return String[]

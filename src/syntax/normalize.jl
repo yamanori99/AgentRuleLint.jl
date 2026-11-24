@@ -5,10 +5,10 @@ function normalize_source(text::AbstractString)
     return replace(s, "\r\n" => "\n", "\r" => "\n")
 end
 
-"""1-based codepoint column at byte index (after normalization)."""
+"""1-based UTF-8 codepoint column at byte index within `line` (1-based byte index on line)."""
 function byte_to_col(line::AbstractString, byte_index::Int)
     byte_index < 1 && return 1
-    byte_index > ncodeunits(line) + 1 && return lastindex(line) + 1
+    byte_index > ncodeunits(line) + 1 && return ncodepoint(line) + 1
     col = 1
     i = 1
     while i < byte_index && i <= ncodeunits(line)
@@ -31,10 +31,44 @@ function line_byte_span(source::AbstractString, line_no::Int)
     return start, line_text, stop
 end
 
+function line_number_at_byte(source::AbstractString, byte_index::Int)
+    line = 1
+    pos = 1
+    while pos < byte_index && pos <= ncodeunits(source)
+        nl = findnext('\n', source, pos)
+        nl === nothing && break
+        if nl < byte_index
+            line += 1
+            pos = nl + 1
+        else
+            break
+        end
+    end
+    return line
+end
+
+function position_at_byte(source::AbstractString, byte_index::Int)
+    line = line_number_at_byte(source, byte_index)
+    line_start, line_text, _ = line_byte_span(source, line)
+    col = byte_to_col(line_text, byte_index - line_start + 1)
+    return line, col
+end
+
+function span_from_byte_range(source::AbstractString, byte_start::Int, byte_end::Int)
+    sl, sc = position_at_byte(source, byte_start)
+    el, ec = position_at_byte(source, byte_end)
+    return Span(sl, sc, el, ec)
+end
+
 function span_for_line(source::AbstractString, line_no::Int)
-    start, line_text, _ = line_byte_span(source, line_no)
-    sc = 1
-    ec = ncodeunits(line_text)
-    ec == 0 && (ec = 1)
-    return start, line_text, Span(line_no, sc, line_no, ec)
+    _, line_text, _ = line_byte_span(source, line_no)
+    ec = max(1, length(line_text))
+    return line_text, Span(line_no, 1, line_no, ec)
+end
+
+function slice_source(source::AbstractString, byte_start::Int, byte_end::Int)
+    byte_start < 1 && (byte_start = 1)
+    byte_end > ncodeunits(source) && (byte_end = ncodeunits(source))
+    byte_start > byte_end && return ""
+    return source[byte_start:byte_end]
 end

@@ -22,12 +22,12 @@ before public disclosure.
 Report **exploitable** weaknesses in JAILint’s trust model, including but not
 limited to:
 
-- Bypassing **`protected-paths` (JA001)** so agents can silently weaken
+- Bypassing **`protected-paths`** so agents can silently weaken
   `.JAILintConfig.toml`, `.JETLSConfig.toml`, workflow files, `Manifest*.toml`,
   or other designated protected paths without failing the check.
 - Abusing **`--config-from`** or git merge/diff handling to make CI compare against
   attacker-controlled policy while appearing to use base policy.
-- Circumventing **`# jailint-expect:` (JA004)** or **ceiling ratchet (JA003)** in
+- Circumventing **`# jailint-expect:` (`expect-audit`)** or **ceiling ratchet (`ceiling-ratchet`)** in
   ways that hide violations in CI.
 - Composite action / pinned-environment bypass that runs unreviewed code with
   repository write implications.

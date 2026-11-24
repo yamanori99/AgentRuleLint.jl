@@ -1,3 +1,2 @@
-# jailint-expect: JP:no-internal-codename reason="fixture"
-
+# jailint-expect: project/no-internal-codename reason="fixture"
 msg = "INTERNAL_CODENAME"

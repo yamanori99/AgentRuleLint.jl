@@ -32,7 +32,7 @@ function validate_jailint_version!(toml_version::VersionNumber, pkg::VersionNumb
         throw(
             ConfigError(
                 "jailint_version pin $(toml_version) does not match JAILint $(pkg)",
-            )
+            ),
         )
     end
 end
@@ -55,10 +55,11 @@ function load_toml_file(path::String)
 end
 
 function _load_rules_table(raw::Dict)
-    rules = Dict{String, LoadedRule}()
+    rules = Dict{String, RuleSpec}()
     for (section, content) in raw
         startswith(section, "rules.") || continue
         id = section[7:end]
+        validate_kebab_rule_id(id, "rules.$id")
         content isa Dict || throw(ConfigError("rules.$id must be a table"))
         level = _rule_level(get(content, "level", "deny"))
         intent = _opt_string(content, "intent")
@@ -66,11 +67,7 @@ function _load_rules_table(raw::Dict)
         extra_keys = filter(k -> k ∉ ("level", "intent", "do_not"), collect(keys(content)))
         pairs = Tuple(Symbol(k) => content[k] for k in extra_keys)
         extra = isempty(pairs) ? NamedTuple() : NamedTuple(pairs)
-        code = "JA004"
-        if id == "expect-audit"
-            code = "JA004"
-        end
-        rules[id] = LoadedRule(code, id, :jailint, level, intent, do_not, extra)
+        rules[id] = RuleSpec(id, :jailint, level, intent, do_not, extra)
     end
     return rules
 end
@@ -79,7 +76,7 @@ function _load_project_rules(raw::Vector)
     out = ProjectRule[]
     for (i, entry) in enumerate(raw)
         entry isa Dict || throw(ConfigError("project_rules[$i] must be a table"))
-        id = _require_string(entry, "id", "project_rules[$i]")
+        id = validate_kebab_rule_id(_require_string(entry, "id", "project_rules[$i]"), "project_rules[$i]")
         level = _rule_level(get(entry, "level", "deny"))
         paths = get(entry, "paths", String[])
         paths = [String(p) for p in paths]
@@ -92,7 +89,7 @@ function _load_project_rules(raw::Vector)
     return out
 end
 
-function build_policy(raw::Dict, config_path::String, source::Dict)
+function build_policy(raw::Dict, config_path::String, config_source::ConfigSource)
     ver_raw = _require_string(raw, "jailint_version", CONFIG_FILENAME)
     ver = _parse_version_pin(ver_raw)
     validate_jailint_version!(ver, JAILINT_VERSION)
@@ -102,27 +99,24 @@ function build_policy(raw::Dict, config_path::String, source::Dict)
     rules = _load_rules_table(raw)
     project = _load_project_rules(get(raw, "project_rules", []))
     on_allow = :warn
-    expect_section = nothing
-    for (k, v) in raw
-        k == "rules.expect-audit" && (expect_section = v)
+    if haskey(raw, "rules.expect-audit")
+        es = raw["rules.expect-audit"]
+        es isa Dict && haskey(es, "on_allow_rule") && (on_allow = Symbol(es["on_allow_rule"]))
     end
-    if expect_section isa Dict && haskey(expect_section, "on_allow_rule")
-        on_allow = Symbol(expect_section["on_allow_rule"])
-    end
-    return PolicyBundle(ver, fmt, max_hits, presets, rules, project, on_allow, config_path, source)
+    return PolicyBundle(ver, fmt, max_hits, presets, rules, project, on_allow, config_path, config_source)
 end
 
-function policy_from_dict(raw::Dict, config_path::String; source = Dict{String, Any}())
-    isempty(source) && (source = Dict{String, Any}("kind" => "path", "path" => config_path))
-    return build_policy(raw, config_path, source)
+function policy_from_dict(raw::Dict, config_path::String; config_source = ConfigSource())
+    return build_policy(raw, config_path, config_source)
 end
 
 function load_policy(root::AbstractString; config_path = nothing)
     root = abspath(String(root))
     cfg = something(config_path, joinpath(root, CONFIG_FILENAME))
     raw = load_toml_file(cfg)
-    source = Dict{String, Any}("kind" => "path", "path" => relpath(cfg, root))
-    return policy_from_dict(raw, cfg; source)
+    rel = relpath(cfg, root)
+    cs = ConfigSource(:path, rel, "", "")
+    return policy_from_dict(raw, cfg; config_source = cs)
 end
 
 function load_ceilings(root::AbstractString)
@@ -150,8 +144,8 @@ function git_show_file(ref::AbstractString, relpath::AbstractString, root::Abstr
     sha_cmd = Cmd(["git", "-C", root, "rev-parse", "--verify", "--end-of-options", reff])
     sha = strip(String(read(sha_cmd)))
     showspec = string(sha, ":", relpath)
-    show_cmd = Cmd(["git", "-C", root, "show", showspec])
-    return strip(String(read(show_cmd))), sha
+    show_cmd = Cmd(["git", "-C", root, "show", "--end-of-options", showspec])
+    return String(strip(String(read(show_cmd)))), sha
 end
 
 function load_policy_from_ref(root::AbstractString, ref::AbstractString)
@@ -159,25 +153,26 @@ function load_policy_from_ref(root::AbstractString, ref::AbstractString)
     try
         cfg_text, sha = git_show_file(ref, CONFIG_FILENAME, root)
         raw = load_toml_string(cfg_text, "$CONFIG_FILENAME@$ref")
-        source = Dict{String, Any}(
-            "kind" => "git-ref",
-            "ref" => String(ref),
-            "sha" => sha,
-        )
+        cs = ConfigSource(:git_ref, CONFIG_FILENAME, String(ref), sha)
         cfg_path = joinpath(root, CONFIG_FILENAME)
-        return build_policy(raw, cfg_path, source)
+        return build_policy(raw, cfg_path, cs)
     catch err
-        err isa ConfigError || err isa ParseError && rethrow()
-        err isa ErrorException || err isa GitError && rethrow()
-        throw(GitError("failed loading policy from ref $(ref): $(err)"))
+        if err isa InterruptException
+            rethrow()
+        elseif err isa ConfigError || err isa ParseError
+            rethrow()
+        elseif err isa ErrorException || err isa GitError
+            rethrow()
+        else
+            throw(GitError("failed loading policy from ref $(ref): $(err)"))
+        end
     end
 end
 
 function default_policy(root::AbstractString)
     ver = JAILINT_VERSION
-    rules = Dict{String, LoadedRule}(
-        "expect-audit" => LoadedRule(
-            "JA004",
+    rules = Dict{String, RuleSpec}(
+        "expect-audit" => RuleSpec(
             "expect-audit",
             :jailint,
             :forbid,
@@ -186,7 +181,7 @@ function default_policy(root::AbstractString)
             NamedTuple(),
         ),
     )
-    source = Dict{String, Any}("kind" => "built-in-default")
+    cs = ConfigSource(:builtin, "", "", "")
     cfg = joinpath(abspath(root), CONFIG_FILENAME)
     return PolicyBundle(
         ver,
@@ -197,7 +192,7 @@ function default_policy(root::AbstractString)
         ProjectRule[],
         :warn,
         cfg,
-        source,
+        cs,
     )
 end
 

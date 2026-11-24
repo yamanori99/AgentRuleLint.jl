@@ -12,18 +12,18 @@ body:
     id: rule_id
     attributes:
       label: Rule ID
-      description: Built-in JA* code or project id (JP:...)
+      description: Canonical slug (`rule-id`, `preset/rule`, or `project/id`)
       options:
-        - JA001 — protected-paths
-        - JA002 — scope-paths
-        - JA003 — ceiling-ratchet
-        - JA004 — expect-audit
-        - JA005 — manifest-sync
-        - JA006 — process-pattern (preset)
-        - JA007 — silent-catch
-        - JA008 — test-integrity
-        - JA009 — unsafe-boundary
-        - JP — project rule (specify in snippet)
+        - protected-paths
+        - scope-paths
+        - ceiling-ratchet
+        - expect-audit
+        - manifest-sync
+        - shell-safety/process-pattern
+        - silent-catch
+        - test-integrity
+        - unsafe-boundary
+        - project/... (specify in snippet)
         - Other / unknown
     validations:
       required: true

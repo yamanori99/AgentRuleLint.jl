@@ -6,9 +6,8 @@ using StyledStrings
 using TOML
 using SHA: sha1
 
-export check, CheckResult, Span, Diagnostic, run_check, resolve_policy, main
-export normalize_source, parse_source, folded_string_literals
-export format_json, format_human, format_agent, explain_rule
+export check, CheckResult, Violation, RuleSpec, Span
+export ConfigError, GitError, ParseError, InternalError
 
 const JAILINT_VERSION = pkgversion(@__MODULE__)
 
@@ -30,6 +29,9 @@ function check(root::AbstractString; kwargs...)
     try
         return run_check(root; kwargs...)
     catch err
+        if err isa InterruptException
+            rethrow()
+        end
         is_fail_closed(err) && rethrow()
         throw(InternalError(string(err)))
     end
@@ -85,11 +87,20 @@ function _parse_cli_args(args::Vector{String})
     return cmd, positional, opts
 end
 
-function _exit_code(err)
-    err isa InternalError && return 3
-    is_fail_closed(err) && return 2
-    err isa ArgumentError && return 2
-    return 2
+function _emit_fail_closed(err, io = stderr)
+    if err isa InternalError
+        println(io, "JAILint internal error: ", err.msg)
+        return 3
+    elseif is_fail_closed(err)
+        println(io, "JAILint fail-closed: ", sprint(showerror, err))
+        return 2
+    elseif err isa ArgumentError
+        println(io, "JAILint: ", err.msg)
+        return 2
+    else
+        println(io, "JAILint bug: ", sprint(showerror, err))
+        return 3
+    end
 end
 
 function _emit(result::CheckResult, opts)
@@ -108,7 +119,7 @@ end
 function _cli_check(positional::Vector{String}, opts)
     root = pwd()
     paths = isempty(positional) ? String[] : positional
-    result = run_check(
+    result = check(
         root;
         paths = paths,
         config_path = opts[:config_path],
@@ -128,30 +139,22 @@ end
 
 function _cli_report(positional::Vector{String}, ::Dict)
     isempty(positional) && throw(ArgumentError("report requires <fingerprint>"))
-    # offline: fingerprint lookup would need diagnostic store; emit minimal header
     fp = positional[1]
-    dummy = Diagnostic(
-        "JA004",
-        :jailint,
-        :forbid,
-        "",
-        Span(),
-        0,
-        fp,
-        :none,
-        false,
-        "",
-        "",
-        "",
-    )
-    print(format_report(fp, dummy, "# placeholder\n"))
+    root = pwd()
+    result = check(root)
+    matches = filter(d -> d.fingerprint == fp, result.violations)
+    isempty(matches) && throw(ArgumentError("fingerprint not found: $fp"))
+    d = first(matches)
+    ap = joinpath(root, d.path)
+    src = isfile(ap) ? normalize_source(read(ap, String)) : ""
+    print(format_report(fp, d, src))
     return 0
 end
 
 function _cli_ratchet(positional::Vector{String}, opts)
     root = pwd()
     paths = positional
-    result = run_check(
+    result = check(
         root;
         paths = paths,
         config_path = opts[:config_path],
@@ -163,49 +166,42 @@ function _cli_ratchet(positional::Vector{String}, opts)
     return result.exit_code
 end
 
-function _main_impl(args = ARGS)
-    cmd, positional, opts = _parse_cli_args(collect(args))
-    return if cmd == "check"
-        _cli_check(positional, opts)
-    elseif cmd == "explain"
-        _cli_explain(positional, opts)
-    elseif cmd == "ratchet"
-        opts[:write_ratchet] = true
-        _cli_ratchet(positional, opts)
-    elseif cmd == "report"
-        _cli_report(positional, opts)
-    elseif cmd == "help" || cmd == "-h" || cmd == "--help"
-        println("Usage: jailint check [paths...] | explain <id> | ratchet --write | report <fingerprint>")
-        0
-    else
-        throw(ArgumentError("unknown command: $cmd"))
+function cli_main(args::AbstractVector{<:AbstractString})::Int
+    argvec = String[string(a) for a in args]
+    try
+        cmd, positional, opts = _parse_cli_args(argvec)
+        return if cmd == "check"
+            _cli_check(positional, opts)
+        elseif cmd == "explain"
+            _cli_explain(positional, opts)
+        elseif cmd == "ratchet"
+            opts[:write_ratchet] = true
+            _cli_ratchet(positional, opts)
+        elseif cmd == "report"
+            _cli_report(positional, opts)
+        elseif cmd == "help" || cmd == "-h" || cmd == "--help"
+            println("Usage: jailint check [paths...] | explain <id> | ratchet --write | report <fingerprint>")
+            0
+        else
+            throw(ArgumentError("unknown command: $cmd"))
+        end
+    catch err
+        if err isa InterruptException
+            rethrow()
+        end
+        return _emit_fail_closed(err)
     end
 end
 
-function main(args = ARGS)
-    return try
-        exit(_main_impl(args))
-    catch err
-        if err isa InternalError
-            println(stderr, "JAILint internal error: ", err.msg)
-            exit(3)
-        elseif is_fail_closed(err)
-            println(stderr, "JAILint fail-closed: ", sprint(showerror, err))
-            exit(2)
-        elseif err isa ArgumentError
-            println(stderr, "JAILint: ", err.msg)
-            exit(2)
-        else
-            println(stderr, "JAILint bug: ", sprint(showerror, err))
-            exit(3)
-        end
-    end
+function (@main)(args::Vector{String})::Cint
+    return Cint(cli_main(args))
 end
 
 @setup_workload begin
     try
         _ = self_check_parser("1 + 1\n")
-    catch
+    catch err
+        err isa InterruptException && rethrow()
     end
 end
 

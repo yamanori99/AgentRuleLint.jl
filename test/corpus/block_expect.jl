@@ -1,2 +1,2 @@
-#= block jailint-expect: JA004 reason="nope" =#
+#= block jailint-expect: expect-audit reason="nope" =#
 y = 0
