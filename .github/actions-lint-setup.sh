@@ -93,7 +93,7 @@ actions_lint_tool_version_ok() {
 }
 
 actions_lint_install_tools() {
-  local bin_dir gopath
+  local bin_dir
   bin_dir="$(actions_lint_bin_dir)"
   mkdir -p "${bin_dir}"
   export GOPATH="${GOPATH:-${TMPDIR:-/tmp}/jailint-gopath}"

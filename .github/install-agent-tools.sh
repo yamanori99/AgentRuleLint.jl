@@ -2,7 +2,7 @@
 # Idempotent Runic + JETLS install. A person runs it, or `.cursor/install.sh` runs it at cloud VM startup.
 # An agent does not start it unless the person asked. OS and CURSOR_AGENT do not grant that.
 # On Linux, the shellcheck package comes from apt.
-# Runic pin: .github/runic/Project.toml [compat] (CI reads the same file). JETLS: jetls-check/action.yml.
+# Runic pin: .cursor/agent-pins/runic/Project.toml [compat]. JETLS: .cursor/agent-pins/jetls-rev.
 # actionlint / zizmor / pinact: .github/actions-lint.env (CI reads the same file).
 # Julia 1.13 is `julia +1.13` on PATH, or a 1.13 julia already on PATH. No fixed install path.
 #
@@ -13,8 +13,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../scripts/section.sh
 source "${ROOT}/scripts/section.sh"
-ACTION="${ROOT}/.github/actions/jetls-check/action.yml"
-RUNIC_COMPAT="${ROOT}/.github/runic/Project.toml"
+JETLS_REV_FILE="${ROOT}/.cursor/agent-pins/jetls-rev"
+RUNIC_COMPAT="${ROOT}/.cursor/agent-pins/runic/Project.toml"
 RUNIC_UUID="62bfec6d-59d7-401d-8490-b29ee721c001"
 
 runic_pin_from_compat() {
@@ -57,11 +57,12 @@ if [[ ! "${RUNIC_PIN}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   die "invalid Runic compat pin in ${RUNIC_COMPAT}: ${RUNIC_PIN:-<empty>}"
 fi
 
-jetls_rev="$(grep -E -m 1 -o 'rev="[0-9]{4}-[0-9]{2}-[0-9]{2}"' "${ACTION}" || true)"
-jetls_rev="${jetls_rev#rev=\"}"
-jetls_rev="${jetls_rev%\"}"
+if [[ ! -f "${JETLS_REV_FILE}" ]]; then
+  die "missing ${JETLS_REV_FILE}"
+fi
+jetls_rev="$(tr -d '[:space:]' < "${JETLS_REV_FILE}")"
 if [[ ! "${jetls_rev}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-  die "no JETLS date pin in ${ACTION}"
+  die "invalid JETLS date pin in ${JETLS_REV_FILE}: ${jetls_rev:-<empty>}"
 fi
 
 mkdir -p "${APPS_BIN}"

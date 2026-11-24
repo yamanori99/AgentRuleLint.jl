@@ -1,5 +1,4 @@
-# Dependabot (julia, directory /.github/runic) bumps [compat] Runic.
-# VM install and CI Test Runic read this file only.
+# VM install reads this file only. CI Test Runic in PR #1 uses .github/runic/Project.toml.
 name = "AgentRunicPin"
 uuid = "6e229a29-2cdf-4a16-98ea-9be3ca5316a6"
 version = "0.0.0"
