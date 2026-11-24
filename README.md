@@ -2,7 +2,10 @@
 
 <!-- markdownlint-disable MD013 -->
 [![Status](https://img.shields.io/badge/status-0.1.0--DEV-orange?style=flat-square)](https://github.com/yamanori99/AgentRuleLint.jl)
+[![Test](https://img.shields.io/github/actions/workflow/status/yamanori99/AgentRuleLint.jl/CI.yml?branch=main&style=flat-square&logo=githubactions&logoColor=white&label=Test)](https://github.com/yamanori99/AgentRuleLint.jl/actions/workflows/CI.yml)
+[![Codecov](https://img.shields.io/codecov/c/github/yamanori99/AgentRuleLint.jl?style=flat-square&logo=codecov&logoColor=white)](https://codecov.io/gh/yamanori99/AgentRuleLint.jl)
 [![Julia 1.13+](https://img.shields.io/badge/Julia-1.13+-9558B2?style=flat-square&logo=julia&logoColor=white)](https://julialang.org/)
+[![code style: runic](https://img.shields.io/badge/code_style-%E1%9A%B1%E1%9A%A2%E1%9A%BE%E1%9B%81%E1%9A%B2-black)](https://github.com/fredrikekre/Runic.jl)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 <!-- markdownlint-enable MD013 -->
 
@@ -19,14 +22,17 @@ weakened tests.
 ## Quick start
 
 ```sh
-git clone https://github.com/yamanori99/AgentRuleLint.jl "$HOME/AgentRuleLint.jl"
-julia --project="$HOME/AgentRuleLint.jl" -e 'using Pkg; Pkg.instantiate()'
+julia -e 'using Pkg; Pkg.Apps.add(url="https://github.com/yamanori99/AgentRuleLint.jl")'
 
 cd path/to/your/repo
-julia --project="$HOME/AgentRuleLint.jl" -m AgentRuleLint check
-julia --project="$HOME/AgentRuleLint.jl" -m AgentRuleLint check src
-julia --project="$HOME/AgentRuleLint.jl" -m AgentRuleLint explain expect-audit
+agentrulelint check
+agentrulelint check src
+agentrulelint explain expect-audit
 ```
+
+Assuming `~/.julia/bin` is in your `PATH` you can invoke `agentrulelint` from
+your shell (or `pkg> app add https://github.com/yamanori99/AgentRuleLint.jl` in
+the Pkg REPL).
 
 Place `.AgentRuleLintConfig.toml` at the repository root.
 
@@ -54,6 +60,37 @@ Further detail: [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md),
 [LICENSE](LICENSE).
 
 ## Design (for developers)
+
+### Repository layout
+
+```text
+src/                     # package sources and CLI (@main)
+  AgentRuleLint.jl       # module entry, cli_main, check
+  config.jl              # .AgentRuleLintConfig.toml loading
+  diff.jl                # git diff scope
+  expect.jl              # suppression comment parsing
+  fingerprints.jl        # stable diagnostic fingerprints
+  path_glob.jl           # project-rule path glob patterns → Regex
+  runner.jl              # rule orchestration
+  types.jl               # shared types
+  format/                # human, JSON, agent output
+  rules/                 # built-in and project rules
+  syntax/                # JuliaSyntax adapter (no eval)
+test/                    # Pkg.test suite
+  Project.toml           # workspace test project (Aqua, Test)
+  runtests.jl            # test entry
+  test_*.jl              # focused tests
+  corpus/                # golden regression fixtures
+  runic_env/             # isolated Runic invariance env
+scripts/                 # maintainer shell helpers
+.github/                 # CI workflows and lint pins
+.agents/                 # agent skill files (mirrored under .claude/, .cursor/)
+.AgentRuleLintConfig.toml  # default rule policy for this repo
+AGENTS.md                # agent automation guide
+CONTRIBUTING.md          # contributor and issue workflow
+SECURITY.md              # security and protected paths
+Project.toml             # package metadata, [workspace], and [apps]
+```
 
 - **Fail-closed**: malformed suppression comments, unknown options, or broken
   rule state fail the check instead of silently passing.
