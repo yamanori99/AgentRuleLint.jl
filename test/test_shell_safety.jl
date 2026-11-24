@@ -28,34 +28,42 @@ function _shell_hits(root::AbstractString, relpath::AbstractString)
     return filter(d -> d.rule_id == "shell-safety/process-pattern" && !d.suppressed, res.violations)
 end
 
-function _shell_mutation_subprocess(orig::AbstractString, patched::AbstractString, corpus::AbstractString, needle::AbstractString)
-    script = root -> join(
-        [
-            "using AgentRuleLint",
-            "v = string(pkgversion(AgentRuleLint))",
-            "write(joinpath($(repr(root)), \".AgentRuleLintConfig.toml\"), \"agentrulelint_version=\\\"\" * v * \"\\\"\\npresets=[\\\"shell-safety\\\"]\\n[rules.expect-audit]\\nlevel=\\\"forbid\\\"\\n\")",
-            "r = AgentRuleLint.check($(repr(root)); paths=[\"bad.jl\"])",
-            "h = filter(d -> d.rule_id==\"shell-safety/process-pattern\" && occursin($(repr(needle)), d.message), r.violations)",
-            "exit(isempty(h) ? 0 : 1)",
-        ],
-        '\n',
-    )
-    tmp = mktempdir()
-    try
-        cp(ROOT, tmp; force = true)
-        write(joinpath(tmp, "bad.jl"), read(joinpath(CORPUS, corpus), String))
-        base_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script(tmp))`
-        before_ok = success(run(ignorestatus(setenv(base_cmd; dir = ROOT))))
-        write(joinpath(tmp, "src", "rules", "shell_safety.jl"), patched)
-        patch_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script(tmp))`
-        after_ok = success(run(ignorestatus(setenv(patch_cmd; dir = ROOT))))
-        return (!before_ok, after_ok)
-    finally
-        rm(tmp, recursive = true, force = true)
-    end
-end
-
 @testset "shell-safety process-pattern preset" begin
+    function _shell_mutation_subprocess(
+            repo_root::AbstractString,
+            _orig::AbstractString,
+            patched::AbstractString,
+            corpus::AbstractString,
+            needle::AbstractString,
+        )
+        script = root -> join(
+            [
+                "using AgentRuleLint",
+                "v = string(pkgversion(AgentRuleLint))",
+                "write(joinpath($(repr(root)), \".AgentRuleLintConfig.toml\"), \"agentrulelint_version=\\\"\" * v * \"\\\"\\npresets=[\\\"shell-safety\\\"]\\n[rules.expect-audit]\\nlevel=\\\"forbid\\\"\\n\")",
+                "r = AgentRuleLint.check($(repr(root)); paths=[\"bad.jl\"])",
+                "h = filter(d -> d.rule_id==\"shell-safety/process-pattern\" && occursin($(repr(needle)), d.message), r.violations)",
+                "exit(isempty(h) ? 0 : 1)",
+            ],
+            '\n',
+        )
+        tmp = mktempdir()
+        try
+            cp(repo_root, tmp; force = true)
+            write(joinpath(tmp, "bad.jl"), read(joinpath(CORPUS, corpus), String))
+            base_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script(tmp))`
+            before_ok = success(run(ignorestatus(setenv(base_cmd; dir = repo_root))))
+            write(joinpath(tmp, "src", "rules", "shell_safety.jl"), patched)
+            patch_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script(tmp))`
+            after_ok = success(run(ignorestatus(setenv(patch_cmd; dir = repo_root))))
+            return (!before_ok, after_ok)
+        finally
+            rm(tmp, recursive = true, force = true)
+        end
+    end
+
+    repo_root = dirname(@__DIR__)
+
     @testset "inactive without presets" begin
         root = mktempdir()
         try
@@ -128,7 +136,7 @@ end
     end
 
     @testset "mutation: detector patches (subprocess)" begin
-        src = joinpath(ROOT, "src", "rules", "shell_safety.jl")
+        src = joinpath(repo_root, "src", "rules", "shell_safety.jl")
         orig = read(src, String)
         cases = [
             ("pkill", r"\\bpkill\\b" => "pkill_OFF", "shell_pkill_backtick.jl", "pkill"),
@@ -140,7 +148,7 @@ end
         for (label, pair, corpus, needle) in cases
             @testset "$label" begin
                 patched = replace(orig, pair)
-                found, missed = _shell_mutation_subprocess(orig, patched, corpus, needle)
+                found, missed = _shell_mutation_subprocess(repo_root, orig, patched, corpus, needle)
                 @test found
                 @test missed
             end
