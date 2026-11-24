@@ -45,9 +45,11 @@ end
             res = AgentRuleLint.check(root)
             @test res.exit_code == 1
             @test res.complete
-            paths = sort(unique(
-                d.path for d in res.violations if d.rule_id == "project/paths-demo" && !d.suppressed
-            ))
+            paths = sort(
+                unique(
+                    d.path for d in res.violations if d.rule_id == "project/paths-demo" && !d.suppressed
+                )
+            )
             @test paths == ["config/app.toml", "config/deploy.yml", "docs/a.md", "scripts/run.sh"]
         finally
             rm(root, recursive = true, force = true)
