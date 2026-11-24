@@ -130,7 +130,24 @@ end
     @testset "explain and report exit codes" begin
         cd(ROOT) do
             @test AgentRuleLint.cli_main(["explain", "project/no-internal-codename"]) == 0
+            @test AgentRuleLint.cli_main(["explain", "expect-audit"]) == 0
             @test AgentRuleLint.cli_main(["explain", "not-a-real-rule"]) == 2
+            @test AgentRuleLint.cli_main(["explain", "silent-catch"]) == 2
         end
+    end
+
+    @testset "ceiling dash without ratchet file" begin
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "split_string.jl")])
+        human = AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
+        agent = AgentRuleLint.format_agent(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
+        @test occursin("ceiling=-", human)
+        @test occursin("ceiling=-", agent)
+    end
+
+    @testset "explain uses registry docs for expect-audit" begin
+        text = AgentRuleLint.explain_rule("expect-audit"; root = ROOT)
+        @test occursin("agentrulelint-expect: expect-audit", text)
+        @test occursin("level: forbid", text)
+        @test !occursin("silent-catch", text)
     end
 end
