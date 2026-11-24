@@ -5,8 +5,16 @@ const RUNIC_ENV = joinpath(@__DIR__, "runic_env")
 const ROOT = dirname(@__DIR__)
 
 function runic_format_str(code::String)
-    cmd = `julia --project=$RUNIC_ENV --startup-file=no -e 'using Runic; print(Runic.format_string(ARGS[1]))' $(code)`
-    return String(read(cmd))
+    tmp, io = mktemp()
+    try
+        write(io, code)
+        close(io)
+        cmd =
+            `julia --project=$RUNIC_ENV --startup-file=no -e 'using Runic; print(Runic.format_string(read(ARGS[1], String)))' $tmp`
+        return String(read(cmd))
+    finally
+        rm(tmp, force = true)
+    end
 end
 
 function diagnostic_signatures(result::CheckResult)

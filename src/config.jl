@@ -176,6 +176,8 @@ function _expect_audit_table(raw::Dict)
     return nothing
 end
 
+# `paths` globs are compiled at load (see `path_glob.jl`); they select every file
+# type for `forbid_literals`, not only `.jl`.
 function _load_project_rules(raw::Vector)
     out = ProjectRule[]
     for (i, entry) in enumerate(raw)
@@ -200,7 +202,14 @@ function _load_project_rules(raw::Vector)
         end
         intent = _opt_string(entry, "intent")
         do_not = _opt_string(entry, "do_not")
-        push!(out, ProjectRule(id, level, paths, literals, intent, do_not))
+        path_regexes = Regex[]
+        for (j, p) in enumerate(paths)
+            push!(path_regexes, compile_path_glob(p, "$label.paths[$j]"))
+        end
+        if any(pattern -> occursin("***", pattern), paths)
+            throw(ConfigError("invalid glob (adjacent stars) in $label.paths"))
+        end
+        push!(out, ProjectRule(id, level, paths, path_regexes, literals, intent, do_not))
     end
     return out
 end

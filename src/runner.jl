@@ -10,36 +10,51 @@ function _unique_violations(diags::Vector{Violation})
     return out
 end
 
-function discover_files(root::AbstractString; paths = String[], diff_base = nothing)
+function discover_files(
+        root::AbstractString;
+        paths = String[],
+        diff_base = nothing,
+        project_regexes = Regex[],
+    )
     root = abspath(String(root))
     if !isempty(paths)
         out = String[]
         for p in paths
             ap = isabspath(p) ? p : joinpath(root, p)
             if isfile(ap)
-                endswith(ap, ".jl") || continue
-                push!(out, relpath(ap, root))
+                rel = replace(relpath(ap, root), '\\' => '/')
+                selected_for_lint(rel, project_regexes) || continue
+                push!(out, rel)
             elseif isdir(ap)
                 for (dir, _, files) in walkdir(ap)
                     for f in files
-                        endswith(f, ".jl") || continue
-                        push!(out, relpath(joinpath(dir, f), root))
+                        rel = replace(relpath(joinpath(dir, f), root), '\\' => '/')
+                        selected_for_lint(rel, project_regexes) || continue
+                        push!(out, rel)
                     end
                 end
             end
         end
-        return sort(unique(replace.(out, '\\' => '/')))
+        return sort(unique(out))
     end
     diff_paths = diff_base === nothing ? String[] : resolve_diff_paths(root; base = diff_base)
-    !isempty(diff_paths) && return sort(filter(p -> endswith(p, ".jl"), diff_paths))
+    if !isempty(diff_paths)
+        out = String[]
+        for p in diff_paths
+            selected_for_lint(p, project_regexes) || continue
+            push!(out, p)
+        end
+        return sort(unique(out))
+    end
     out = String[]
     for (dir, _, files) in walkdir(root)
         for f in files
-            endswith(f, ".jl") || continue
-            push!(out, relpath(joinpath(dir, f), root))
+            rel = replace(relpath(joinpath(dir, f), root), '\\' => '/')
+            selected_for_lint(rel, project_regexes) || continue
+            push!(out, rel)
         end
     end
-    out = sort(unique(replace.(out, '\\' => '/')))
+    out = sort(unique(out))
     if isempty(paths) && diff_base === nothing
         filter!(p -> !startswith(p, "test/fixtures/"), out)
     end
@@ -49,14 +64,21 @@ end
 function read_parsed_file(root::AbstractString, relpath::AbstractString)
     ap = joinpath(root, relpath)
     !isfile(ap) && throw(ParseError("file not found: $relpath"))
-    raw = read(ap, String)
+    bytes = read(ap)
+    raw = try
+        String(bytes)
+    catch
+        throw(ParseError("file is not valid UTF-8: $relpath"))
+    end
     norm = normalize_source(raw)
     return ParsedFile(String(relpath), raw, norm)
 end
 
 function build_file_context(root::AbstractString, relpath::AbstractString)
     parsed = read_parsed_file(root, relpath)
-    parse_source(parsed.normalized; filename = parsed.path)
+    if julia_source_path(relpath)
+        parse_source(parsed.normalized; filename = parsed.path)
+    end
     expects = extract_expect_lines(parsed.normalized)
     return FileContext(parsed, expects, Violation[])
 end
@@ -77,7 +99,8 @@ function run_check(root::AbstractString; kwargs...)
     init_registry!(policy)
     paths_kw = get(kwargs, :paths, String[])
     diff_base = get(kwargs, :diff_base, nothing)
-    rel_files = discover_files(root; paths = paths_kw, diff_base = diff_base)
+    project_regexes = project_rule_path_regexes(policy)
+    rel_files = discover_files(root; paths = paths_kw, diff_base = diff_base, project_regexes = project_regexes)
 
     contexts = FileContext[build_file_context(root, rel) for rel in rel_files]
     all_diags = Violation[]

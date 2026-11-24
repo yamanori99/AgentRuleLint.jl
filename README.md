@@ -47,6 +47,24 @@ Place `.AgentRuleLintConfig.toml` at the repository root.
 `[[project_rules]]` (`project/<id>`) are implemented; other built-in slugs
 (e.g. `protected-paths`, `manifest-sync`) are roadmap.
 
+### Project rule path globs
+
+Under `[[project_rules]]`, each `paths` entry is a **repo-relative path glob**
+(anchored to the full relative path, not basename-only):
+
+- `*` and `?` match within a single path segment (they do not cross `/`).
+- `**` matches zero or more whole path segments (for example `lib/**/hit.jl`).
+- Invalid globs (empty, `***`, or un-compilable) fail config load with a
+  non-zero exit (fail-closed).
+
+Files selected by a project rule's globs are scanned even when they are not
+`.jl`. Non-Julia files are checked by literal text search on normalized lines
+(no Julia syntax tree). Julia files keep syntax-aware literal folding.
+
+Project-rule targets must be **valid UTF-8 text**. Binary or invalid UTF-8
+files that fall under a project rule glob cause a fail-closed `ParseError` when
+read (exit `2`), not a silent skip.
+
 ## Setup for coding agents
 
 Read [AGENTS.md](AGENTS.md) before changing rules or silencing diagnostics.
