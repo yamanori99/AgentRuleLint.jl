@@ -1,0 +1,2 @@
+# Adversarial fixture: agents must not patch JETLS policy via a case-variant path rename.
+# Exercised by test/test_protected_paths.jl rename both sides protected.

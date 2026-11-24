@@ -94,6 +94,33 @@ function explain_rule(id::AbstractString)
         suppress violations. Multiline-call placement uses the same forbid level as other
         expect-audit integrity findings.
         """
+    elseif id == "protected-paths"
+        return """
+        protected-paths
+
+        Group: integrity. Level: forbid (no inline expects).
+
+        Runs only with `--diff <base>`. Reports nothing on a full-tree `check` without `--diff`.
+
+        Auto-protected paths include `.AgentRuleLintConfig.toml`, `.agentrulelint/**`
+        (except `.agentrulelint/ceilings.toml` when the diff is monotonic non-increasing),
+        `.JETLSConfig.toml`, `Manifest*.toml`, `JuliaManifest.toml`, `LocalPreferences.toml`,
+        and every repo-relative `Project.toml`.
+
+        `project_toml_policy = "semantic"` (default) allows adding `[deps]` entries and `[compat]`
+        for newly added deps. Any change to `[sources]` or `[workspace]`, compat removal, or any
+        compat string change (loosening is any non-identical string; no semver reasoning in 0.1.0),
+        or any other top-level key change is a violation.
+
+        Declared `paths = [{ glob = "...", reason = "..." }]` under `[rules.protected-paths]` use
+        project-rule path-glob syntax; the reason appears in the message.
+
+        Missing or unparsable TOML on either side of a compared change fails closed (exit 2).
+
+        Integrity level: `protected-paths`, `ceiling-ratchet`, and `scope-paths` must always use
+        `level = "forbid"` in config. Any other level is a ConfigError (exit 2). Rename or copy
+        of a protected path is never semantically exempt (including Project.toml and ceilings.toml).
+        """
     elseif startswith(id, "project/")
         return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
     else
