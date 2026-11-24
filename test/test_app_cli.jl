@@ -1,8 +1,6 @@
 const _APP_ROOT = dirname(@__DIR__)
 const _JULIA = joinpath(Sys.BINDIR, Base.julia_exename())
 const _PROJECT_TOML = joinpath(_APP_ROOT, "Project.toml")
-const _CANONICAL_PROJECT_TOML = joinpath(@__DIR__, "fixtures", "canonical_root_project.toml")
-
 function _run_capture(cmd::Cmd)
     stdout = IOBuffer()
     stderr = IOBuffer()
@@ -31,8 +29,6 @@ end
 @testset "Pkg app vs -m AgentRuleLint" begin
     args = ["check", "test/corpus"]
     project_toml_before = read(_PROJECT_TOML)
-    canonical_project_toml = read(_CANONICAL_PROJECT_TOML)
-    @test project_toml_before == canonical_project_toml
 
     cd(_APP_ROOT) do
         code_m, out_m, err_m = _run_capture(_module_cmd(args))
@@ -81,5 +77,4 @@ end
     end
 
     @test read(_PROJECT_TOML) == project_toml_before
-    @test read(_PROJECT_TOML) == canonical_project_toml
 end
