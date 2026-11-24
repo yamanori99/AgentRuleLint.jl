@@ -94,6 +94,33 @@ function explain_rule(id::AbstractString)
         suppress violations. Multiline-call placement uses the same forbid level as other
         expect-audit integrity findings.
         """
+    elseif id == "test-integrity"
+        policy = try
+            resolve_policy(pwd())
+        catch
+            default_policy(pwd())
+        end
+        rule = get(policy.rules, id, nothing)
+        extra_intent = rule === nothing ? "" : rule.intent
+        extra_do_not = rule === nothing ? "" : rule.do_not
+        return """
+        test-integrity
+
+        Anchor line: the `@test*` macro call (or `exit(...)` / `include(...)` line when the suite driver changes).
+
+        $(extra_intent)
+
+        do_not: $(extra_do_not)
+
+        Detects only: (1) `@test` conditions trivially true after constant folding (including `const` aliases);
+        (2) in `--diff` mode, increased `@test_skip` / `@test_broken` counts per file vs base;
+        (3) `@test_throws Exception` or `ErrorException` (including `Base.Exception`);
+        (4) in `--diff` mode, top-level `include(...)` or `@testset` entries removed from `test/runtests.jl` by path/name;
+        (5) `exit(...)` or `Base.exit(...)` in `test/runtests.jl` or a statically included test file;
+        (6) in `--diff` mode, literal `atol`/`rtol` loosening in `isapprox`/`≈` vs base (named tolerance constants are a known blind spot).
+
+        Does not count static `@test` totals (refactor false positives). Always-failing tests remain JETLS / the test runner's job.
+        """
     elseif startswith(id, "project/")
         return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
     else

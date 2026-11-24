@@ -1,0 +1,588 @@
+const TEST_INTEGRITY_RULE = "test-integrity"
+const RUNTESTS_REL = "test/runtests.jl"
+
+const _SKIP_BROKEN_MACROS = ("test_skip", "test_broken")
+const _BROAD_THROW_TYPES = ("Exception", "ErrorException")
+
+struct RuntestsEntry
+    kind::Symbol
+    key::String
+    line::Int
+    byte_start::Int
+    byte_end::Int
+end
+
+struct ApproxTolSnapshot
+    index::Int
+    line::Int
+    byte_start::Int
+    byte_end::Int
+    atol::Union{Nothing, Float64}
+    rtol::Union{Nothing, Float64}
+end
+
+function _test_integrity_level(policy::PolicyBundle)
+    rule = get(policy.rules, TEST_INTEGRITY_RULE, nothing)
+    rule === nothing && return :allow
+    return rule.level == :allow ? :allow : rule.level
+end
+
+function _test_integrity_spec(policy::PolicyBundle)
+    rule = get(policy.rules, TEST_INTEGRITY_RULE, nothing)
+    rule === nothing && return ("", "")
+    return rule.intent, rule.do_not
+end
+
+function _under_test_tree(path::AbstractString)
+    p = normalize_path(path)
+    return startswith(p, "test/") || p == RUNTESTS_REL
+end
+
+function _push_test_integrity!(
+        diags::Vector{Violation},
+        policy::PolicyBundle,
+        path::String,
+        source::AbstractString,
+        byte_start::Int,
+        byte_end::Int,
+        msg::String,
+    )
+    lvl = _test_integrity_level(policy)
+    lvl == :allow && return
+    intent, do_not = _test_integrity_spec(policy)
+    sp = span_from_byte_range(source, byte_start, byte_end)
+    push!(
+        diags,
+        Violation(
+            TEST_INTEGRITY_RULE,
+            :agentrulelint,
+            lvl,
+            path,
+            sp,
+            sp.start_line,
+            "",
+            :none,
+            false,
+            msg,
+            intent,
+            do_not,
+        ),
+    )
+    return nothing
+end
+
+function _macro_name_text(node::GreenNode, src::AbstractString, pos::Int)
+    summary(node) == "macro_name" || return ""
+    for (c, cp) in _child_positions(node, pos)[1]
+        summary(c) == "Identifier" || continue
+        return _node_text_trim(c, src, cp)
+    end
+    return ""
+end
+
+function _macrocall_name(node::GreenNode, src::AbstractString, pos::Int)
+    summary(node) == "macrocall" || return ""
+    for (c, cp) in _child_positions(node, pos)[1]
+        summary(c) == "macro_name" || continue
+        return _macro_name_text(c, src, cp)
+    end
+    return ""
+end
+
+function _macrocall_args(node::GreenNode, pos::Int)
+    summary(node) == "macrocall" || return GreenNode[], Int[]
+    args = GreenNode[]
+    argpos = Int[]
+    for (c, cp) in _child_positions(node, pos)[1]
+        summary(c) == "macro_name" && continue
+        JuliaSyntax.is_trivia(head(c)) && continue
+        push!(args, c)
+        push!(argpos, cp)
+    end
+    return args, argpos
+end
+
+function _qualified_ident_tail(node::GreenNode, src::AbstractString, pos::Int)
+    s = summary(node)
+    if s == "Identifier"
+        return _node_text_trim(node, src, pos)
+    elseif s == "."
+        last = ""
+        for (c, cp) in _child_positions(node, pos)[1]
+            JuliaSyntax.is_trivia(head(c)) && continue
+            if summary(c) == "Identifier"
+                last = _node_text_trim(c, src, cp)
+            elseif summary(c) == "."
+                continue
+            end
+        end
+        return last
+    end
+    return ""
+end
+
+function _exception_type_too_broad(node::GreenNode, src::AbstractString, pos::Int)
+    tail = _qualified_ident_tail(node, src, pos)
+    return tail in _BROAD_THROW_TYPES
+end
+
+function _call_callee_ident(node::GreenNode, src::AbstractString, pos::Int)
+    summary(node) == "call" || return ""
+    kids, _ = _child_positions(node, pos)
+    for (c, cp) in kids
+        JuliaSyntax.is_trivia(head(c)) && continue
+        s = summary(c)
+        s == "Identifier" && return _node_text_trim(c, src, cp)
+        s == "." && return _qualified_ident_tail(c, src, cp)
+        break
+    end
+    return ""
+end
+
+function _is_exit_call(node::GreenNode, src::AbstractString, pos::Int)
+    summary(node) != "call" && return false
+    callee = _call_callee_ident(node, src, pos)
+    return callee == "exit"
+end
+
+function _folded_string_arg(node::GreenNode, src::AbstractString, pos::Int)
+    v = _fold_atom(node, src, pos, 0, Ref(0))
+    return v
+end
+
+function _top_level_include_paths(tree::GreenNode, src::AbstractString)
+    paths = String[]
+    for (node, pos) in _toplevel_stmt_nodes(tree)
+        summary(node) == "call" || continue
+        _call_callee_ident(node, src, pos) == "include" || continue
+        kids, _ = _child_positions(node, pos)
+        lit = nothing
+        litp = 0
+        seen_callee = false
+        for (c, cp) in kids
+            JuliaSyntax.is_trivia(head(c)) && continue
+            if !seen_callee
+                seen_callee = true
+                continue
+            end
+            lit = c
+            litp = cp
+            break
+        end
+        lit === nothing && continue
+        path = _folded_string_arg(lit, src, litp)
+        path === nothing && continue
+        push!(paths, path)
+    end
+    return paths
+end
+
+function _walk_tree_first_macro(node::GreenNode, pos::Int, src::AbstractString, want::String)
+    if summary(node) == "macrocall" && _macrocall_name(node, src, pos) == want
+        return (line_number_at_byte(src, pos), pos, pos + span(node) - 1)
+    end
+    for (c, cp) in _child_positions(node, pos)[1]
+        JuliaSyntax.is_trivia(head(c)) && continue
+        hit = _walk_tree_first_macro(c, cp, src, want)
+        hit[1] > 0 && return hit
+    end
+    return (0, 0, 0)
+end
+
+function _first_macro_line(tree::GreenNode, src::AbstractString, name::AbstractString)
+    return _walk_tree_first_macro(tree, 1, src, String(name))
+end
+
+function _runtests_entries(tree::GreenNode, src::AbstractString)::Vector{RuntestsEntry}
+    out = RuntestsEntry[]
+    for (node, pos) in _toplevel_stmt_nodes(tree)
+        s = summary(node)
+        if s == "call" && _call_callee_ident(node, src, pos) == "include"
+            kids, _ = _child_positions(node, pos)
+            lit = nothing
+            litp = 0
+            seen_callee = false
+            for (c, cp) in kids
+                JuliaSyntax.is_trivia(head(c)) && continue
+                if !seen_callee
+                    seen_callee = true
+                    continue
+                end
+                lit = c
+                litp = cp
+                break
+            end
+            lit === nothing && continue
+            path = _folded_string_arg(lit, src, litp)
+            path === nothing && continue
+            sp = span_from_byte_range(src, pos, pos + span(node) - 1)
+            push!(
+                out,
+                RuntestsEntry(:include, path, sp.start_line, pos, pos + span(node) - 1),
+            )
+        elseif s == "macrocall" && _macrocall_name(node, src, pos) == "testset"
+            args, argpos = _macrocall_args(node, pos)
+            isempty(args) && continue
+            name = _folded_string_arg(args[1], src, argpos[1])
+            name === nothing && continue
+            sp = span_from_byte_range(src, pos, pos + span(node) - 1)
+            push!(
+                out,
+                RuntestsEntry(:testset, name, sp.start_line, pos, pos + span(node) - 1),
+            )
+        end
+    end
+    return out
+end
+
+function _walk_count_test_macros!(
+        counts::Dict{String, Int},
+        node::GreenNode,
+        pos::Int,
+        src::AbstractString,
+        names::Tuple{Vararg{String}},
+    )
+    if summary(node) == "macrocall"
+        m = _macrocall_name(node, src, pos)
+        if m in names
+            counts[m] = get(counts, m, 0) + 1
+        end
+    end
+    for (c, cp) in _child_positions(node, pos)[1]
+        JuliaSyntax.is_trivia(head(c)) || _walk_count_test_macros!(counts, c, cp, src, names)
+    end
+    return nothing
+end
+
+function _count_macro_ops(tree::GreenNode, src::AbstractString, names::Tuple{Vararg{String}})
+    counts = Dict{String, Int}()
+    for n in names
+        counts[n] = 0
+    end
+    _walk_count_test_macros!(counts, tree, 1, src, names)
+    return counts
+end
+
+function _walk_test_integrity_node!(
+        diags::Vector{Violation},
+        policy::PolicyBundle,
+        path::String,
+        source::AbstractString,
+        consts::Dict{String, FoldedTestValue},
+        node::GreenNode,
+        pos::Int,
+        track_exit::Bool,
+    )
+    s = summary(node)
+    if s == "macrocall"
+        mname = _macrocall_name(node, source, pos)
+        if mname == "test"
+            args, argpos = _macrocall_args(node, pos)
+            if !isempty(args)
+                cond = args[1]
+                cp = argpos[1]
+                if test_condition_folds_true(cond, source, cp, consts)
+                    _push_test_integrity!(
+                        diags,
+                        policy,
+                        path,
+                        source,
+                        pos,
+                        pos + span(node) - 1,
+                        "@test condition is trivially true after constant folding",
+                    )
+                end
+            end
+        elseif mname == "test_throws"
+            args, argpos = _macrocall_args(node, pos)
+            if !isempty(args) && _exception_type_too_broad(args[1], source, argpos[1])
+                _push_test_integrity!(
+                    diags,
+                    policy,
+                    path,
+                    source,
+                    pos,
+                    pos + span(node) - 1,
+                    "@test_throws uses overly broad exception type ($(strip(_node_text(source, argpos[1], args[1]))))",
+                )
+            end
+        end
+    elseif track_exit && s == "call" && _is_exit_call(node, source, pos)
+        _push_test_integrity!(
+            diags,
+            policy,
+            path,
+            source,
+            pos,
+            pos + span(node) - 1,
+            "exit(...) must not run before the test suite finishes",
+        )
+    end
+    child_track = track_exit && s != "function" && s != "macro"
+    for (c, cp) in _child_positions(node, pos)[1]
+        JuliaSyntax.is_trivia(head(c)) || _walk_test_integrity_node!(diags, policy, path, source, consts, c, cp, child_track)
+    end
+    return nothing
+end
+
+function _walk_test_integrity_syntax!(
+        diags::Vector{Violation},
+        policy::PolicyBundle,
+        path::String,
+        source::AbstractString,
+        tree::GreenNode,
+        consts::Dict{String, FoldedTestValue},
+        exit_scope::Bool,
+    )
+    _walk_test_integrity_node!(diags, policy, path, source, consts, tree, 1, exit_scope)
+    return nothing
+end
+
+function _parse_kw_tolerance(parameters_node::GreenNode, src::AbstractString, pos::Int)
+    atol = nothing
+    rtol = nothing
+    for (c, cp) in _child_positions(parameters_node, pos)[1]
+        summary(c) == "=" || continue
+        key = ""
+        val_node = nothing
+        val_pos = 0
+        for (cc, cpp) in _child_positions(c, cp)[1]
+            JuliaSyntax.is_trivia(head(cc)) && continue
+            if summary(cc) == "Identifier" && isempty(key)
+                key = _node_text_trim(cc, src, cpp)
+            elseif summary(cc) in ("Float", "Integer")
+                val_node = cc
+                val_pos = cpp
+            end
+        end
+        key in ("atol", "rtol") || continue
+        val_node === nothing && continue
+        v = _parse_float_node(val_node, src, val_pos)
+        if v === nothing && summary(val_node) == "Integer"
+            iv = _parse_int_node(val_node, src, val_pos)
+            iv !== nothing && (v = Float64(iv))
+        end
+        v === nothing && continue
+        key == "atol" && (atol = v)
+        key == "rtol" && (rtol = v)
+    end
+    return atol, rtol
+end
+
+function _call_is_approx(node::GreenNode, src::AbstractString, pos::Int)
+    s = summary(node)
+    s == "call" || return false
+    callee = _call_callee_ident(node, src, pos)
+    callee == "isapprox" && return true
+    callee == "≈" && return true
+    for (c, cp) in _child_positions(node, pos)[1]
+        summary(c) == "Identifier" && _node_text_trim(c, src, cp) == "≈" && return true
+    end
+    return false
+end
+
+function _walk_approx_snaps!(out::Vector{ApproxTolSnapshot}, node::GreenNode, pos::Int, src::AbstractString)
+    if _call_is_approx(node, src, pos)
+        atol = nothing
+        rtol = nothing
+        for (c, cp) in _child_positions(node, pos)[1]
+            summary(c) == "parameters" || continue
+            atol, rtol = _parse_kw_tolerance(c, src, cp)
+        end
+        sp = span_from_byte_range(src, pos, pos + span(node) - 1)
+        push!(out, ApproxTolSnapshot(length(out) + 1, sp.start_line, pos, pos + span(node) - 1, atol, rtol))
+    end
+    for (c, cp) in _child_positions(node, pos)[1]
+        JuliaSyntax.is_trivia(head(c)) || _walk_approx_snaps!(out, c, cp, src)
+    end
+    return nothing
+end
+
+function _collect_approx_tolerances(tree::GreenNode, src::AbstractString)::Vector{ApproxTolSnapshot}
+    out = ApproxTolSnapshot[]
+    _walk_approx_snaps!(out, tree, 1, src)
+    return out
+end
+
+function _tol_grew(base::Union{Nothing, Float64}, head::Union{Nothing, Float64})
+    head === nothing && return false
+    base === nothing && return true
+    return head > base
+end
+
+function literal_include_graph(runtests_src::AbstractString)
+    paths = String[]
+    tree = parse_source(normalize_source(runtests_src); filename = RUNTESTS_REL)
+    push!(paths, RUNTESTS_REL)
+    for inc in _top_level_include_paths(tree, normalize_source(runtests_src))
+        rel = normalize_path(inc)
+        !startswith(rel, "test/") && (rel = "test/" * lstrip(rel, '/'))
+        push!(paths, rel)
+    end
+    return unique(paths)
+end
+
+function _file_test_integrity_syntax(fc::FileContext, policy::PolicyBundle, exit_scope::Bool)
+    path = fc.parsed.path
+    !_under_test_tree(path) && return Violation[]
+    !julia_source_path(path) && return Violation[]
+    source = fc.parsed.normalized
+    tree = parse_source(source; filename = path)
+    consts = collect_toplevel_const_bindings(tree, source)
+    diags = Violation[]
+    _walk_test_integrity_syntax!(diags, policy, path, source, tree, consts, exit_scope)
+    return diags
+end
+
+function _diff_test_skip_broken!(
+        diags::Vector{Violation},
+        policy::PolicyBundle,
+        root::AbstractString,
+        path::String,
+        head_src::AbstractString,
+        base_ref::AbstractString,
+    )
+    sha = git_resolve_commit_sha(root, base_ref)
+    git_tree_path_exists(root, sha, path) || return
+    head_tree = parse_source(head_src; filename = path)
+    counts = _count_macro_ops(head_tree, head_src, _SKIP_BROKEN_MACROS)
+    base_src = git_show_blob_at_commit(root, sha, path)
+    base_tree = parse_source(base_src; filename = path)
+    base_counts = _count_macro_ops(base_tree, base_src, _SKIP_BROKEN_MACROS)
+    for m in _SKIP_BROKEN_MACROS
+        get(counts, m, 0) <= get(base_counts, m, 0) && continue
+        ln, b0, b1 = _first_macro_line(head_tree, head_src, m)
+        ln == 0 && (b0 = 1; b1 = min(4, ncodeunits(head_src)))
+        _push_test_integrity!(
+            diags,
+            policy,
+            path,
+            head_src,
+            b0,
+            b1,
+            "@$m count increased ($(get(base_counts, m, 0)) -> $(get(counts, m, 0)))",
+        )
+    end
+    return nothing
+end
+
+function _diff_runtests_removed!(
+        diags::Vector{Violation},
+        policy::PolicyBundle,
+        root::AbstractString,
+        head_src::AbstractString,
+        base_ref::AbstractString,
+    )
+    path = RUNTESTS_REL
+    sha = git_resolve_commit_sha(root, base_ref)
+    git_tree_path_exists(root, sha, path) || return
+    base_src = git_show_blob_at_commit(root, sha, path)
+    base_tree = parse_source(base_src; filename = path)
+    head_tree = parse_source(head_src; filename = path)
+    base_entries = Set((e.kind, e.key) for e in _runtests_entries(base_tree, base_src))
+    head_entries = Set((e.kind, e.key) for e in _runtests_entries(head_tree, head_src))
+    for ek in base_entries
+        ek in head_entries && continue
+        kind, key = ek
+        label = kind == :include ? "include($key)" : "@testset \"$key\""
+        _push_test_integrity!(
+            diags,
+            policy,
+            path,
+            head_src,
+            1,
+            min(ncodeunits(head_src), 4),
+            "removed from test/runtests.jl: $label",
+        )
+    end
+    return nothing
+end
+
+function _diff_approx_tolerances!(
+        diags::Vector{Violation},
+        policy::PolicyBundle,
+        path::String,
+        head_src::AbstractString,
+        base_src::AbstractString,
+        changed::Set{Int},
+    )
+    head_tree = parse_source(head_src; filename = path)
+    base_tree = parse_source(base_src; filename = path)
+    head_snaps = _collect_approx_tolerances(head_tree, head_src)
+    base_snaps = _collect_approx_tolerances(base_tree, base_src)
+    base_by_idx = Dict(s.index => s for s in base_snaps)
+    for snap in head_snaps
+        on_changed = any(ln -> ln in changed, snap.line:snap.line)
+        !on_changed && continue
+        base = get(base_by_idx, snap.index, nothing)
+        base === nothing && continue
+        loosen = _tol_grew(base.atol, snap.atol) || _tol_grew(base.rtol, snap.rtol)
+        loosen || continue
+        _push_test_integrity!(
+            diags,
+            policy,
+            path,
+            head_src,
+            snap.byte_start,
+            snap.byte_end,
+            "isapprox/≈ tolerance loosened vs base (atol=$(base.atol) rtol=$(base.rtol) -> atol=$(snap.atol) rtol=$(snap.rtol))",
+        )
+    end
+    return nothing
+end
+
+function run_test_integrity(
+        root::AbstractString,
+        contexts::Vector{FileContext},
+        policy::PolicyBundle;
+        diff_base = nothing,
+        diff_scope = nothing,
+    )
+    lvl = _test_integrity_level(policy)
+    lvl == :allow && return Violation[]
+    root = abspath(String(root))
+    exit_paths = Set{String}()
+    runtests_fc = nothing
+    for fc in contexts
+        fc.parsed.path == RUNTESTS_REL && (runtests_fc = fc)
+    end
+    if runtests_fc !== nothing
+        for p in literal_include_graph(runtests_fc.parsed.normalized)
+            push!(exit_paths, normalize_path(p))
+        end
+    else
+        push!(exit_paths, RUNTESTS_REL)
+    end
+
+    diags = Violation[]
+    for fc in contexts
+        exit_scope = normalize_path(fc.parsed.path) in exit_paths
+        append!(diags, _file_test_integrity_syntax(fc, policy, exit_scope))
+    end
+
+    diff_base === nothing && return diags
+
+    sha = git_resolve_commit_sha(root, diff_base)
+    for fc in contexts
+        path = fc.parsed.path
+        !_under_test_tree(path) && continue
+        !julia_source_path(path) && continue
+        if diff_scope !== nothing
+            st = diff_path_status(diff_scope, path)
+            st == 'D' && continue
+            changed = diff_changed_lines(diff_scope, path)
+            isempty(changed) && continue
+        else
+            changed = Set{Int}()
+        end
+        head_src = fc.parsed.normalized
+        _diff_test_skip_broken!(diags, policy, root, path, head_src, diff_base)
+        if path == RUNTESTS_REL
+            _diff_runtests_removed!(diags, policy, root, head_src, diff_base)
+        end
+        git_tree_path_exists(root, sha, path) || continue
+        base_src = git_show_blob_at_commit(root, sha, path)
+        _diff_approx_tolerances!(diags, policy, path, head_src, base_src, changed)
+    end
+    return diags
+end
