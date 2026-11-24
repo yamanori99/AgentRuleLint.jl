@@ -19,30 +19,36 @@ function sole_hit_fp(root::AbstractString, rule_id::AbstractString, pred = nothi
 end
 
 @testset "project rules: path globs and non-Julia sources" begin
-    @testset "non-.jl hits (toml and md)" begin
+    @testset "non-.jl hits without Julia parse (markdown, toml, yaml, shell)" begin
         root = tmp_repo(
             """
             [[project_rules]]
-            id = \"docs-secrets\"
+            id = \"paths-demo\"
             level = \"deny\"
-            paths = [\"config/*.toml\", \"docs/**/*.md\"]
-            forbid_literals = [\"INTERNAL_CODENAME\"]
+            paths = [\"docs/*.md\", \"config/*\", \"scripts/*\"]
+            forbid_literals = [\"SECRET\"]
             intent = \"\"
             do_not = \"\"
             """,
         )
         try
+            mkpath(joinpath(root, "docs"))
             mkpath(joinpath(root, "config"))
-            mkpath(joinpath(root, "docs", "sub"))
-            write(joinpath(root, "config", "app.toml"), "name = \"INTERNAL_CODENAME\"\n")
-            write(joinpath(root, "docs", "sub", "note.md"), "# INTERNAL_CODENAME\n")
-            mkpath(joinpath(root, "other"))
-            write(joinpath(root, "other", "skip.toml"), "INTERNAL_CODENAME\n")
+            mkpath(joinpath(root, "scripts"))
+            write(
+                joinpath(root, "docs", "a.md"),
+                "# Title\n\nUse `f(x` carefully. It is not SECRET.\n",
+            )
+            write(joinpath(root, "config", "app.toml"), "key = \"not SECRET\"\nvalue= \"SECRET\"\n")
+            write(joinpath(root, "config", "deploy.yml"), "env:\n  PLAIN: SECRET\n")
+            write(joinpath(root, "scripts", "run.sh"), "#!/bin/sh\necho SECRET\n")
             res = AgentRuleLint.check(root)
-            paths = unique(d.path for d in res.violations if d.rule_id == "project/docs-secrets" && !d.suppressed)
-            @test "config/app.toml" in paths
-            @test "docs/sub/note.md" in paths
-            @test "other/skip.toml" ∉ paths
+            @test res.exit_code == 1
+            @test res.complete
+            paths = sort(unique(
+                d.path for d in res.violations if d.rule_id == "project/paths-demo" && !d.suppressed
+            ))
+            @test paths == ["config/app.toml", "config/deploy.yml", "docs/a.md", "scripts/run.sh"]
         finally
             rm(root, recursive = true, force = true)
         end
@@ -158,25 +164,33 @@ end
         end
     end
 
-    @testset "invalid glob fails config load" begin
-        root = tmp_repo(
-            """
-            [[project_rules]]
-            id = \"bad-glob\"
-            level = \"deny\"
-            paths = [\"lib/***/hit.jl\"]
-            forbid_literals = [\"x\"]
-            intent = \"\"
-            do_not = \"\"
-            """,
-        )
-        try
-            @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
-            cd(root) do
-                @test AgentRuleLint.cli_main(["check"]) == 2
+    @testset "unsupported glob patterns fail config load" begin
+        bad_paths = [
+            ("lib/***/hit.jl", "adjacent stars"),
+            ("src/[ab].jl", "brackets"),
+            ("src/{a,b}.jl", "braces"),
+            ("a**b", "inline double-star"),
+            ("**foo", "double-star prefix segment"),
+            ("/abs.jl", "leading slash"),
+            ("../x.jl", "dot-dot segment"),
+        ]
+        for (pattern, _case) in bad_paths
+            root = tmp_repo(
+                """
+                [[project_rules]]
+                id = \"bad-glob\"
+                level = \"deny\"
+                paths = [\"$pattern\"]
+                forbid_literals = [\"x\"]
+                intent = \"\"
+                do_not = \"\"
+                """,
+            )
+            try
+                @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
+            finally
+                rm(root, recursive = true, force = true)
             end
-        finally
-            rm(root, recursive = true, force = true)
         end
     end
 
@@ -195,7 +209,14 @@ end
         try
             mkpath(joinpath(root, "data"))
             write(joinpath(root, "data", "payload.bin"), UInt8[0xff, 0xfe, 0xfd])
-            @test_throws AgentRuleLint.ParseError AgentRuleLint.check(root)
+            err = nothing
+            try
+                AgentRuleLint.check(root)
+            catch e
+                err = e
+            end
+            @test err isa AgentRuleLint.ParseError
+            @test occursin("file is not valid UTF-8: data/payload.bin", err.msg)
             cd(root) do
                 @test AgentRuleLint.cli_main(["check"]) == 2
             end

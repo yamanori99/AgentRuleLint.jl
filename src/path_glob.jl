@@ -1,4 +1,11 @@
-# Path glob → anchored regex (`*`/`?` do not cross `/`; `**` matches path segments).
+# Project-rule path globs: compile at config load to anchored regexes.
+# Executable spec: `test/test_project_rules_paths.jl`.
+#
+# Supported syntax (repo-relative; whole path anchored, not basename-only):
+# - `*` and `?` match within one path segment (never cross `/`).
+# - `**` only as a whole segment: `**`, `**/x`, `x/**`, `x/**/y` (plus `/**` suffix).
+# Rejected with `ConfigError` (fail-closed): empty, leading `/`, `..` segments,
+# `[` `]` `{` `}`, `***`, `a**b`, `**foo`, or any `**` inside a longer segment.
 
 const _GLOB_REGEX_SPECIALS = ('\\', '^', '$', '.', '|', '?', '+', '(', ')', '[', ']', '{', '}')
 
@@ -11,23 +18,38 @@ function _write_glob_literal!(out::IO, c::Char)
     return nothing
 end
 
-"""
-    compile_path_glob(pattern, label) -> Regex
+function _validate_glob_segment!(seg::AbstractString, label::AbstractString, pattern::AbstractString)
+    seg == "**" && return
+    occursin("**", seg) &&
+        throw(ConfigError("** must be a whole path segment in $label: '$pattern'"))
+    return nothing
+end
 
-Compile a repo-relative path glob. Invalid patterns throw `ConfigError` (fail-closed).
 """
-function compile_path_glob(pattern::AbstractString, label::AbstractString)
+    validate_path_glob_pattern!(pattern, label)
+
+Fail-closed validation for supported path-glob syntax (`*`, `?`, `**` as whole segment only).
+"""
+function validate_path_glob_pattern!(pattern::AbstractString, label::AbstractString)
     pat = replace(String(pattern), '\\' => '/')
     isempty(pat) && throw(ConfigError("empty glob pattern in $label"))
-    if pat == "**"
-        return Regex("^.*\$")
+    startswith(pat, "/") &&
+        throw(ConfigError("glob must be repo-relative (no leading '/') in $label: '$pattern'"))
+    for c in ('[', ']', '{', '}')
+        occursin(c, pat) &&
+            throw(ConfigError("unsupported glob syntax '$c' in $label: '$pattern'"))
     end
-    suffix_extra = ""
-    if endswith(pat, "/**")
-        pat = pat[1:(end - 3)]
-        suffix_extra = "(?:/.*)?"
-        isempty(pat) && return Regex("^.*\$")
+    occursin("***", pat) &&
+        throw(ConfigError("invalid glob (adjacent stars) in $label: '$pattern'"))
+    for seg in split(pat, '/'; keepempty = false)
+        seg == ".." &&
+            throw(ConfigError("path segment '..' not allowed in $label: '$pattern'"))
+        _validate_glob_segment!(seg, label, pattern)
     end
+    return nothing
+end
+
+function _compile_path_glob_body(pat::AbstractString)
     out = IOBuffer()
     write(out, '^')
     i = firstindex(pat)
@@ -60,14 +82,43 @@ function compile_path_glob(pattern::AbstractString, label::AbstractString)
             i = nextind(pat, i)
         end
     end
-    write(out, suffix_extra)
-    write(out, '$')
-    body = String(take!(out))
-    try
-        return Regex(body)
-    catch err
-        throw(ConfigError("invalid glob '$pattern' in $label: $(err)"))
+    return String(take!(out))
+end
+
+"""
+    compile_path_glob(pattern, label) -> Regex
+
+Compile a repo-relative `[[project_rules]].paths` glob to an anchored regex.
+
+**Syntax:** `*` / `?` per path segment; `**` only as a whole segment (`**`, `**/x`,
+`x/**`, `x/**/y`, including `prefix/**` meaning `prefix` or anything under it).
+Matches the full repo-relative path (no basename-only fallback).
+
+**Rejected** (`ConfigError`, config load fail-closed): empty pattern, leading `/`,
+`..` segments, bracket/brace groups, `***`, embedded `**` (e.g. `a**b`, `**foo`).
+
+Non-`.jl` targets selected by these globs are linted without Julia parsing; see
+`read_parsed_file` (UTF-8) and `expect_audit_text_diagnostics` in `expect.jl`.
+Tests: `test/test_project_rules_paths.jl`.
+"""
+function compile_path_glob(pattern::AbstractString, label::AbstractString)
+    pat = replace(String(pattern), '\\' => '/')
+    validate_path_glob_pattern!(pat, label)
+    if pat == "**"
+        return Regex("^.*\$")
     end
+    suffix_extra = ""
+    core = pat
+    if endswith(pat, "/**")
+        core = pat[1:(end - 3)]
+        suffix_extra = "(?:/.*)?"
+        if isempty(core)
+            return Regex("^.*\$")
+        end
+        validate_path_glob_pattern!(core, label)
+    end
+    body = _compile_path_glob_body(core)
+    return Regex(body * suffix_extra * "\$")
 end
 
 function path_matches_glob(path::AbstractString, regexes::Vector{Regex})

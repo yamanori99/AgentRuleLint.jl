@@ -206,9 +206,6 @@ function _load_project_rules(raw::Vector)
         for (j, p) in enumerate(paths)
             push!(path_regexes, compile_path_glob(p, "$label.paths[$j]"))
         end
-        if any(pattern -> occursin("***", pattern), paths)
-            throw(ConfigError("invalid glob (adjacent stars) in $label.paths"))
-        end
         push!(out, ProjectRule(id, level, paths, path_regexes, literals, intent, do_not))
     end
     return out

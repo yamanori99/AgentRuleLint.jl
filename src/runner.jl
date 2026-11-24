@@ -61,15 +61,14 @@ function discover_files(
     return out
 end
 
+# All scanned targets must be valid UTF-8 (`isvalid(String, bytes)`); invalid bytes
+# fail closed before any rule runs (not via incidental JuliaSyntax errors on non-.jl).
 function read_parsed_file(root::AbstractString, relpath::AbstractString)
     ap = joinpath(root, relpath)
     !isfile(ap) && throw(ParseError("file not found: $relpath"))
     bytes = read(ap)
-    raw = try
-        String(bytes)
-    catch
-        throw(ParseError("file is not valid UTF-8: $relpath"))
-    end
+    isvalid(String, bytes) || throw(ParseError("file is not valid UTF-8: $relpath"))
+    raw = String(bytes)
     norm = normalize_source(raw)
     return ParsedFile(String(relpath), raw, norm)
 end
@@ -79,7 +78,11 @@ function build_file_context(root::AbstractString, relpath::AbstractString)
     if julia_source_path(relpath)
         parse_source(parsed.normalized; filename = parsed.path)
     end
-    expects = extract_expect_lines(parsed.normalized)
+    expects = if julia_source_path(relpath)
+        extract_expect_lines(parsed.normalized)
+    else
+        extract_expect_lines_text(parsed.normalized)
+    end
     return FileContext(parsed, expects, Violation[])
 end
 
@@ -106,7 +109,11 @@ function run_check(root::AbstractString; kwargs...)
     all_diags = Violation[]
 
     for fc in contexts
-        append!(all_diags, expect_audit_diagnostics(fc, policy))
+        if julia_source_path(fc.parsed.path)
+            append!(all_diags, expect_audit_diagnostics(fc, policy))
+        else
+            append!(all_diags, expect_audit_text_diagnostics(fc, policy))
+        end
         append!(all_diags, forbid_rule_suppression_attempt(fc.expects, policy, fc))
         append!(all_diags, run_project_rules(fc, policy))
     end
@@ -120,7 +127,11 @@ function run_check(root::AbstractString; kwargs...)
             push!(idxs, di)
             push!(path_diags, d)
         end
-        eligible = expects_eligible_for_suppression(fc.expects, fc.parsed.normalized)
+        eligible = if julia_source_path(rel)
+            expects_eligible_for_suppression(fc.expects, fc.parsed.normalized)
+        else
+            expects_eligible_for_suppression_text(fc.expects, fc.parsed.normalized)
+        end
         used = apply_expect_suppression!(path_diags, eligible, fc.parsed.normalized)
         for (j, di) in enumerate(idxs)
             all_diags[di] = path_diags[j]

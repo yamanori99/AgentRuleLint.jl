@@ -99,6 +99,31 @@ function detect_malformed_agentrulelint(source::AbstractString)
     return diags
 end
 
+function _line_is_standalone_hash_comment(line::AbstractString)
+    pos = findfirst('#', line)
+    pos === nothing && return false
+    cut = pos isa AbstractRange ? first(pos) : pos
+    cut = cut isa Integer ? cut : first(cut)
+    code = cut > 1 ? strip(line[1:prevind(line, cut)]) : ""
+    return isempty(code)
+end
+
+function extract_expect_lines_text(source::AbstractString)
+    source = normalize_source(source)
+    expects = ExpectLine[]
+    for (line_no, line) in enumerate(split(source, '\n'))
+        _line_is_standalone_hash_comment(line) || continue
+        body = strip(strip(line)[2:end])
+        startswith(body, EXPECT_PREFIX) || continue
+        parsed = parse_expect_body(body)
+        parsed === nothing && continue
+        parsed.status == :malformed && continue
+        parsed.status != :ok && continue
+        push!(expects, ExpectLine(line_no, parsed.rule_ref, parsed.reason, body))
+    end
+    return expects
+end
+
 function extract_expect_lines(source::AbstractString)
     source = normalize_source(source)
     comments = standalone_comment_lines(source)
@@ -112,6 +137,33 @@ function extract_expect_lines(source::AbstractString)
         push!(expects, ExpectLine(line_no, parsed.rule_ref, parsed.reason, body))
     end
     return expects
+end
+
+function detect_malformed_agentrulelint_text(source::AbstractString)
+    src = normalize_source(source)
+    diags = Vector{Tuple{Int, String}}()
+    seen = Set{Tuple{Int, String}}()
+    for d in detect_inline_expect_trailing(src)
+        d in seen && continue
+        push!(seen, d)
+        push!(diags, d)
+    end
+    for (i, line) in enumerate(split(src, '\n'))
+        _line_is_standalone_hash_comment(line) || continue
+        body = strip(strip(line)[2:end])
+        occursin(AGENTRULELINT_PREFIX, body) || continue
+        if startswith(body, "agentrulelint-expect:")
+            parsed = parse_expect_body(body)
+            if parsed === nothing
+                _push_malformed!(diags, seen, i, "malformed expect")
+            elseif parsed.status == :malformed
+                _push_malformed!(diags, seen, i, String(parsed.message))
+            end
+        elseif startswith(body, "agentrulelint")
+            _push_malformed!(diags, seen, i, "malformed # agentrulelint* directive")
+        end
+    end
+    return diags
 end
 
 function contiguous_expect_groups(expects::Vector{ExpectLine})
@@ -202,6 +254,87 @@ function apply_expect_suppression!(diags::Vector{Violation}, expects::Vector{Exp
         end
     end
     return used_expect
+end
+
+"""
+Non-Julia files: line-based expect-audit only (no `parse_source` / JuliaSyntax).
+`# agentrulelint-expect:` on standalone `#` comment lines is parsed; placement uses the
+next non-blank line as the attachment anchor (`rule_anchor_matches` for project rules).
+Julia-only rules (catch, multiline-call interior, runic:off) are not applied.
+"""
+function expect_audit_text_diagnostics(fc::FileContext, policy::PolicyBundle)
+    source = fc.parsed.normalized
+    diags = Violation[]
+    rule = get(policy.rules, "expect-audit", nothing)
+    lvl = rule === nothing ? :forbid : rule.level
+    path = fc.parsed.path
+
+    seen = Set{Tuple{Int, String}}()
+    for (line_no, msg) in detect_malformed_agentrulelint_text(source)
+        key = (line_no, msg)
+        key in seen && continue
+        push!(seen, key)
+        _push_expect_violation!(diags, msg, rule, path, source, line_no, lvl)
+    end
+
+    for (line_no, msg) in scan_block_comments(source)
+        key = (line_no, msg)
+        key in seen && continue
+        push!(seen, key)
+        _push_expect_violation!(diags, msg, rule, path, source, line_no, lvl)
+    end
+
+    groups = contiguous_expect_groups(fc.expects)
+    for g in groups
+        last_e = maximum(e.line for e in g)
+        code_li, code = group_attachment_code_line(g, source)
+        if code_li > 0
+            for ex in g
+                rule_anchor_matches(ex.rule_ref, code) || _push_expect_violation!(
+                    diags,
+                    "expect not anchored to rule target syntax",
+                    rule,
+                    path,
+                    source,
+                    ex.line,
+                    lvl,
+                )
+            end
+        end
+        code_li == 0 && continue
+        if code_li > last_e + 1
+            for ex in g
+                _push_expect_violation!(
+                    diags,
+                    "blank line breaking expect attachment (unused)",
+                    rule,
+                    path,
+                    source,
+                    ex.line,
+                    lvl,
+                )
+            end
+        end
+    end
+
+    return diags
+end
+
+function expects_eligible_for_suppression_text(expects::Vector{ExpectLine}, source::AbstractString)
+    isempty(expects) && return ExpectLine[]
+    src = normalize_source(source)
+    eligible = ExpectLine[]
+    for g in contiguous_expect_groups(expects)
+        anchor_li, code = group_attachment_code_line(g, src)
+        anchor_li == 0 && continue
+        last_e = maximum(e.line for e in g)
+        anchor_li > last_e + 1 && continue
+        for ex in g
+            rule_anchor_matches(ex.rule_ref, code) || continue
+            push!(eligible, ex)
+        end
+    end
+    return eligible
 end
 
 function expect_audit_diagnostics(fc::FileContext, policy::PolicyBundle)

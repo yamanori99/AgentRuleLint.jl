@@ -191,9 +191,5 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
 
     Aqua.test_all(AgentRuleLint)
 
-    runic_env = joinpath(@__DIR__, "runic_env")
-    if !isfile(joinpath(runic_env, "Manifest.toml"))
-        run(`julia --startup-file=no --project=$runic_env -e 'using Pkg; Pkg.instantiate()'`)
-    end
     include("test_runic_invariance.jl")
 end
