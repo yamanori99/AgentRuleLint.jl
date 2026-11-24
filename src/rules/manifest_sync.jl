@@ -31,6 +31,12 @@ const MANIFEST_TOP_LEVEL_FROM_22 = (
 
 const MANIFEST_SYNC_FIXTURE_PREFIX = "test/corpus/manifest_sync/"
 
+const _MANIFEST_SYNC_DISABLED = Set{Symbol}()
+
+function _ms_enabled(sym::Symbol)
+    return !(sym in _MANIFEST_SYNC_DISABLED)
+end
+
 function _manifest_sync_skip_path(rel::AbstractString)
     return startswith(normalize_path(rel), MANIFEST_SYNC_FIXTURE_PREFIX)
 end
@@ -131,31 +137,70 @@ function _tracked_manifests_adjacent(dir::AbstractString, tracked::Vector{String
     return out
 end
 
+function _claim_manifest_for_project!(
+        manifest_to_project::Dict{String, String},
+        conflicts::Vector{Tuple{String, String, String}},
+        manifest_rel::String,
+        project_rel::String,
+    )
+    prev = get(manifest_to_project, manifest_rel, nothing)
+    if prev === nothing
+        manifest_to_project[manifest_rel] = project_rel
+        return nothing
+    end
+    prev == project_rel && return nothing
+    push!(conflicts, (manifest_rel, prev, project_rel))
+    return nothing
+end
+
 function _build_manifest_to_project_map(root::AbstractString, tracked::Vector{String})
     tracked_set = Set(tracked)
     manifest_to_project = Dict{String, String}()
+    conflicts = Tuple{String, String, String}[]
     for proj_rel in tracked
         basename(proj_rel) == "Project.toml" || continue
         text = _read_worktree_text(root, proj_rel)
         proj = _parse_toml_or_throw(text, proj_rel)
         for m in _tracked_manifests_adjacent(dirname(proj_rel), tracked)
-            if !haskey(manifest_to_project, m)
-                manifest_to_project[m] = proj_rel
-            end
+            _claim_manifest_for_project!(manifest_to_project, conflicts, m, proj_rel)
         end
         custom = _custom_manifest_rel(proj, proj_rel)
-        if custom !== nothing && custom in tracked_set && !haskey(manifest_to_project, custom)
-            manifest_to_project[custom] = proj_rel
+        if custom !== nothing && custom in tracked_set
+            _claim_manifest_for_project!(manifest_to_project, conflicts, custom, proj_rel)
         end
     end
-    return manifest_to_project
+    return manifest_to_project, conflicts
+end
+
+function _report_manifest_project_conflicts!(
+        diags::Vector{Violation},
+        conflicts::Vector{Tuple{String, String, String}},
+        level::Symbol,
+        intent::String,
+        do_not::String,
+    )
+    for (m, p1, p2) in sort(conflicts)
+        _push_ms_violation!(
+            diags,
+            level,
+            m,
+            1,
+            "tracked manifest '$m' is claimed by multiple Project.toml files ($p1, $p2)",
+            intent,
+            do_not,
+        )
+    end
+    return nothing
 end
 
 function discover_manifest_project_pairs(root::AbstractString, tracked::Vector{String})
     tracked_set = Set(tracked)
-    manifest_to_project = _build_manifest_to_project_map(root, tracked)
+    manifest_to_project, conflicts = _build_manifest_to_project_map(root, tracked)
+    conflict_manifests =
+        Set(String(m) for (m, _, _) in conflicts)
     pairs = ManifestProjectContext[]
     for (m, proj_rel) in manifest_to_project
+        m in conflict_manifests && continue
         _manifest_sync_skip_path(m) && continue
         text = _read_worktree_text(root, proj_rel)
         proj = _parse_toml_or_throw(text, proj_rel)
@@ -171,7 +216,7 @@ function discover_manifest_project_pairs(root::AbstractString, tracked::Vector{S
         push!(orphans, m)
     end
     sort!(unique!(orphans))
-    return pairs, orphans
+    return pairs, orphans, conflicts
 end
 
 function _manifest_dep_record(pkg::AbstractString, entry, manifest_rel::AbstractString)
@@ -291,6 +336,7 @@ function _report_orphan_tracked_manifests!(
         intent::String,
         do_not::String,
     )
+    !_ms_enabled(:orphan_tracked_manifests) && return nothing
     for m in orphans
         _push_ms_violation!(
             diags,
@@ -329,6 +375,7 @@ function _check_manifest_format!(
         intent::String,
         do_not::String,
     )
+    !_ms_enabled(:manifest_format) && return nothing
     fmt = get(man, "manifest_format", nothing)
     if fmt === nothing
         _push_ms_violation!(diags, level, manifest_rel, 1, "missing manifest_format (fail-closed)", intent, do_not)
@@ -362,6 +409,7 @@ function _check_manifest_top_level!(
         intent::String,
         do_not::String,
     )
+    !_ms_enabled(:manifest_top_level) && return nothing
     allowed = _allowed_manifest_top_level(fmt_minor)
     for k in keys(man)
         sk = String(k)
@@ -389,15 +437,14 @@ function _check_manifest_version_filename!(
         intent::String,
         do_not::String,
     )
+    !_ms_enabled(:manifest_version_filename) && return nothing
     m = match(MANIFEST_V_RE, basename(manifest_rel))
     m === nothing && return nothing
-    cap_major = m.captures[1]
-    cap_minor = m.captures[2]
-    if cap_major === nothing || cap_minor === nothing
-        return nothing
-    end
-    major = parse(Int, cap_major)
-    minor = parse(Int, cap_minor)
+    c1, c2 = m.captures
+    c1 isa AbstractString || return nothing
+    c2 isa AbstractString || return nothing
+    major = parse(Int, c1)
+    minor = parse(Int, c2)
     jv = get(man, "julia_version", nothing)
     if jv === nothing
         _push_ms_violation!(
@@ -412,12 +459,12 @@ function _check_manifest_version_filename!(
         return nothing
     end
     jvs = jv isa AbstractString ? String(jv) : string(jv)
-    parts = split(jvs, '.'; limit = 3)
-    length(parts) >= 2 || begin
+    jvn = tryparse(VersionNumber, jvs)
+    if jvn === nothing
         _push_ms_violation!(diags, level, manifest_rel, 1, "invalid julia_version in manifest", intent, do_not)
         return nothing
     end
-    (parse(Int, parts[1]), parse(Int, parts[2])) == (major, minor) && return nothing
+    (jvn.major, jvn.minor) == (major, minor) && return nothing
     ln = _line_number_for_substring(source, "julia_version", default_line = 1)
     _push_ms_violation!(
         diags,
@@ -459,6 +506,7 @@ function _check_project_deps_in_manifest!(
         intent::String,
         do_not::String,
     )
+    !_ms_enabled(:project_deps_in_manifest) && return nothing
     for (pkg, want_uuid) in sort(collect(wanted))
         rel = get(pkg_src, pkg, ctx.project_rel)
         text = get(pkg_text, pkg, "")
@@ -475,16 +523,18 @@ function _check_project_deps_in_manifest!(
             continue
         end
         got = get(uuids, pkg, "")
-        got == want_uuid && continue
-        _push_ms_violation!(
-            diags,
-            level,
-            rel,
-            _line_for_dep(text, pkg),
-            "dependency '$pkg' UUID mismatch: project $(want_uuid) vs manifest $(got)",
-            intent,
-            do_not,
-        )
+        if _ms_enabled(:project_dep_uuid)
+            got == want_uuid && continue
+            _push_ms_violation!(
+                diags,
+                level,
+                rel,
+                _line_for_dep(text, pkg),
+                "dependency '$pkg' UUID mismatch: project $(want_uuid) vs manifest $(got)",
+                intent,
+                do_not,
+            )
+        end
     end
     return nothing
 end
@@ -498,6 +548,7 @@ function _check_manifest_internal_closure!(
         intent::String,
         do_not::String,
     )
+    !_ms_enabled(:manifest_internal_closure) && return nothing
     for (pkg, refs) in sort(collect(internal))
         for ref in refs
             ref in names && continue
@@ -523,6 +574,7 @@ function _check_uuid_uniqueness!(
         intent::String,
         do_not::String,
     )
+    !_ms_enabled(:uuid_uniqueness) && return nothing
     inv = Dict{String, String}()
     for (pkg, uuid) in uuids
         other = get(inv, uuid, nothing)
@@ -543,8 +595,8 @@ function _check_uuid_uniqueness!(
     return nothing
 end
 
-function _source_dict(src)
-    src isa Dict || return nothing
+function _project_sources_entry(pkg::AbstractString, src, project_rel::AbstractString)
+    src isa Dict || throw(ParseError("sources entry for '$pkg' in $project_rel must be a table"))
     return Dict{String, Any}(String(k) => v for (k, v) in src)
 end
 
@@ -558,11 +610,11 @@ function _check_sources_warn!(
         intent::String,
         do_not::String,
     )
+    !_ms_enabled(:sources_warn) && return nothing
     sources = _toml_get_dict(proj, "sources", ctx.project_rel)
     base = dirname(ctx.project_rel)
     for (pkg, src) in sort(collect(sources))
-        sd = _source_dict(src)
-        sd === nothing && continue
+        sd = _project_sources_entry(pkg, src, ctx.project_rel)
         if haskey(sd, "path")
             want = _normalize_rel_path(base, String(sd["path"]))
             got = get(man_paths, pkg, "")
@@ -624,6 +676,7 @@ function _check_extensions!(
         intent::String,
         do_not::String,
     )
+    !_ms_enabled(:extensions) && return nothing
     declared = Set(keys(_toml_get_dict(proj, "deps", project_rel)))
     for w in keys(_toml_get_dict(proj, "weakdeps", project_rel))
         push!(declared, w)
@@ -650,6 +703,7 @@ function _warn_subproject_manifests!(
         intent::String,
         do_not::String,
     )
+    !_ms_enabled(:subproject_manifests) && return nothing
     for sub in ctx.workspace_projects
         dir = dirname(sub)
         for cand in ("Manifest.toml", "JuliaManifest.toml")
@@ -685,6 +739,7 @@ function _check_project_hash_diff!(
         intent::String,
         do_not::String,
     )
+    !_ms_enabled(:project_hash_diff) && return nothing
     proj_now_text = _read_worktree_text(root, ctx.project_rel)
     proj_now = _parse_toml_or_throw(proj_now_text, ctx.project_rel)
     sha = git_resolve_commit_sha(root, diff_base)
@@ -741,8 +796,9 @@ function run_manifest_sync(
     do_not = spec.do_not
     tracked = git_ls_tracked_files(root)
     tracked_set = Set(tracked)
-    pairs, orphans = discover_manifest_project_pairs(root, tracked)
+    pairs, orphans, conflicts = discover_manifest_project_pairs(root, tracked)
     diags = Violation[]
+    _report_manifest_project_conflicts!(diags, conflicts, level, intent, do_not)
     _report_orphan_tracked_manifests!(diags, orphans, level, intent, do_not)
     for ctx in pairs
         _audit_manifest_pair!(diags, root, ctx, tracked_set, level, intent, do_not, diff_base)

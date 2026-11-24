@@ -157,6 +157,35 @@
         end
     end
 
+    @testset "detector: invalid julia_version in versioned manifest" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_invalid_julia_version"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> occursin("invalid julia_version in manifest", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "detector: multiple Project.toml claim same manifest" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_duplicate_manifest_claim"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> occursin("claimed by multiple Project.toml", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "parse error: sources entry not a table" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_sources_not_table"))
+        try
+            @test_throws AgentRuleLint.ParseError ms_violations(dir)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
     @testset "detector: diff mode stale project_hash" begin
         dir = init_git_fixture(joinpath(FIXTURES, "positive"))
         try
