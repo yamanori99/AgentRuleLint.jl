@@ -79,7 +79,7 @@ struct RuleSpec
     level::Symbol
     intent::String
     do_not::String
-    extra::NamedTuple
+    extra::Dict{Symbol, String}
 end
 
 struct ProjectRule

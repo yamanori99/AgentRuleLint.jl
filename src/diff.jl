@@ -4,7 +4,7 @@ function _git_root(path::AbstractString)
     try
         out = strip(
             String(
-                read(Cmd(["git", "-C", root, "rev-parse", "--show-toplevel", "--end-of-options"])),
+                read(Cmd(["git", "-C", root, "rev-parse", "--show-toplevel"])),
             ),
         )
         return out
@@ -36,8 +36,8 @@ function git_diff_name_status(root::AbstractString, base::AbstractString)
             base,
         ],
     )
-    try
-        bytes = read(cmd)
+    bytes = try
+        read(cmd)
     catch err
         err isa InterruptException && rethrow()
         throw(GitError("git diff failed for base=$(base)"))

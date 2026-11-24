@@ -3,16 +3,31 @@
 const EXPECT_PREFIX = "jailint-expect:"
 const JAILINT_PREFIX = "jailint"
 
+const _MALFORMED_EXPECT = (
+    status = :malformed,
+    rule_ref = "",
+    reason = "",
+    message = "",
+)
+
 function parse_expect_body(body::AbstractString)
     body = strip(body)
     startswith(body, EXPECT_PREFIX) || return nothing
     rest = strip(body[(length(EXPECT_PREFIX) + 1):end])
-    isempty(rest) && return (:malformed, "empty expect")
+    isempty(rest) &&
+        return (; _MALFORMED_EXPECT..., message = "empty expect")
     m = match(r"^(\S+)\s+reason=\"([^\"]*)\"$", rest)
-    m === nothing && return (:malformed, "missing reason=\"...\"")
+    m === nothing && return (; _MALFORMED_EXPECT..., message = "missing reason=\"...\"")
     rule_ref = m.captures[1]
     reason = m.captures[2]
-    return (:ok, rule_ref, reason)
+    rule_ref === nothing && return (; _MALFORMED_EXPECT..., message = "missing rule id")
+    reason === nothing && return (; _MALFORMED_EXPECT..., message = "missing reason")
+    return (
+        status = :ok,
+        rule_ref = String(rule_ref),
+        reason = String(reason),
+        message = "",
+    )
 end
 
 function scan_block_comments(source::AbstractString)
@@ -20,6 +35,7 @@ function scan_block_comments(source::AbstractString)
     pattern = r"#=([\s\S]*?)=#"
     for m in eachmatch(pattern, source)
         inner = m.captures[1]
+        inner === nothing && continue
         occursin("jailint-expect:", inner) || continue
         line = line_number_at_byte(source, m.offset)
         push!(errs, (line, "block comment expect forbidden"))
@@ -50,8 +66,8 @@ function detect_malformed_jailint(source::AbstractString)
         if startswith(body, "jailint-expect:")
             parsed = parse_expect_body(body)
             parsed === nothing && push!(diags, (i, "malformed expect"))
-            parsed isa Tuple && parsed[1] == :malformed &&
-                push!(diags, (i, parsed[2]))
+            parsed !== nothing && parsed.status == :malformed &&
+                push!(diags, (i, parsed.message))
         elseif startswith(body, "jailint") && !startswith(body, EXPECT_PREFIX)
             # other jailint* on standalone line without valid expect
             idx = findfirst('#', line)
@@ -75,11 +91,9 @@ function extract_expect_lines(source::AbstractString)
         startswith(body, EXPECT_PREFIX) || continue
         parsed = parse_expect_body(body)
         parsed === nothing && continue
-        if parsed[1] == :malformed
-            continue
-        end
-        _, rule_ref, reason = parsed
-        push!(expects, ExpectLine(line_no, rule_ref, reason, body))
+        parsed.status == :malformed && continue
+        parsed.status != :ok && continue
+        push!(expects, ExpectLine(line_no, parsed.rule_ref, parsed.reason, body))
     end
     return expects
 end
@@ -191,8 +205,8 @@ function expect_audit_diagnostics(fc::FileContext, policy::PolicyBundle)
             )
         elseif startswith(body, EXPECT_PREFIX)
             parsed = parse_expect_body(body)
-            if parsed === nothing || (parsed isa Tuple && parsed[1] == :malformed)
-                msg = parsed isa Tuple ? parsed[2] : "malformed expect"
+            if parsed === nothing || parsed.status == :malformed
+                msg = parsed === nothing ? "malformed expect" : String(parsed.message)
                 _, span = span_for_line(source, line_no)
                 push!(
                     diags,

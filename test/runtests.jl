@@ -152,6 +152,8 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
         @test_throws JAILint.GitError JAILint.resolve_policy(ROOT; config_from = "not-a-ref-zzz")
     end
 
+    include("test_adapter_fixes.jl")
+
     Aqua.test_all(JAILint)
 
     include("test_runic_invariance.jl")
