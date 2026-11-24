@@ -81,49 +81,20 @@ function load_ceilings_string(toml_string::String, policy::PolicyBundle, path_la
     return _load_ceilings_parsed(raw, policy)
 end
 
-function _git_ceilings_missing(err)::Bool
-    msg = sprint(showerror, err)
-    return occursin("exists on disk", msg) ||
-        occursin("does not exist", msg) ||
-        (occursin("path ", msg) && occursin("did not match", msg))
-end
-
-function _catch_git_ceilings_missing(err)
-    err isa InterruptException && rethrow()
-    if err isa ConfigError || err isa ParseError
-        rethrow()
-    end
-    if err isa Base.ProcessFailedException
-        for proc in err.procs
-            proc.exitcode == 128 && return true
-        end
-    end
-    if (err isa GitError || err isa ErrorException) && _git_ceilings_missing(err)
-        return true
-    end
-    return false
-end
-
 """
     load_ceilings_at_git_ref(root, ref, policy)
 
 Return `(present, CeilingEntry)` for `.agentrulelint/ceilings.toml` at `ref`.
+Resolves `ref` to a commit, probes the tree with `git ls-tree`, then reads the blob.
 Git or TOML errors are fail-closed (`GitError` / `ConfigError` / `ParseError`).
 """
 function load_ceilings_at_git_ref(root::AbstractString, ref::AbstractString, policy::PolicyBundle)
     root = abspath(String(root))
-    try
-        text, _ = git_show_file(ref, CEILINGS_REL, root)
-        label = "$(CEILINGS_REL)@$(ref)"
-        return true, load_ceilings_string(text, policy, label)
-    catch err
-        _catch_git_ceilings_missing(err) && return false, CeilingEntry(Dict(), Dict())
-        if err isa GitError || err isa ErrorException || err isa Base.ProcessFailedException
-            throw(GitError("failed to read $CEILINGS_REL at ref $(ref): $(sprint(showerror, err))"))
-        else
-            throw(InternalError("unexpected error reading $CEILINGS_REL at ref $(ref): $(err)"))
-        end
-    end
+    sha = git_resolve_commit_sha(root, ref)
+    git_tree_path_exists(root, sha, CEILINGS_REL) || return false, CeilingEntry(Dict(), Dict())
+    text = git_show_blob_at_commit(root, sha, CEILINGS_REL)
+    label = "$(CEILINGS_REL)@$(ref)"
+    return true, load_ceilings_string(text, policy, label)
 end
 
 function count_violation_hits(diags::Vector{Violation})

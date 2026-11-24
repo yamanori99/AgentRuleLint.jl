@@ -125,6 +125,126 @@
         end
     end
 
+    @testset "unresolvable diff base is fail-closed (not absent ceilings)" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, "hit.jl"), "x = 1\n")
+            git_commit_all!(dir, "base")
+            write_ceilings!(
+                dir,
+                """
+                [violations."project/ratchet-lit"]
+                "hit.jl" = 9
+                """,
+            )
+            git_commit_all!(dir, "raised working tree irrelevant")
+            cd(dir) do
+                err = try
+                    AgentRuleLint.check(dir; diff_base = "not-a-real-ref")
+                    nothing
+                catch e
+                    e
+                end
+                @test err isa AgentRuleLint.GitError
+                @test occursin("diff base ref not available: not-a-real-ref", AgentRuleLint.sprint(showerror, err))
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "diff mode rejects new ceilings when base had no file" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, "hit.jl"), "x = 1\n")
+            git_commit_all!(dir, "base without ceilings file")
+            write_ceilings!(
+                dir,
+                """
+                [violations."project/ratchet-lit"]
+                "hit.jl" = 3
+                """,
+            )
+            git_commit_all!(dir, "add ceilings")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                hits = filter(
+                    d -> d.rule_id == "ceiling-ratchet" && occursin("new violation ceiling", d.message),
+                    res.violations,
+                )
+                @test length(hits) == 1
+                @test occursin("working=3", first(hits).message)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "diff mode compares when base had ceilings file" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, "hit.jl"), "x = 1\n")
+            write_ceilings!(
+                dir,
+                """
+                [violations."project/ratchet-lit"]
+                "hit.jl" = 0
+                """,
+            )
+            git_commit_all!(dir, "base with ceilings")
+            write(joinpath(dir, "hit.jl"), "x = 2\n")
+            git_commit_all!(dir, "touch hit.jl ceilings unchanged")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                @test !any(d -> d.rule_id == "ceiling-ratchet", res.violations)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "git show fails closed when blob object is missing" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, "hit.jl"), "x = 1\n")
+            write_ceilings!(
+                dir,
+                """
+                [violations."project/ratchet-lit"]
+                "hit.jl" = 0
+                """,
+            )
+            git_commit_all!(dir, "commit with ceilings blob")
+            blob_sha = strip(
+                String(
+                    read(Cmd(["git", "-C", dir, "rev-parse", "HEAD:.agentrulelint/ceilings.toml"])),
+                ),
+            )
+            obj_path = joinpath(dir, ".git", "objects", blob_sha[1:2], blob_sha[3:end])
+            rm(obj_path; force = true)
+            cd(dir) do
+                err = try
+                    AgentRuleLint.check(dir; diff_base = "HEAD")
+                    nothing
+                catch e
+                    e
+                end
+                @test err isa AgentRuleLint.GitError
+                @test occursin("failed to read .agentrulelint/ceilings.toml", AgentRuleLint.sprint(showerror, err))
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
     @testset "diff mode rejects raised ceilings file" begin
         dir = abspath(mktempdir())
         try

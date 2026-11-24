@@ -275,14 +275,69 @@ function load_policy(root::AbstractString; config_path = nothing)
     return policy_from_dict(raw, cfg; config_source = cs)
 end
 
+function git_resolve_commit_sha(root::AbstractString, ref::AbstractString)
+    root = abspath(String(root))
+    spec = string(ref, "^{commit}")
+    cmd = Cmd(["git", "-C", root, "rev-parse", "--verify", "--end-of-options", spec])
+    try
+        return strip(String(read(cmd)))
+    catch err
+        err isa InterruptException && rethrow()
+        ref_s = String(ref)
+        if ref_s == "HEAD^1"
+            throw(GitError("diff base ref not available: HEAD^1 (shallow clone or single-parent HEAD)"))
+        end
+        throw(GitError("diff base ref not available: $ref_s"))
+    end
+end
+
+function git_tree_path_exists(root::AbstractString, commit_sha::AbstractString, relpath::AbstractString)
+    root = abspath(String(root))
+    cmd = Cmd([
+        "git",
+        "-C",
+        root,
+        "ls-tree",
+        "--name-only",
+        "-z",
+        "--end-of-options",
+        String(commit_sha),
+        "--",
+        String(relpath),
+    ])
+    try
+        return !isempty(read(cmd))
+    catch err
+        err isa InterruptException && rethrow()
+        throw(
+            GitError(
+                "failed to list $(relpath) at commit $(commit_sha): $(sprint(showerror, err))",
+            ),
+        )
+    end
+end
+
+function git_show_blob_at_commit(root::AbstractString, commit_sha::AbstractString, relpath::AbstractString)
+    root = abspath(String(root))
+    showspec = string(commit_sha, ":", relpath)
+    cmd = Cmd(["git", "-C", root, "show", "--end-of-options", showspec])
+    try
+        return String(strip(String(read(cmd))))
+    catch err
+        err isa InterruptException && rethrow()
+        throw(
+            GitError(
+                "failed to read $(relpath) at commit $(commit_sha): $(sprint(showerror, err))",
+            ),
+        )
+    end
+end
+
 function git_show_file(ref::AbstractString, relpath::AbstractString, root::AbstractString)
     root = abspath(String(root))
-    reff = string(ref, "^{commit}")
-    sha_cmd = Cmd(["git", "-C", root, "rev-parse", "--verify", "--end-of-options", reff])
-    sha = strip(String(read(sha_cmd)))
-    showspec = string(sha, ":", relpath)
-    show_cmd = Cmd(["git", "-C", root, "show", "--end-of-options", showspec])
-    return String(strip(String(read(show_cmd)))), sha
+    sha = git_resolve_commit_sha(root, ref)
+    text = git_show_blob_at_commit(root, sha, relpath)
+    return text, sha
 end
 
 function load_policy_from_ref(root::AbstractString, ref::AbstractString)
