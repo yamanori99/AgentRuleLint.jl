@@ -46,7 +46,7 @@ end
 
 function _parse_cli_args(cmd::String, rest::Vector{String})
     opts = Dict{Symbol, Any}(
-        :format => :human,
+        :format => nothing,
         :config_path => nothing,
         :config_from => nothing,
         :diff_base => nothing,
@@ -111,14 +111,27 @@ function _emit_fail_closed(err, io = stderr)
     end
 end
 
-function _emit(result::CheckResult, opts)
+function _resolve_emit_format(root::AbstractString, opts)
     fmt = opts[:format]
+    if fmt === nothing
+        pol = resolve_policy(
+            root;
+            config_path = opts[:config_path],
+            config_from = opts[:config_from],
+        )
+        return pol.default_format
+    end
     fmt in VALID_OUTPUT_FORMATS ||
-        throw(ArgumentError("unknown --format value '$(fmt)' (expected human|json|agent)"))
+        throw(ArgumentError("unknown --format value '$fmt' (expected human|json|agent)"))
+    return fmt
+end
+
+function _emit(result::CheckResult, fmt::Symbol, opts)
+    fmt in VALID_OUTPUT_FORMATS ||
+        throw(ArgumentError("unknown --format value '$fmt' (expected human|json|agent)"))
     text = fmt == :json ? format_json(result) :
         fmt == :agent ? format_agent(result) :
-        fmt == :human ? format_human(result) :
-        throw(ArgumentError("unknown --format value '$(fmt)' (expected human|json|agent)"))
+        format_human(result)
     out = opts[:output]
     return if out === nothing
         print(text)
@@ -137,7 +150,8 @@ function _cli_check(positional::Vector{String}, opts)
         config_from = opts[:config_from],
         diff_base = opts[:diff_base],
     )
-    _emit(result, opts)
+    fmt = _resolve_emit_format(root, opts)
+    _emit(result, fmt, opts)
     return result.exit_code
 end
 
@@ -192,7 +206,7 @@ function _print_cli_help(cmd::String)
               report   Emit anonymized JSON for a diagnostic fingerprint.
 
             Options (check and ratchet --write):
-              --format human|json|agent   Output format (default: human; invalid values exit 2)
+              --format human|json|agent   Output format (default: config default_format; invalid values exit 2)
               --config <path>             Alternate config file path
               --config-from <git-ref>     Load .JAILintConfig.toml from a git ref
               --diff <base-ref>           Limit to files changed vs <base-ref>

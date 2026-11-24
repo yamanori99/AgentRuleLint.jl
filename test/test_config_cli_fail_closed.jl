@@ -139,4 +139,62 @@
             @test JAILint.cli_main(["ratchet", "--help"]) == 0
         end
     end
+
+    @testset "CLI default_format from config" begin
+        root = mktempdir()
+        try
+            write(joinpath(root, "sample.jl"), "x = 1\n")
+            write(
+                joinpath(root, ".JAILintConfig.toml"),
+                minimal_config("default_format = \"json\"\n"),
+            )
+            out = joinpath(root, "out.txt")
+            cd(root) do
+                @test JAILint.cli_main(["check", "sample.jl", "--output", out]) == 0
+                body = read(out, String)
+                @test occursin("\"type\":\"header\"", replace(body, " " => ""))
+            end
+        finally
+            rm(root, recursive = true, force = true)
+        end
+    end
+
+    @testset "CLI --format overrides config default_format" begin
+        root = mktempdir()
+        try
+            write(joinpath(root, "sample.jl"), "x = 1\n")
+            write(
+                joinpath(root, ".JAILintConfig.toml"),
+                minimal_config("default_format = \"json\"\n"),
+            )
+            out = joinpath(root, "out.txt")
+            cd(root) do
+                @test JAILint.cli_main(["check", "sample.jl", "--format", "human", "--output", out]) == 0
+                body = read(out, String)
+                @test !occursin("\"type\":\"header\"", replace(body, " " => ""))
+                @test occursin("JAILint", body) || occursin("complete", body)
+            end
+        finally
+            rm(root, recursive = true, force = true)
+        end
+    end
+
+    @testset "config max_hits_per_rule type" begin
+        root = mktempdir()
+        try
+            write(
+                joinpath(root, ".JAILintConfig.toml"),
+                minimal_config("max_hits_per_rule = \"twenty\"\n"),
+            )
+            @test_throws JAILint.ConfigError JAILint.check(root)
+        finally
+            rm(root, recursive = true, force = true)
+        end
+    end
+
+    @testset "CLI unknown command" begin
+        cd(ROOT) do
+            @test JAILint.cli_main(["nope"]) == 2
+        end
+    end
 end
