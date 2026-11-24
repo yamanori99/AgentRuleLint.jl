@@ -275,26 +275,6 @@ function load_policy(root::AbstractString; config_path = nothing)
     return policy_from_dict(raw, cfg; config_source = cs)
 end
 
-"""Load `.agentrulelint/ceilings.toml`. Enforcement (`ceiling-ratchet`) is not wired in `run_check` yet."""
-function load_ceilings(root::AbstractString)
-    path = joinpath(abspath(root), CEILINGS_REL)
-    !isfile(path) && return CeilingEntry(Dict(), Dict())
-    raw = load_toml_file(path)
-    viol = Dict{String, Dict{String, Int}}()
-    for (k, v) in raw
-        startswith(k, "violations.") || continue
-        rid = k[12:end]
-        viol[rid] = Dict{String, Int}(String(p) => Int(c) for (p, c) in v)
-    end
-    exp = Dict{String, Dict{String, Int}}()
-    for (k, v) in raw
-        startswith(k, "expects.") || continue
-        rid = k[9:end]
-        exp[rid] = Dict{String, Int}(String(p) => Int(c) for (p, c) in v)
-    end
-    return CeilingEntry(viol, exp)
-end
-
 function git_show_file(ref::AbstractString, relpath::AbstractString, root::AbstractString)
     root = abspath(String(root))
     reff = string(ref, "^{commit}")
@@ -335,6 +315,14 @@ function default_policy(root::AbstractString)
             :forbid,
             "Keep suppression comments auditable and fail-closed.",
             "Use inline or block comment expects to hide violations.",
+            Dict{Symbol, String}(),
+        ),
+        "ceiling-ratchet" => RuleSpec(
+            "ceiling-ratchet",
+            :agentrulelint,
+            :forbid,
+            "Keep violation and expect ceilings monotonic (down only).",
+            "Raise ceilings or leave stale slack after counts decrease.",
             Dict{Symbol, String}(),
         ),
     )

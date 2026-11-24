@@ -37,10 +37,11 @@ function discover_files(
         end
         return sort(unique(out))
     end
-    diff_paths = diff_base === nothing ? String[] : resolve_diff_paths(root; base = diff_base)
-    if !isempty(diff_paths)
+    if diff_base !== nothing
+        entries = git_diff_name_status(root, diff_base)
         out = String[]
-        for p in diff_paths
+        for (st, p) in entries
+            st == 'D' && continue
             selected_for_lint(p, project_regexes) || continue
             push!(out, p)
         end
@@ -93,7 +94,7 @@ function is_violation_hit(d::Violation)
     return true
 end
 
-function run_check(root::AbstractString; kwargs...)
+function _run_check_pipeline(root::AbstractString; kwargs...)
     policy = resolve_policy(
         root;
         config_path = get(kwargs, :config_path, nothing),
@@ -102,6 +103,7 @@ function run_check(root::AbstractString; kwargs...)
     init_registry!(policy)
     paths_kw = get(kwargs, :paths, String[])
     diff_base = get(kwargs, :diff_base, nothing)
+    diff_scope = diff_base === nothing ? nothing : build_diff_scope(root, diff_base)
     project_regexes = project_rule_path_regexes(policy)
     rel_files = discover_files(root; paths = paths_kw, diff_base = diff_base, project_regexes = project_regexes)
 
@@ -143,6 +145,26 @@ function run_check(root::AbstractString; kwargs...)
         append!(all_diags, unused_expect_diagnostics(fc.expects, used_total, fc, policy))
     end
 
+    if diff_scope !== nothing
+        all_diags = filter_diff_violations!(all_diags, diff_scope)
+    end
+
+    ceilings_active = isfile(joinpath(abspath(root), CEILINGS_REL))
+    if ceilings_active
+        ceilings = load_ceilings(root, policy)
+        scope_paths = if diff_scope === nothing
+            nothing
+        else
+            Set(normalize_path(f.path) for f in diff_scope.files if f.status != 'D')
+        end
+        viol_counts = count_violation_hits(all_diags)
+        exp_counts = count_expect_lines(contexts)
+        append!(
+            all_diags,
+            enforce_ceiling_ratchet(viol_counts, exp_counts, ceilings, policy; scope_paths = scope_paths),
+        )
+    end
+
     sources = Dict{String, String}(fc.parsed.path => fc.parsed.normalized for fc in contexts)
     assign_diagnostic_fingerprints!(all_diags, sources)
 
@@ -152,7 +174,7 @@ function run_check(root::AbstractString; kwargs...)
     vcount = count(is_violation_hit, all_diags)
     scount = count(d -> d.suppressed, all_diags)
     exit = vcount > 0 ? 1 : 0
-    return CheckResult(
+    result = CheckResult(
         all_diags,
         true,
         exit,
@@ -162,25 +184,40 @@ function run_check(root::AbstractString; kwargs...)
         scount,
         vcount,
     )
+    return result, contexts
 end
 
-function ratchet_write!(root::AbstractString, result::CheckResult)
+function run_check(root::AbstractString; kwargs...)
+    result, _ = _run_check_pipeline(root; kwargs...)
+    return result
+end
+
+function run_check_pipeline(root::AbstractString; kwargs...)
+    return _run_check_pipeline(root; kwargs...)
+end
+
+function ratchet_write!(root::AbstractString, result::CheckResult, contexts::Vector{FileContext})
     path = joinpath(abspath(root), ".agentrulelint/ceilings.toml")
     mkpath(dirname(path))
-    counts = Dict{String, Dict{String, Int}}()
-    for d in result.violations
-        is_violation_hit(d) || continue
-        key = d.rule_id
-        counts[key] = get(counts, key, Dict{String, Int}())
-        counts[key][d.path] = get(counts[key], d.path, 0) + 1
-    end
+    viol_counts = count_violation_hits(result.violations)
+    exp_counts = count_expect_lines(contexts)
     lines = String[
         "# Updated via agentrulelint ratchet --write",
         "# Monotonic non-increasing semantics apply on manual review.",
     ]
-    for (rid, paths) in sort(collect(counts))
+    for (rid, paths) in sort(collect(viol_counts))
         push!(lines, "")
         push!(lines, "[violations.\"$rid\"]")
+        for (p, c) in sort(collect(paths))
+            push!(lines, "\"$p\" = $c")
+        end
+    end
+    if !isempty(exp_counts)
+        push!(lines, "")
+    end
+    for (rid, paths) in sort(collect(exp_counts))
+        push!(lines, "")
+        push!(lines, "[expects.\"$rid\"]")
         for (p, c) in sort(collect(paths))
             push!(lines, "\"$p\" = $c")
         end

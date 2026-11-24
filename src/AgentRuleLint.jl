@@ -17,6 +17,7 @@ include("path_glob.jl")
 include("syntax/SyntaxAdapter.jl")
 include("config.jl")
 include("diff.jl")
+include("ratchet.jl")
 include("expect.jl")
 include("rules/registry.jl")
 include("rules/project_rules.jl")
@@ -52,6 +53,7 @@ function _parse_cli_args(cmd::String, rest::Vector{String})
         :config_path => nothing,
         :config_from => nothing,
         :diff_base => nothing,
+        :diff_mode => false,
         :output => nothing,
         :paths => String[],
         :write_ratchet => false,
@@ -74,9 +76,14 @@ function _parse_cli_args(cmd::String, rest::Vector{String})
             opts[:config_from] = rest[i + 1]
             i += 2
             continue
-        elseif a == "--diff" && i + 1 <= length(rest)
-            opts[:diff_base] = rest[i + 1]
-            i += 2
+        elseif a == "--diff"
+            if i + 1 <= length(rest) && !startswith(rest[i + 1], "-")
+                opts[:diff_base] = rest[i + 1]
+                i += 2
+            else
+                opts[:diff_mode] = true
+                i += 1
+            end
             continue
         elseif a == "--output" && i + 1 <= length(rest)
             opts[:output] = rest[i + 1]
@@ -137,6 +144,15 @@ function _emit(result::CheckResult, fmt::Symbol, opts)
     end
 end
 
+function _resolve_diff_kw(opts)
+    if opts[:diff_base] !== nothing
+        return resolve_diff_base_arg(opts[:diff_base])
+    elseif opts[:diff_mode]
+        return DEFAULT_DIFF_BASE
+    end
+    return nothing
+end
+
 function _cli_check(positional::Vector{String}, opts)
     root = pwd()
     paths = isempty(positional) ? String[] : positional
@@ -145,7 +161,7 @@ function _cli_check(positional::Vector{String}, opts)
         paths = paths,
         config_path = opts[:config_path],
         config_from = opts[:config_from],
-        diff_base = opts[:diff_base],
+        diff_base = _resolve_diff_kw(opts),
     )
     fmt = _resolve_emit_format(result, opts)
     _emit(result, fmt, opts)
@@ -175,14 +191,14 @@ end
 function _cli_ratchet(positional::Vector{String}, opts)
     root = pwd()
     paths = positional
-    result = check(
+    result, contexts = run_check_pipeline(
         root;
         paths = paths,
         config_path = opts[:config_path],
         config_from = opts[:config_from],
-        diff_base = opts[:diff_base],
+        diff_base = _resolve_diff_kw(opts),
     )
-    ratchet_write!(root, result)
+    ratchet_write!(root, result, contexts)
     println("Wrote $(abspath(joinpath(root, ".agentrulelint/ceilings.toml")))")
     return result.exit_code
 end
@@ -206,7 +222,7 @@ function _print_cli_help(cmd::String)
               --format human|json|agent   Output format (default: config default_format; invalid values exit 2)
               --config <path>             Alternate config file path
               --config-from <git-ref>     Load .AgentRuleLintConfig.toml from a git ref
-              --diff <base-ref>           Limit to files changed vs <base-ref>
+              --diff [<base-ref>]         Limit to changed files/lines vs base (default: HEAD^1)
               --output <path>             Write formatted output to <path>
 
             Config is fail-closed: unknown keys, rule levels, preset names, or default_format values error.
