@@ -26,17 +26,22 @@ end
         @test code_cli == code_m
 
         depot = mktempdir()
-        develop = setenv(
+        develop = addenv(
             Cmd([_JULIA, "--startup-file=no", "-e", "using Pkg; Pkg.Apps.develop(path=ARGS[1])", _APP_ROOT]),
             "JULIA_DEPOT_PATH" => depot,
+            "JULIA_LOAD_PATH" => "@:@stdlib",
         )
-        develop_proc = run(develop, wait = true)
+        develop_proc = run(ignorestatus(develop), wait = true)
         @test develop_proc.exitcode == 0
 
         app_bin = joinpath(depot, "bin", "agentrulelint")
         @test isfile(app_bin)
 
-        app_cmd = setenv(Cmd(vcat([app_bin], args)), "JULIA_DEPOT_PATH" => depot)
+        app_cmd = addenv(
+            Cmd(vcat([app_bin], args)),
+            "JULIA_DEPOT_PATH" => depot,
+            "JULIA_LOAD_PATH" => "@:@stdlib",
+        )
         code_app, out_app, err_app = _run_capture(app_cmd)
 
         @test code_app == code_m
