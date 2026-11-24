@@ -83,6 +83,7 @@ function _status_word(st::Char)
     st == 'A' && return "added"
     st == 'D' && return "deleted"
     st == 'R' && return "renamed"
+    st == 'C' && return "copied"
     return "modified"
 end
 
@@ -200,6 +201,7 @@ function _protected_change_exempt(
         ev::DiffPathEvent,
         policy::PolicyBundle,
     )
+    ev.status in ('R', 'C') && return false
     ev.status == 'D' && return false
     p = normalize_path(relpath)
     if p == CEILINGS_REL_PATH
@@ -218,7 +220,7 @@ function _handle_protected_event(
         policy::PolicyBundle,
     )
     out = Violation[]
-    paths = ev.status == 'R' ? [ev.old_path, ev.path] : [ev.path]
+    paths = ev.status in ('R', 'C') ? [ev.old_path, ev.path] : [ev.path]
     seen = Set{String}()
     for p in paths
         p in seen && continue
@@ -240,9 +242,7 @@ end
 Diff-scoped enforcement only. Without a diff base the caller should not invoke this.
 """
 function enforce_protected_paths(root::AbstractString, base::AbstractString, policy::PolicyBundle)
-    spec = get(policy.rules, PROTECTED_PATHS_RULE, nothing)
-    spec === nothing && return Violation[]
-    spec.level == :allow && return Violation[]
+    get(policy.rules, PROTECTED_PATHS_RULE, nothing) === nothing && return Violation[]
     events = git_diff_path_events(root, base)
     out = Violation[]
     for ev in events

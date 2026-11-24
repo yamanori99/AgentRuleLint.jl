@@ -134,6 +134,10 @@ function explain_rule(id::AbstractString)
         project-rule path-glob syntax; the reason appears in the message.
 
         Missing or unparsable TOML on either side of a compared change fails closed (exit 2).
+
+        Integrity level: `protected-paths`, `ceiling-ratchet`, and `scope-paths` must always use
+        `level = "forbid"` in config. Any other level is a ConfigError (exit 2). Rename or copy
+        of a protected path is never semantically exempt (including Project.toml and ceilings.toml).
         """
     elseif startswith(id, "project/")
         return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."

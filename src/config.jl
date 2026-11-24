@@ -17,6 +17,10 @@ const EXPECT_AUDIT_RULE_KEYS = Set(["level", "intent", "do_not", "on_allow_rule"
 const PROTECTED_PATHS_RULE_KEYS =
     Set(["level", "intent", "do_not", "project_toml_policy", "paths"])
 const PROTECTED_PATHS_RULE = "protected-paths"
+const CEILING_RATCHET_RULE = "ceiling-ratchet"
+const SCOPE_PATHS_RULE = "scope-paths"
+const INTEGRITY_FORBID_RULES =
+    Set([PROTECTED_PATHS_RULE, CEILING_RATCHET_RULE, SCOPE_PATHS_RULE])
 const DEFAULT_PROJECT_TOML_POLICY = "semantic"
 const PROJECT_RULE_KEYS = Set(
     [
@@ -194,9 +198,17 @@ function _load_rules_table(raw::Dict)
         _reject_unknown_keys!(content, allowed, "rules.$id")
         level = haskey(content, "level") ?
             _parse_rule_level(content["level"], "rules.$id.level") : :deny
+        if id in INTEGRITY_FORBID_RULES && level != :forbid
+            throw(
+                ConfigError(
+                    "rules.$id.level must be forbid (integrity rules cannot be weakened)",
+                ),
+            )
+        end
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
-        rules[id] = RuleSpec(id, :agentrulelint, level, intent, do_not, Dict{Symbol, String}())
+        eff_level = id in INTEGRITY_FORBID_RULES ? :forbid : level
+        rules[id] = RuleSpec(id, :agentrulelint, eff_level, intent, do_not, Dict{Symbol, String}())
     end
     return rules
 end
