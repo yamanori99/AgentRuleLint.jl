@@ -75,7 +75,7 @@ function run_check(root::AbstractString; kwargs...)
         config_from = get(kwargs, :config_from, nothing),
     )
     init_registry!(policy)
-    ceilings = load_ceilings(root)
+    touch_ceilings!(load_ceilings(root))
     paths_kw = get(kwargs, :paths, String[])
     diff_base = get(kwargs, :diff_base, nothing)
     rel_files = discover_files(root; paths = paths_kw, diff_base = diff_base)
@@ -91,8 +91,13 @@ function run_check(root::AbstractString; kwargs...)
 
     used_total = Set{Int}()
     for (fc, rel) in zip(contexts, rel_files)
-        idxs = findall(d -> d.path == rel, all_diags)
-        path_diags = Vector{Violation}([all_diags[i] for i in idxs])
+        path_diags = Violation[]
+        idxs = Int[]
+        for (di, d) in enumerate(all_diags)
+            d.path == rel || continue
+            push!(idxs, di)
+            push!(path_diags, d)
+        end
         used = apply_expect_suppression!(path_diags, fc.expects, fc.parsed.normalized)
         for (j, di) in enumerate(idxs)
             all_diags[di] = path_diags[j]

@@ -17,7 +17,7 @@ function init_registry!(policy::PolicyBundle)
                 :forbid,
                 "Keep suppression comments auditable.",
                 "Hide violations with unapproved expects.",
-                NamedTuple(),
+                Dict{Symbol, String}(),
             ),
         )
     end

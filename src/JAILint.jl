@@ -6,8 +6,8 @@ using StyledStrings
 using TOML
 using SHA: sha1
 
-export check, CheckResult, Violation, RuleSpec, Span
-export ConfigError, GitError, ParseError, InternalError
+export CheckResult, RuleSpec, Span, Violation, check
+export ConfigError, GitError, InternalError, ParseError
 
 const JAILINT_VERSION = pkgversion(@__MODULE__)
 

@@ -12,13 +12,8 @@ function standalone_comment_lines(source::AbstractString)
     start = 1
     while start <= ncodeunits(source)
         nl = findnext('\n', source, start)
-        if nl === nothing
-            line_text = source[start:end]
-            stop = ncodeunits(source)
-        else
-            line_text = source[start:prevind(source, nl)]
-            stop = nl
-        end
+        line_text =
+            nl === nothing ? source[start:end] : source[start:prevind(source, nl)]
         tokens = JuliaSyntax.tokenize(line_text; operators_as_identifiers = false)
         nontriv = JuliaSyntax.Token[]
         for t in tokens
@@ -28,7 +23,8 @@ function standalone_comment_lines(source::AbstractString)
         end
         if length(nontriv) == 1 && JuliaSyntax.kind(nontriv[1]) == COMMENT_KIND
             raw = JuliaSyntax.untokenize(nontriv[1], line_text)
-            body = strip(raw[2:end])
+            text = raw isa AbstractString ? String(raw) : String(Vector{UInt8}(raw))
+            body = strip(text[2:end])
             out[line_no] = body
         end
         nl === nothing && break

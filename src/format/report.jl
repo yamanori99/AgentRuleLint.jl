@@ -32,18 +32,19 @@ function anonymize_snippet(source::AbstractString)
     )
 end
 
+function _skeleton_walk!(parts::Vector{String}, node, pos)
+    push!(parts, string(summary(node)))
+    for (c, p) in _child_positions(node, pos)[1]
+        JuliaSyntax.is_trivia(head(c)) && continue
+        _skeleton_walk!(parts, c, p)
+    end
+    return nothing
+end
+
 function skeleton_ast_snippet(source::AbstractString)
     tree = parse_source(source)
     parts = String[]
-    function walk!(node, pos)
-        push!(parts, string(summary(node)))
-        for (c, p) in _child_positions(node, pos)[1]
-            JuliaSyntax.is_trivia(head(c)) && continue
-            walk!(c, p)
-        end
-        return
-    end
-    walk!(tree, 1)
+    _skeleton_walk!(parts, tree, 1)
     return join(parts, "/")
 end
 

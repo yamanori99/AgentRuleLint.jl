@@ -1,14 +1,32 @@
+const _GLOB_REGEX_META = ('^', '$', '.', '|', '?', '+', '(', ')', '[', ']', '{', '}', '\\')
+
+function _glob_regex_escape(pattern::AbstractString)
+    out = IOBuffer()
+    for c in pattern
+        if c == '*'
+            write(out, '*')
+        elseif c in _GLOB_REGEX_META
+            write(out, '\\', c)
+        else
+            write(out, c)
+        end
+    end
+    return String(take!(out))
+end
+
+const _GLOB_DOUBLE_STAR = string('*', '*')
+
 function _simple_glob_match(path::String, pattern::String)
-    if pattern == "**"
+    if pattern == _GLOB_DOUBLE_STAR
         return true
     end
-    if endswith(pattern, "/**")
+    if endswith(pattern, "/" * _GLOB_DOUBLE_STAR)
         prefix = pattern[1:(end - 3)]
         return startswith(path, prefix * "/") || path == prefix
     end
     if occursin('*', pattern)
-        esc = Regex.escape(pattern)
-        rx = Regex("^" * replace(esc, "\\*" => ".*") * "\$")
+        esc = _glob_regex_escape(pattern)
+        rx = Regex("^" * replace(esc, "*" => ".*") * "\$")
         return occursin(rx, path)
     end
     return path == pattern || basename(path) == pattern

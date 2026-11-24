@@ -8,7 +8,7 @@ end
 """1-based UTF-8 codepoint column at byte index within `line` (1-based byte index on line)."""
 function byte_to_col(line::AbstractString, byte_index::Int)
     byte_index < 1 && return 1
-    byte_index > ncodeunits(line) + 1 && return ncodepoint(line) + 1
+    byte_index > ncodeunits(line) + 1 && return length(line) + 1
     col = 1
     i = 1
     while i < byte_index && i <= ncodeunits(line)

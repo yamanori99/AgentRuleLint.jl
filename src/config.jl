@@ -65,8 +65,7 @@ function _load_rules_table(raw::Dict)
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
         extra_keys = filter(k -> k ∉ ("level", "intent", "do_not"), collect(keys(content)))
-        pairs = Tuple(Symbol(k) => content[k] for k in extra_keys)
-        extra = isempty(pairs) ? NamedTuple() : NamedTuple(pairs)
+        extra = Dict{Symbol, String}(Symbol(k) => string(content[k]) for k in extra_keys)
         rules[id] = RuleSpec(id, :jailint, level, intent, do_not, extra)
     end
     return rules
@@ -119,6 +118,7 @@ function load_policy(root::AbstractString; config_path = nothing)
     return policy_from_dict(raw, cfg; config_source = cs)
 end
 
+"""Load `.jailint/ceilings.toml`. Enforcement (`ceiling-ratchet`) is not wired in `run_check` yet."""
 function load_ceilings(root::AbstractString)
     path = joinpath(abspath(root), CEILINGS_REL)
     !isfile(path) && return CeilingEntry(Dict(), Dict())
@@ -136,6 +136,11 @@ function load_ceilings(root::AbstractString)
         exp[rid] = Dict{String, Int}(String(p) => Int(c) for (p, c) in v)
     end
     return CeilingEntry(viol, exp)
+end
+
+function touch_ceilings!(ce::CeilingEntry)
+    # Fail-closed schema touch: keep ceilings loaded until ceiling-ratchet applies in the runner.
+    return ce
 end
 
 function git_show_file(ref::AbstractString, relpath::AbstractString, root::AbstractString)
@@ -178,7 +183,7 @@ function default_policy(root::AbstractString)
             :forbid,
             "Keep suppression comments auditable and fail-closed.",
             "Use inline or block comment expects to hide violations.",
-            NamedTuple(),
+            Dict{Symbol, String}(),
         ),
     )
     cs = ConfigSource(:builtin, "", "", "")

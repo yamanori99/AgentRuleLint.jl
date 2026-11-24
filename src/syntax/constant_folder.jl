@@ -1,4 +1,4 @@
-using JuliaSyntax: GreenNode, span, children, head, kind, is_leaf, is_infix_op_call
+using JuliaSyntax: GreenNode, children, head, is_infix_op_call, is_leaf, kind, span
 const KString = JuliaSyntax.K"String"
 const KChar = JuliaSyntax.K"Char"
 
@@ -68,9 +68,8 @@ function _collect_string_chars(node::GreenNode, src::AbstractString, pos::Int)
     return join(parts)
 end
 
-function _string_node_interpolated(node::GreenNode, src::AbstractString, pos::Int)
+function _string_node_interpolated(node::GreenNode, pos::Int)
     for (c, _) in _child_positions(node, pos)[1]
-        k = kind(c)
         string(kind(c)) == "\$" && return true
         summary(c) == "interpolation" && return true
     end
@@ -87,7 +86,7 @@ function _fold_atom(
     _fold_budget!(steps)
     depth > FOLD_MAX_DEPTH && return nothing
     if summary(node) == "string"
-        _string_node_interpolated(node, src, pos) && return nothing
+        _string_node_interpolated(node, pos) && return nothing
         return _collect_string_chars(node, src, pos)
     elseif summary(node) == "char"
         return _collect_string_chars(node, src, pos)
@@ -98,9 +97,13 @@ end
 function _call_callee_name(node::GreenNode, src::AbstractString, pos::Int)
     ch = children(node)
     ch === nothing && return ""
-    c = ch[1]
-    is_leaf(c) || return ""
-    return _identifier_name(c, src, pos + 1)
+    kids, _ = _child_positions(node, pos)
+    for (c, cp) in kids
+        JuliaSyntax.is_trivia(head(c)) && continue
+        is_leaf(c) || return ""
+        return _identifier_name(c, src, cp)
+    end
+    return ""
 end
 
 function _fold_children_strings(
@@ -117,7 +120,6 @@ function _fold_children_strings(
     p = start
     for i in 2:length(ch)
         c = ch[i]
-        k = kind(c)
         if JuliaSyntax.is_trivia(head(c))
             p += span(c)
             continue
@@ -145,13 +147,22 @@ end
 function _fold_uint8_vect(node::GreenNode, src::AbstractString, pos::Int)
     bytes = UInt8[]
     for (c, p) in _child_positions(node, pos)[1]
-        k = kind(c)
         string(kind(c)) in ("()", "inertparen") && continue
         kind(c) == JuliaSyntax.K"Integer" || return nothing
         n = parse(Int, strip(_node_text(src, p, c)))
         push!(bytes, UInt8(n))
     end
     return bytes
+end
+
+function _fold_uint8_ref(node::GreenNode, src::AbstractString, pos::Int)
+    bytes = UInt8[]
+    for (c, p) in _child_positions(node, pos)[1]
+        kind(c) == JuliaSyntax.K"Integer" || continue
+        n = parse(Int, strip(_node_text(src, p, c)))
+        push!(bytes, UInt8(n))
+    end
+    return isempty(bytes) ? nothing : bytes
 end
 
 function try_fold_expr(
@@ -260,25 +271,22 @@ function try_fold_expr(
             val = join(strings)
             return FoldedStringExpr(val, pos, byte_end)
         elseif fname == "String"
-            ch = children(node)
-            ch === nothing || length(ch) < 3 && return nothing
             arg = nothing
             argp = 0
-            p = pos
-            for c in children(node)
-                p += span(c)
+            for (c, p) in _child_positions(node, pos)[1]
                 if summary(c) == "ref" || summary(c) == "vect"
                     arg = c
-                    argp = p - span(c)
+                    argp = p
                     break
                 end
             end
             arg === nothing && return nothing
-            if summary(arg) == "vect"
-                bytes = _fold_uint8_vect(arg, src, argp)
-                bytes === nothing && return nothing
-                return FoldedStringExpr(String(bytes), pos, byte_end)
-            end
+            bytes =
+                summary(arg) == "vect" ?
+                _fold_uint8_vect(arg, src, argp) :
+                _fold_uint8_ref(arg, src, argp)
+            bytes === nothing && return nothing
+            return FoldedStringExpr(String(bytes), pos, byte_end)
         end
     end
 
@@ -300,7 +308,6 @@ function _walk_collect_folds(
         out::Vector{FoldedStringExpr},
     )
     _fold_budget!(steps)
-    summary(node) == "toplevel" || summary(node) == "=" || true
     folded = try_fold_expr(node, src, pos, depth, steps)
     if folded !== nothing
         push!(out, folded)
