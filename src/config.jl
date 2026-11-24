@@ -320,19 +320,6 @@ function load_policy_from_ref(root::AbstractString, ref::AbstractString)
     end
 end
 
-function _legacy_config_path(root::AbstractString)
-    return joinpath(abspath(root), "." * "JAI" * "LintConfig.toml")
-end
-
-function _reject_legacy_config!(root::AbstractString)
-    legacy = _legacy_config_path(root)
-    new_cfg = joinpath(abspath(root), CONFIG_FILENAME)
-    if isfile(legacy) && !isfile(new_cfg)
-        throw(ConfigError("legacy config file present; rename it to $(CONFIG_FILENAME)"))
-    end
-    return nothing
-end
-
 function default_policy(root::AbstractString)
     ver = AGENTRULELINT_VERSION
     rules = Dict{String, RuleSpec}(
@@ -368,6 +355,5 @@ function resolve_policy(root::AbstractString; config_path = nothing, config_from
     if isfile(cfg)
         return load_policy(root; config_path = cfg)
     end
-    _reject_legacy_config!(root)
     return default_policy(root)
 end

@@ -229,25 +229,6 @@
         end
     end
 
-    @testset "legacy config filename without new config" begin
-        root = mktempdir()
-        try
-            legacy = joinpath(root, "." * "JAI" * "LintConfig.toml")
-            write(legacy, minimal_config())
-            err = nothing
-            try
-                AgentRuleLint.check(root)
-            catch e
-                err = e
-            end
-            @test err isa AgentRuleLint.ConfigError
-            @test occursin("legacy config", err.msg)
-            @test occursin(".AgentRuleLintConfig.toml", err.msg)
-        finally
-            rm(root, recursive = true, force = true)
-        end
-    end
-
     @testset "CLI unknown command" begin
         cd(ROOT) do
             @test AgentRuleLint.cli_main(["nope"]) == 2
