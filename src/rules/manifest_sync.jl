@@ -341,8 +341,13 @@ function _check_manifest_version_filename!(
     )
     m = match(MANIFEST_V_RE, basename(manifest_rel))
     m === nothing && return nothing
-    major = parse(Int, m.captures[1])
-    minor = parse(Int, m.captures[2])
+    cap_major = m.captures[1]
+    cap_minor = m.captures[2]
+    if cap_major === nothing || cap_minor === nothing
+        return nothing
+    end
+    major = parse(Int, cap_major)
+    minor = parse(Int, cap_minor)
     jv = get(man, "julia_version", nothing)
     if jv === nothing
         _push_ms_violation!(
