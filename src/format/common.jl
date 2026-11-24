@@ -86,7 +86,25 @@ function human_policy_banner(result::CheckResult)
     else
         "policy bundle base: $(string(cs.kind))"
     end
-    return "AgentRuleLint v$(pkgversion(AgentRuleLint)) ($base, pos: utf8-codepoint-1based)"
+    return "AgentRuleLint v$(pkgversion(AgentRuleLint)) ($base, pos: utf8-line-col)"
+end
+
+function _src_visible_body(src::AbstractString)
+    endswith(src, ELLIPSIS_CHAR) || return src
+    last = prevind(src, lastindex(src))
+    return last < firstindex(src) ? "" : src[firstindex(src):last]
+end
+
+function human_underline_for_display(
+        visible_line::AbstractString,
+        span::Span;
+        marker::Char = '~',
+    )
+    n = length(visible_line)
+    n == 0 && return ""
+    sc = clamp(span.start_col, 1, n)
+    ec = clamp(span.end_col, sc, n)
+    return underline_for_span(visible_line, Span(sc, sc, ec, ec); marker = marker)
 end
 
 function human_rule_footer(rule_id::String, origin::Symbol, config_path::AbstractString)
@@ -124,11 +142,13 @@ function println_human_code_gutter(
         span::Span,
     )
     line_prefix, ul_prefix = _human_gutter_prefixes(line_no)
-    src = _truncate_chars(line, width - visible_textwidth(line_prefix), with_ellipsis = true)
+    budget = width - visible_textwidth(line_prefix)
+    src = _truncate_chars(line, budget, with_ellipsis = true)
     println(buf, _human_truncate_code(src, line_prefix, width))
-    ul_body = underline_for_span(src, span; marker = '~')
+    visible = _src_visible_body(src)
+    ul_body = human_underline_for_display(visible, span; marker = '~')
     !isempty(ul_body) || return nothing
-    ul = strip(ul_body, ' ')
+    ul = rstrip(ul_body, ' ')
     isempty(ul) && return nothing
     println(buf, _human_truncate_code(ul, ul_prefix, width))
     return nothing

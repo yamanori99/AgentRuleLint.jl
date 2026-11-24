@@ -1,9 +1,11 @@
 using AgentRuleLint
-using JSON3
+using JSON
 using Test
 
 const ROOT = dirname(@__DIR__)
 const SCHEMA_PATH = joinpath(ROOT, "schemas", "check-jsonl.schema.json")
+const HUMAN_GOLDEN_PATH = joinpath(@__DIR__, "fixtures", "human_output_golden.txt")
+const HUMAN_GOLDEN_CS = AgentRuleLint.ConfigSource(:git_ref, "", "origin/main", "9f2c1a4e")
 
 function strip_ansi_local(s::AbstractString)
     return AgentRuleLint.strip_ansi(s)
@@ -28,12 +30,26 @@ function check_result_fixture()
     return AgentRuleLint.CheckResult([d], true, 1, cs, :human, 20, 0, 1)
 end
 
+function human_fixture_result(paths::Vector{String})
+    res = AgentRuleLint.check(ROOT; paths = paths)
+    return AgentRuleLint.CheckResult(
+        res.violations,
+        res.complete,
+        res.exit_code,
+        HUMAN_GOLDEN_CS,
+        res.default_format,
+        res.max_hits_per_rule,
+        res.suppressed_count,
+        res.violation_count,
+    )
+end
+
 function jsonl_record(line::AbstractString)::Dict{String, Any}
-    return JSON3.read(line, Dict{String, Any})
+    return JSON.parse(line; dicttype = Dict{String, Any})
 end
 
 function validate_jsonl_schema!(text::AbstractString)
-    JSON3.read(read(SCHEMA_PATH, String))
+    JSON.parse(read(SCHEMA_PATH, String))
     lines = split(strip(text), '\n')
     length(lines) >= 2 || error("expected header, diagnostics, and summary lines")
     kinds = String[]
@@ -143,51 +159,51 @@ end
         @test occursin("ceiling=-", agent)
     end
 
-    @testset "human framed layout golden" begin
+    @testset "human golden byte match" begin
         paths = [
             joinpath("test", "corpus", "block_expect.jl"),
             joinpath("test", "corpus", "split_string.jl"),
         ]
-        res = AgentRuleLint.check(ROOT; paths = paths)
+        res = human_fixture_result(paths)
         io = IOContext(IOBuffer(), :color => false)
-        out = AgentRuleLint.format_human(res; root = ROOT, io = io)
-        @test occursin("AgentRuleLint v", out)
-        @test occursin("utf8-codepoint-1based", out)
-        @test occursin("┌ Error:", out)
-        @test occursin("└ @ AgentRuleLint", out)
-        @test occursin("└ @ Project", out)
-        @test occursin("block comment expect forbidden", out)
-        @test occursin("forbidden literal matched", out)
-        @test occursin("│", out)
-        @test occursin(" │ ", out)
-        @test occursin("Summary:", out)
-        @test occursin("FAILED", out) && occursin("exit 1", out)
-        @test occursin("~~~~~~~~~~~~~~~~~~~~~~~~", out)
-        ul_lines = [l for l in split(out, '\n') if occursin('~', l)]
-        @test any(
-            l -> begin
-                m = match(r"~+", l)
-                return m !== nothing && length(m.match) == 24
-            end,
-            ul_lines,
-        )
-        @test !any(l -> occursin(r"~{80,}", l), ul_lines)
+        out = AgentRuleLint.format_human(res; root = ROOT, io = io, output_width = 100)
+        expected = read(HUMAN_GOLDEN_PATH, String)
+        @test out == expected
     end
 
     @testset "human COLUMNS=60 code lines never wrap" begin
         old = get(ENV, "COLUMNS", nothing)
         ENV["COLUMNS"] = "60"
         try
-            res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
+            res = human_fixture_result([joinpath("test", "corpus")])
             out = AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
             for line in split(out, '\n'; keepempty = false)
                 occursin(" │ ", line) || continue
-                @test Base.Unicode.textwidth(AgentRuleLint.strip_ansi(line)) <= 60
-                @test count('~', line) <= 60
+                plain = AgentRuleLint.strip_ansi(line)
+                @test Base.Unicode.textwidth(plain) <= 60
+                src_idx = findfirst(" │ ", plain)
+                src_idx === nothing && continue
+                src = strip(plain[(src_idx.stop + 1):end])
+                occursin('~', plain) || continue
+                m = match(r"~+", plain)
+                m === nothing && continue
+                vis_src = replace(src, "…" => "")
+                @test length(m.match) <= Base.Unicode.textwidth(vis_src)
             end
         finally
             old === nothing ? pop!(ENV, "COLUMNS", nothing) : (ENV["COLUMNS"] = old)
         end
+    end
+
+    @testset "expect-audit blank line does not duplicate unused" begin
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "expect_blank_line.jl")])
+        ea = filter(
+            d -> d.rule_id == "expect-audit" && d.path == "test/corpus/expect_blank_line.jl",
+            res.violations,
+        )
+        msgs = unique(d.message for d in ea)
+        @test "unused expect" ∉ msgs
+        @test any(m -> occursin("blank line breaking", m), msgs)
     end
 
     @testset "explain uses registry docs" begin

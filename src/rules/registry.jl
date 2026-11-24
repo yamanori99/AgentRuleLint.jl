@@ -16,6 +16,25 @@ function expect_audit_explain_extra()
     )
 end
 
+const BUILTIN_DOC_DEFAULTS = Dict(
+    "expect-audit" => (
+        "Keep suppression comments auditable.",
+        "Hide violations with unapproved expects.",
+    ),
+    "protected-paths" => (
+        "Protect designated policy, lockfiles, and workflow paths from silent edits.",
+        "Edit protected files, weaken compat, or rename paths to evade review.",
+    ),
+)
+
+function fill_builtin_docs!(spec::RuleSpec)
+    d = get(BUILTIN_DOC_DEFAULTS, spec.id, nothing)
+    d === nothing && return spec
+    intent = isempty(spec.intent) ? d[1] : spec.intent
+    do_not = isempty(spec.do_not) ? d[2] : spec.do_not
+    return RuleSpec(spec.id, spec.origin, spec.level, intent, do_not, spec.extra)
+end
+
 """Attach built-in explain text that lives with the rule definition (config may override intent/do_not only)."""
 function attach_rule_explain_docs(spec::RuleSpec)
     spec.id == "expect-audit" || return spec
@@ -27,7 +46,7 @@ function attach_rule_explain_docs(spec::RuleSpec)
 end
 
 function register_builtin!(r::RuleSpec)
-    return BUILTIN_RULES[r.id] = attach_rule_explain_docs(r)
+    return BUILTIN_RULES[r.id] = attach_rule_explain_docs(fill_builtin_docs!(r))
 end
 
 function init_registry!(policy::PolicyBundle)

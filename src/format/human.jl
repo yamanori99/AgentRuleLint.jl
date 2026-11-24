@@ -60,8 +60,10 @@ function format_human(
         total = length(ds)
         ceiling_s = human_ceiling_display(ceilings, rule_id)
         header = _human_group_header(io, label, rule_id, d0.level, total, ceiling_s)
-        for ln in wrap_prose_lines("", "", header, width)
-            println(buf, ln)
+        if visible_textwidth(header) <= width
+            println(buf, header)
+        else
+            println(buf, _truncate_chars(header, width, with_ellipsis = true))
         end
         intent = d0.intent
         do_not = d0.do_not
@@ -70,10 +72,8 @@ function format_human(
             intent = spec.intent
             do_not = spec.do_not
         end
-        !isempty(intent) &&
-            println_wrapped_labeled(buf, "│   ", "intent: ", intent, width)
-        !isempty(do_not) &&
-            println_wrapped_labeled(buf, "│   ", "do_not: ", do_not, width)
+        println_wrapped_labeled(buf, "│   ", "intent: ", intent, width)
+        println_wrapped_labeled(buf, "│   ", "do_not: ", do_not, width)
         println(buf, "│")
 
         limit = min(total, max_hits)
@@ -88,7 +88,6 @@ function format_human(
                 println_wrapped_labeled(buf, "│     ", "", d.message, width)
             line = source_line_at(root, d)
             !isempty(line) && println_human_code_gutter(buf, width, d.anchor_line, line, d.span)
-            println(buf, "│")
         end
 
         if total > limit
@@ -115,3 +114,4 @@ function format_human(
     end
     return String(take!(buf))
 end
+

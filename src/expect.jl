@@ -420,7 +420,32 @@ function expect_audit_diagnostics(fc::FileContext, policy::PolicyBundle)
     return diags
 end
 
-function unused_expect_diagnostics(expects::Vector{ExpectLine}, used::Set{Int}, fc::FileContext, policy::PolicyBundle)
+const _PLACEMENT_SUBSUMES_UNUSED = (
+    "blank line breaking expect attachment (unused)",
+    "expect forbidden above catch",
+    "expect inside multiline call arguments",
+    "expect inside runic:off region forbidden",
+)
+
+function _placement_subsumes_unused(prior::Vector{Violation}, path::AbstractString, line::Int)
+    for d in prior
+        d.rule_id != "expect-audit" && continue
+        d.path != path && continue
+        d.anchor_line != line && continue
+        for prefix in _PLACEMENT_SUBSUMES_UNUSED
+            startswith(d.message, prefix) && return true
+        end
+    end
+    return false
+end
+
+function unused_expect_diagnostics(
+        expects::Vector{ExpectLine},
+        used::Set{Int},
+        fc::FileContext,
+        policy::PolicyBundle,
+        prior::Vector{Violation},
+    )
     rule = get(policy.rules, "expect-audit", nothing)
     lvl = rule === nothing ? :forbid : rule.level
     intent = rule === nothing ? "" : rule.intent
@@ -430,6 +455,7 @@ function unused_expect_diagnostics(expects::Vector{ExpectLine}, used::Set{Int}, 
     diags = Violation[]
     for ex in expects
         ex.line in used && continue
+        _placement_subsumes_unused(prior, path, ex.line) && continue
         msg = "unused expect"
         _, span = span_for_line(source, ex.line)
         push!(
