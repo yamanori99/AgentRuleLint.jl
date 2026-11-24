@@ -11,6 +11,13 @@ level = "deny"
 intent = "Block hollow or weakened tests that always pass or shrink CI coverage."
 do_not = "Trivially true @test expressions, broad @test_throws Exception/ErrorException, extra @test_skip/@test_broken in a diff, removed test includes or testsets, early exit() in the suite driver, or looser isapprox/≈ tolerances vs base."
 
+[rules.unsafe-boundary]
+level = "warn"
+allow_modules = []
+allow_globs = []
+intent = "Keep runtime evaluation and FFI inside reviewed boundaries in this package."
+do_not = "Add allow_globs or allow_modules rather than hiding eval, ccall, or unsafe_* calls."
+
 [[project_rules]]
 id = "no-internal-codename"
 level = "deny"

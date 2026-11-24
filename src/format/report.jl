@@ -108,6 +108,42 @@ function explain_rule(id::AbstractString)
         suppress violations. Multiline-call placement uses the same forbid level as other
         expect-audit integrity findings.
         """
+    elseif id == "unsafe-boundary"
+        return """
+        unsafe-boundary
+
+        Anchor line: the `@eval`, `ccall`, `@ccall`, qualified `Base.Meta.parse` / `Core.Meta.parse`,
+        `invokelatest`, `unsafe_*` call, value alias (`const E = Core.eval`), value argument
+        (`map(eval, xs)`), indirect `getfield`/`getproperty` escape, or related macro line
+        (`@inbounds`, `@generated`, `@assume_effects`).
+
+        Intent: keep runtime `eval`, parsing, FFI, and unsafe intrinsics inside configured
+        `allow_modules` or `allow_globs`. Top-level `@eval` of static literal / quote sequences only
+        is excluded (no runtime interpolation or bare identifiers). Remaining gaps: `Expr` escapes
+        and renames that do not match the tracked value-alias pattern.
+
+        Config: `[rules.unsafe-boundary]` with optional `allow_modules`, `allow_globs`.
+        """
+    elseif id == "scope-paths"
+        return """
+        scope-paths
+
+        Group: integrity. Level: forbid (no inline expects).
+
+        Active only when `check` receives `--allow-paths GLOB,...` together with `--diff <base>`.
+        The allowlist is accepted only from the CLI or the `check(...; allow_paths=...)` keyword,
+        never from `.AgentRuleLintConfig.toml`, so only a trusted CI workflow input or human wrapper
+        can widen scope.
+
+        Every changed path in the diff (add, modify, delete, rename on both sides) must match at
+        least one glob. Otherwise the rule flags the path.
+
+        Without `--diff`, `--allow-paths` is a usage error (exit 2). An empty or whitespace-only
+        list is a usage error. Absolute paths, `..` segments, and backslash separators are rejected
+        at glob parse time (exit 2).
+
+        Integrity level: `scope-paths` must use `level = "forbid"` in config (ConfigError otherwise).
+        """
     elseif id == "protected-paths"
         return """
         protected-paths
@@ -147,6 +183,7 @@ function explain_rule(id::AbstractString)
             "shell-safety/process-pattern" => "preset: hazardous shell / Cmd patterns.",
             "silent-catch" => "detect swallowed exceptions.",
             "unsafe-boundary" => "flag eval, ccall, and unsafe_* at boundaries.",
+            "test-integrity" => "detect hollow or weakened tests.",
         )
         for (slug, blurb) in specs
             id == slug && return "$slug — $blurb (planned built-in / preset)."
