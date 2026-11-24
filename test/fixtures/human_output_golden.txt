@@ -4,7 +4,7 @@ AgentRuleLint v0.1.0-DEV (policy bundle base: origin/main @ 9f2c1a4e, pos: utf8-
 │   intent: Keep suppression comments auditable.
 │   do_not: Hide violations with unapproved expects.
 │
-│ test/corpus/block_expect.jl:1:1-1:60
+│   test/corpus/block_expect.jl:1:1-1:60
 │     block comment expect forbidden
 │     1 │ #= block agentrulelint-expect: expect-audit reason="nope" =#
 │       │ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -14,7 +14,7 @@ AgentRuleLint v0.1.0-DEV (policy bundle base: origin/main @ 9f2c1a4e, pos: utf8-
 │   intent: Keep internal codenames out of public package files.
 │   do_not: Split or dynamically concatenate forbidden strings to bypass the check.
 │
-│ test/corpus/split_string.jl:1:10-1:33
+│   test/corpus/split_string.jl:1:10-1:33
 │     forbidden literal matched (folded)
 │     1 │ secret = "INT" * "ERNAL_CODENAME"
 │       │          ~~~~~~~~~~~~~~~~~~~~~~~~

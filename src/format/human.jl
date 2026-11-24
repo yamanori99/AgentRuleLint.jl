@@ -81,8 +81,11 @@ function format_human(
             d = ds[i]
             loc_body = format_span_loc(d)
             (d.span == Span(1, 1, 1, 1) && d.anchor_line == 1) && (loc_body = d.path)
-            for ln in wrap_prose_lines("", "", "│   $loc_body", width)
-                println(buf, ln)
+            loc_line = "│   $loc_body"
+            if visible_textwidth(loc_line) <= width
+                println(buf, loc_line)
+            else
+                println(buf, _truncate_chars(loc_line, width, with_ellipsis = true))
             end
             !isempty(d.message) &&
                 println_wrapped_labeled(buf, "│     ", "", d.message, width)
