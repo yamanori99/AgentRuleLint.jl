@@ -33,6 +33,7 @@ evasion, silent fallbacks, and weakened tests.
 
 ```text
 TODO: copy-paste setup prompt for coding agents (to be added once the CLI and config format settle).
+```
 
 ## Design (for developers)
 
