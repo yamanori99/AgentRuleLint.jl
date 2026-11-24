@@ -123,9 +123,11 @@ end
             write(joinpath(root, "lib", "a", "b", "hit.jl"), "x = \"INTERNAL_CODENAME\"\n")
             write(joinpath(root, "lib", "a", "miss.jl"), "x = \"INTERNAL_CODENAME\"\n")
             res = AgentRuleLint.check(root)
-            paths = sort(unique(
-                d.path for d in res.violations if d.rule_id == "project/glob-deep" && !d.suppressed
-            ))
+            paths = sort(
+                unique(
+                    d.path for d in res.violations if d.rule_id == "project/glob-deep" && !d.suppressed
+                )
+            )
             @test paths == ["lib/a/b/hit.jl", "lib/a/hit.jl", "lib/hit.jl"]
         finally
             rm(root, recursive = true, force = true)
