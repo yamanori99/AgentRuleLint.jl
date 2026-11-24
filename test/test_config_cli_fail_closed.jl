@@ -54,6 +54,36 @@
         end
     end
 
+    @testset "integrity rules require level forbid" begin
+        root = mktempdir()
+        try
+            for (rule, extra) in (
+                ("protected-paths", ""),
+                ("ceiling-ratchet", ""),
+                ("scope-paths", ""),
+            )
+                cfg = minimal_config(
+                    """
+                    [rules.$rule]
+                    level = \"allow\"
+                    $extra
+                    """,
+                )
+                write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+                err = try
+                    AgentRuleLint.check(root)
+                    nothing
+                catch e
+                    e
+                end
+                @test err isa AgentRuleLint.ConfigError
+                @test occursin("must be forbid", sprint(showerror, err))
+            end
+        finally
+            rm(root, recursive = true, force = true)
+        end
+    end
+
     @testset "config unknown rule level" begin
         root = mktempdir()
         try

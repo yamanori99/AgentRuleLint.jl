@@ -251,6 +251,87 @@ RULE = "protected-paths"
         end
     end
 
+    @testset "config self-disable bypass" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(joinpath(dir, ".JETLSConfig.toml"), "ok = 1\n")
+            git_commit_all!(dir, "base")
+            bypass = """
+            $(base_cfg())
+            level = \"allow\"
+            """
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), bypass)
+            write(joinpath(dir, ".JETLSConfig.toml"), "ok = 2\n")
+            git_commit_all!(dir, "bypass and jetls")
+            cd(dir) do
+                err = try
+                    AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                    nothing
+                catch e
+                    e
+                end
+                @test err isa AgentRuleLint.ConfigError
+                @test occursin("must be forbid", sprint(showerror, err))
+                @test AgentRuleLint.cli_main(["check", "--diff", "HEAD^1"]) == 2
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "rename Project.toml not semantically exempt" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(
+                joinpath(dir, "Project.toml"),
+                """
+                name = "Tmp"
+                uuid = "11111111-1111-1111-1111-111111111111"
+                version = "0.1.0"
+                """,
+            )
+            git_commit_all!(dir, "base")
+            mv(joinpath(dir, "Project.toml"), joinpath(dir, "proj.toml"))
+            git_commit_all!(dir, "rename")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                paths = Set(h.path for h in protected_hits(res))
+                @test "Project.toml" in paths || "proj.toml" in paths
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "rename ceilings.toml not exempt" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            mkpath(joinpath(dir, ".agentrulelint"))
+            write(
+                joinpath(dir, ".agentrulelint", "ceilings.toml"),
+                "[violations.\"protected-paths\"]\n\"x.jl\" = 1\n",
+            )
+            git_commit_all!(dir, "base")
+            mv(
+                joinpath(dir, ".agentrulelint", "ceilings.toml"),
+                joinpath(dir, ".agentrulelint", "caps.toml"),
+            )
+            git_commit_all!(dir, "rename ceilings")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                @test !isempty(protected_hits(res))
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
     @testset "corpus fixtures" begin
         hit = joinpath(@__DIR__, "corpus", "protected_paths_jetls_evade.toml")
         @test isfile(hit)
@@ -258,23 +339,4 @@ RULE = "protected-paths"
         @test isfile(ok)
     end
 
-    @testset "mutation: disabled detector" begin
-        dir = abspath(mktempdir())
-        try
-            init_git_repo!(dir)
-            cfg = base_cfg("level = \"allow\"\n")
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
-            write(joinpath(dir, ".JETLSConfig.toml"), "a=1\n")
-            git_commit_all!(dir, "base")
-            write(joinpath(dir, ".JETLSConfig.toml"), "a=2\n")
-            git_commit_all!(dir, "chg")
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
-            cd(dir) do
-                res_off = AgentRuleLint.check(dir; diff_base = "HEAD^1")
-                @test !isempty(protected_hits(res_off))
-            end
-        finally
-            rm(dir, recursive = true, force = true)
-        end
-    end
 end

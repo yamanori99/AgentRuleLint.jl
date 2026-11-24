@@ -74,6 +74,9 @@ auto-closed for incomplete reports.
 - **Integrity guards** (`protected-paths`, `scope-paths`, `ceiling-ratchet`, `expect-audit`,
   `manifest-sync`, `test-integrity`): near-zero false-positive bar; fail closed on policy,
   manifests, protected paths, expect hygiene, and test integrity.
+- **`protected-paths`, `scope-paths`, and `ceiling-ratchet`** must be declared with
+  `level = "forbid"` in `.AgentRuleLintConfig.toml`. Any other level is a **ConfigError** (exit 2)
+  so agents cannot weaken enforcement by editing policy in the same diff.
 - **Explicitness / boundary contracts** (`silent-catch`, `unsafe-boundary`, opt-in presets): judged by
   noise budget on the reference corpus plus either a clean fix or a reason-bearing
   `# agentrulelint-expect:` / `# SAFETY:` annotation.
