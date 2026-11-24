@@ -21,7 +21,7 @@ end
         abs = joinpath(ROOT, rel)
         mkpath(dirname(abs))
         write(abs, content)
-        return JAILint.check(ROOT; paths = [rel])
+        return AgentRuleLint.check(ROOT; paths = [rel])
     end
 
     try
@@ -98,7 +98,7 @@ end
 
         @testset "expect-audit: blank lines above do not change fingerprint" begin
             base =
-                "# jailint-expect: project/no-internal-codename reason=\"x\"\n\nhit = \"INTERNAL_CODENAME\"\n"
+                "# agentrulelint-expect: project/no-internal-codename reason=\"x\"\n\nhit = \"INTERNAL_CODENAME\"\n"
             shifted = "\n\n\n" * base
             pred = d -> d.rule_id == "expect-audit" && occursin("blank line", d.message)
             fp0 = sole_fp(write_and_check(expect_rel, base), pred)
@@ -115,7 +115,7 @@ end
             )
             write_and_check(project_rel, shifted)
             cd(ROOT) do
-                @test JAILint.cli_main(["report", fp]) == 0
+                @test AgentRuleLint.cli_main(["report", fp]) == 0
             end
         end
 
@@ -131,7 +131,7 @@ end
                 d -> d.rule_id == "project/no-internal-codename" && !d.suppressed,
             )
             @test fp1 != fp2
-            expect_bad = "# jailint-expect: foo reason=\"\"\n"
+            expect_bad = "# agentrulelint-expect: foo reason=\"\"\n"
             fp3 = sole_fp(
                 write_and_check(expect_rel, expect_bad),
                 d -> d.rule_id == "expect-audit",
@@ -159,14 +159,14 @@ end
             )
             @test fp0 == fp1
             cd(ROOT) do
-                @test JAILint.cli_main(["check", uni_rel]) == 1
+                @test AgentRuleLint.cli_main(["check", uni_rel]) == 1
             end
         end
 
         @testset "unicode expect-audit comment: no internal error and stable fingerprint" begin
             uni_rel = joinpath(corpus_tmp, "unicode_expect.jl")
             base =
-                "# jailint-expect: project/no-internal-codename reason=\"注🙂意\"\n\nhit = \"INTERNAL_CODENAME\"\n"
+                "# agentrulelint-expect: project/no-internal-codename reason=\"注🙂意\"\n\nhit = \"INTERNAL_CODENAME\"\n"
             shifted = "\n" * base
             pred = d -> d.rule_id == "expect-audit" && occursin("blank line", d.message)
             res0 = write_and_check(uni_rel, base)
@@ -179,11 +179,11 @@ end
             fp1 = sole_fp(res1, pred)
             @test fp0 == fp1
             alt =
-                "# jailint-expect: project/no-internal-codename reason=\"別の理由\"\n\nhit = \"INTERNAL_CODENAME\"\n"
+                "# agentrulelint-expect: project/no-internal-codename reason=\"別の理由\"\n\nhit = \"INTERNAL_CODENAME\"\n"
             fp_alt = sole_fp(write_and_check(uni_rel, alt), pred)
             @test fp0 != fp_alt
             cd(ROOT) do
-                @test JAILint.cli_main(["check", uni_rel]) == 1
+                @test AgentRuleLint.cli_main(["check", uni_rel]) == 1
             end
         end
 
