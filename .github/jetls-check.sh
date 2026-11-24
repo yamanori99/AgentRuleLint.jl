@@ -9,9 +9,11 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 cd "$root"
 shopt -s nullglob
 
+# Package surface only: JETLS follows `include()` from here. Do not pass
+# test/runtests.jl — its test-only deps (Aqua, Runic env) are absent from the
+# JETLS app environment and produce toplevel errors.
 files=(
     src/JAILint.jl
-    test/runtests.jl
 )
 
 if ((${#files[@]} == 0)); then
