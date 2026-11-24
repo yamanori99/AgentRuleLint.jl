@@ -249,6 +249,20 @@ function _compare_ceiling_tables(
     return out
 end
 
+"""
+Return `true` when `working` ceilings increase relative to `base` (not monotonic non-increasing).
+Used by `protected-paths` to exempt `.agentrulelint/ceilings.toml` when counts only go down.
+"""
+function ceilings_increase_relative_to_base(
+        working::CeilingEntry,
+        base::CeilingEntry,
+        base_present::Bool,
+        policy::PolicyBundle,
+    )
+    diags = enforce_ceilings_vs_git_base(working, base, base_present, true, policy)
+    return !isempty(diags)
+end
+
 function enforce_ceilings_vs_git_base(
         working::CeilingEntry,
         base::CeilingEntry,

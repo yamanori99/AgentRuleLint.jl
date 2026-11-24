@@ -131,8 +131,8 @@ end
         cd(ROOT) do
             @test AgentRuleLint.cli_main(["explain", "project/no-internal-codename"]) == 0
             @test AgentRuleLint.cli_main(["explain", "expect-audit"]) == 0
-            @test AgentRuleLint.cli_main(["explain", "not-a-real-rule"]) == 2
-            @test AgentRuleLint.cli_main(["explain", "silent-catch"]) == 2
+            @test AgentRuleLint.cli_main(["explain", "no-such-rule"]) == 2
+            @test AgentRuleLint.cli_main(["explain", "protected-paths"]) == 0
         end
     end
 
@@ -144,10 +144,13 @@ end
         @test occursin("ceiling=-", agent)
     end
 
-    @testset "explain uses registry docs for expect-audit" begin
-        text = AgentRuleLint.explain_rule("expect-audit"; root = ROOT)
-        @test occursin("agentrulelint-expect: expect-audit", text)
-        @test occursin("level: forbid", text)
-        @test !occursin("silent-catch", text)
+    @testset "explain uses registry docs" begin
+        audit = AgentRuleLint.explain_rule("expect-audit"; root = ROOT)
+        @test occursin("agentrulelint-expect: expect-audit", audit)
+        @test occursin("level: forbid", audit)
+        paths = AgentRuleLint.explain_rule("protected-paths"; root = ROOT)
+        @test occursin("rule_id: protected-paths", paths)
+        @test occursin("Protect designated policy, lockfiles, and workflow paths", paths)
+        @test occursin("Edit protected files, weaken compat, or rename paths", paths)
     end
 end
