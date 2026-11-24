@@ -29,3 +29,20 @@ and is being extracted into a standalone package.
   inputs, and shrinking test coverage in diffs.
 - **Local and CI modes**: run diff-scoped or full-repository checks in
   a single Julia process.
+
+## Design (for developers)
+
+- **Fail-closed**: malformed suppression comments, unknown options, or
+  broken rule state fail the check instead of silently passing.
+- **Syntax over regex**: inspect parsed Julia syntax with lightweight
+  constant folding rather than brittle text patterns, without requiring
+  full type inference.
+- **Assume evasion**: rules are written to catch surface-level workarounds
+  such as split literals, wrapper indirection, or weakened tests, not
+  only accidental mistakes.
+- **Monotonic ratchets**: legacy debt is capped by tight per-rule
+  ceilings that only go down; loosening a rule or ceiling requires
+  explicit review.
+- **Fast and self-tested**: runs in a single Julia process for local
+  pre-push and CI, with self-tests verifying that every rule still fires
+  on real violations.
