@@ -82,6 +82,13 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
             res.violations,
         )
         @test block
+        trail = any(
+            d -> d.path == "test/corpus/trailing_expect.jl" &&
+                d.rule_id == "expect-audit" &&
+                occursin("trailing inline", d.message),
+            res.violations,
+        )
+        @test trail
     end
 
     @testset "syntax error file fail-closed" begin
@@ -152,6 +159,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
         @test_throws JAILint.GitError JAILint.resolve_policy(ROOT; config_from = "not-a-ref-zzz")
     end
 
+    include("test_expect_audit.jl")
     include("test_adapter_fixes.jl")
 
     Aqua.test_all(JAILint)

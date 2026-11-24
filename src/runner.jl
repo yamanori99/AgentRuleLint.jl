@@ -97,7 +97,8 @@ function run_check(root::AbstractString; kwargs...)
             push!(idxs, di)
             push!(path_diags, d)
         end
-        used = apply_expect_suppression!(path_diags, fc.expects, fc.parsed.normalized)
+        eligible = expects_eligible_for_suppression(fc.expects, fc.parsed.normalized)
+        used = apply_expect_suppression!(path_diags, eligible, fc.parsed.normalized)
         for (j, di) in enumerate(idxs)
             all_diags[di] = path_diags[j]
         end
