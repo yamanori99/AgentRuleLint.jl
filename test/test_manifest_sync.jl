@@ -34,8 +34,16 @@
     @testset "positive minimal pair" begin
         dir = init_git_fixture(joinpath(FIXTURES, "positive"))
         try
-            viols = ms_violations(dir)
-            @test isempty(viols)
+            @test isempty(ms_violations(dir))
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "positive manifest_format 2.1 with registries" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "positive_format_21"))
+        try
+            @test isempty(ms_violations(dir))
         finally
             rm(dir, recursive = true, force = true)
         end
@@ -44,24 +52,13 @@
     @testset "positive workspace" begin
         dir = init_git_fixture(joinpath(FIXTURES, "positive_workspace"))
         try
-            viols = ms_violations(dir)
-            @test isempty(viols)
+            @test isempty(ms_violations(dir))
         finally
             rm(dir, recursive = true, force = true)
         end
     end
 
-    @testset "negative missing dep" begin
-        dir = init_git_fixture(joinpath(FIXTURES, "negative_missing_dep"))
-        try
-            viols = ms_violations(dir)
-            @test any(v -> occursin("missing from manifest", v.message), viols)
-        finally
-            rm(dir, recursive = true, force = true)
-        end
-    end
-
-    @testset "negative manifest_format" begin
+    @testset "detector: manifest_format unsupported" begin
         dir = init_git_fixture(joinpath(FIXTURES, "negative_manifest_format"))
         try
             viols = ms_violations(dir)
@@ -71,7 +68,47 @@
         end
     end
 
-    @testset "adversarial Manifest-v filename mismatch" begin
+    @testset "detector: project deps missing from manifest" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_missing_dep"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> occursin("missing from manifest", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "detector: project deps UUID mismatch" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_uuid_mismatch"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> occursin("UUID mismatch", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "detector: manifest internal deps closure" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_internal_closure"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> occursin("references missing dependency", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "detector: manifest UUID uniqueness" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_duplicate_uuid"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> occursin("duplicate manifest UUID", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "detector: Manifest-v filename vs julia_version" begin
         dir = init_git_fixture(joinpath(FIXTURES, "adversarial_versioned_name"))
         try
             viols = ms_violations(dir)
@@ -81,27 +118,97 @@
         end
     end
 
+    @testset "detector: diff mode stale project_hash" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "positive"))
+        try
+            proj = joinpath(dir, "Project.toml")
+            proj_text = replace(read(proj, String), "julia = \"1.13\"" => "julia = \"1.12\"")
+            write(proj, proj_text)
+            viols = ms_violations(dir; diff_base = "HEAD")
+            @test any(v -> occursin("project_hash is unchanged", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "detector: undeclared extension trigger" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_extension_trigger"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> occursin("extension trigger", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "detector: sources path disagree (warn)" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "warn_sources_mismatch"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> v.level == :warn && occursin("sources path", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "detector: workspace subproject manifest (warn)" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "warn_subproject_manifest"))
+        try
+            viols = ms_violations(dir)
+            @test any(v -> v.level == :warn && occursin("workspace subproject", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "fixture prefix exempts corpus only" begin
+        dir = init_git_fixture(joinpath(FIXTURES, "negative_missing_dep"))
+        try
+            res = AgentRuleLint.check(ROOT; paths = String[])
+            skipped = any(
+                d -> startswith(d.path, "test/corpus/manifest_sync/"),
+                filter(
+                    d -> d.rule_id == "manifest-sync" && !d.suppressed,
+                    res.violations,
+                ),
+            )
+            @test !skipped
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "manifests outside fixture prefix are still checked" begin
+        dir = abspath(mktempdir())
+        try
+            vendor = joinpath(dir, "vendor", "pkg")
+            mkpath(vendor)
+            cp(joinpath(FIXTURES, "negative_missing_dep"), vendor; force = true)
+            run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
+            run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "t@test"]); dir = dir))
+            run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "t"]); dir = dir))
+            copy_config!(dir)
+            run(Cmd(["git", "-C", dir, "add", "-A"]))
+            run(setenv(Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"]); dir = dir))
+            viols = ms_violations(dir)
+            @test any(v -> v.path == "vendor/pkg/Project.toml" && occursin("missing from manifest", v.message), viols)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "dogfood full-tree tracked root Manifest" begin
+        res = AgentRuleLint.check(ROOT; paths = String[])
+        ms = filter(d -> d.rule_id == "manifest-sync" && !d.suppressed, res.violations)
+        @test isempty(ms)
+    end
+
     @testset "unparseable manifest fail-closed" begin
         dir = init_git_fixture(joinpath(FIXTURES, "positive"))
         bad = joinpath(dir, "Manifest.toml")
         try
             write(bad, "manifest_format = \"2.0\"\n[[deps.Foo\n")
             @test_throws AgentRuleLint.ParseError ms_violations(dir)
-        finally
-            rm(dir, recursive = true, force = true)
-        end
-    end
-
-    @testset "diff project_hash stale" begin
-        dir = init_git_fixture(joinpath(FIXTURES, "positive"))
-        try
-            proj = joinpath(dir, "Project.toml")
-            proj_text = read(proj, String)
-            proj_text = replace(proj_text, "julia = \"1.13\"" => "julia = \"1.12\"")
-            write(proj, proj_text)
-            run(Cmd(["git", "-C", dir, "add", "Project.toml"]))
-            viols = ms_violations(dir; diff_base = "HEAD")
-            @test any(v -> occursin("project_hash is unchanged", v.message), viols)
         finally
             rm(dir, recursive = true, force = true)
         end

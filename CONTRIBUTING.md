@@ -101,6 +101,8 @@ reused.
 
 ## Golden corpus
 
+`manifest-sync` skips git-tracked manifests under `test/corpus/manifest_sync/` when linting this repository (intentional negative fixtures); manifests elsewhere in the tree are still checked.
+
 Under `test/corpus/`:
 
 - **Existing fixtures** exercise constant folding, UTF-8, and expect anchors.

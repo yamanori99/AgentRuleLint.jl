@@ -11,6 +11,24 @@ const MANIFEST_V_RE = r"^Manifest-v(\d+)\.(\d+)\.toml$"
 
 const RESOLVE_SECTION_KEYS = ("deps", "weakdeps", "compat", "sources", "workspace")
 
+# Matches Pkg `manifest_format_for` minors for Julia versions this package supports
+# (stdlib Pkg `manifest.jl`, `manifest_format_for`; see CONTRIBUTING).
+const MANIFEST_FORMAT_ALLOWED_MINORS = (0, 1, 2)
+
+const MANIFEST_TOP_LEVEL_BASE = (
+    "julia_version",
+    "project_hash",
+    "manifest_format",
+    "deps",
+)
+
+const MANIFEST_TOP_LEVEL_FROM_21 = ("registries",)
+
+const MANIFEST_TOP_LEVEL_FROM_22 = (
+    "environment_id",
+    "environment_name",
+)
+
 const MANIFEST_SYNC_FIXTURE_PREFIX = "test/corpus/manifest_sync/"
 
 function _manifest_sync_skip_path(rel::AbstractString)
@@ -227,6 +245,31 @@ function _line_for_dep(source::AbstractString, pkg::AbstractString)
     return 1
 end
 
+function _parse_manifest_format_version(raw)
+    raw === nothing && return nothing
+    s = raw isa AbstractString ? String(strip(raw)) : string(raw)
+    try
+        return VersionNumber(s)
+    catch
+        return nothing
+    end
+end
+
+function manifest_format_minor_allowed(v::VersionNumber)
+    return v.major == 2 && v.minor in MANIFEST_FORMAT_ALLOWED_MINORS
+end
+
+function _manifest_format_from_dict(man::Dict)
+    return _parse_manifest_format_version(get(man, "manifest_format", nothing))
+end
+
+function _allowed_manifest_top_level(fmt_minor::Int)
+    out = String[string(k) for k in MANIFEST_TOP_LEVEL_BASE]
+    fmt_minor >= 1 && append!(out, MANIFEST_TOP_LEVEL_FROM_21)
+    fmt_minor >= 2 && append!(out, MANIFEST_TOP_LEVEL_FROM_22)
+    return Set(out)
+end
+
 function _check_manifest_format!(
         diags::Vector{Violation},
         level::Symbol,
@@ -239,20 +282,51 @@ function _check_manifest_format!(
     fmt = get(man, "manifest_format", nothing)
     if fmt === nothing
         _push_ms_violation!(diags, level, manifest_rel, 1, "missing manifest_format (fail-closed)", intent, do_not)
-        return
+        return nothing
     end
     s = fmt isa AbstractString ? String(fmt) : string(fmt)
-    s == "2.0" && return nothing
+    ver = _parse_manifest_format_version(s)
+    if ver !== nothing && manifest_format_minor_allowed(ver)
+        return ver
+    end
     ln = _line_number_for_substring(source, "manifest_format", default_line = 1)
     _push_ms_violation!(
         diags,
         level,
         manifest_rel,
         ln,
-        "unsupported manifest_format '$s' (expected \"2.0\")",
+        "unsupported manifest_format '$s' (expected Pkg format 2.0, 2.1, or 2.2)",
         intent,
         do_not,
     )
+    return nothing
+end
+
+function _check_manifest_top_level!(
+        diags::Vector{Violation},
+        level::Symbol,
+        manifest_rel::String,
+        man::Dict,
+        fmt_minor::Int,
+        source::AbstractString,
+        intent::String,
+        do_not::String,
+    )
+    allowed = _allowed_manifest_top_level(fmt_minor)
+    for k in keys(man)
+        sk = String(k)
+        sk in allowed && continue
+        ln = _line_number_for_substring(source, sk, default_line = 1)
+        _push_ms_violation!(
+            diags,
+            level,
+            manifest_rel,
+            ln,
+            "unexpected manifest top-level key '$sk' (not metadata for format 2.$fmt_minor)",
+            intent,
+            do_not,
+        )
+    end
     return nothing
 end
 
@@ -632,7 +706,19 @@ function _audit_manifest_pair!(
     )
     man_text = _read_worktree_text(root, ctx.manifest_rel)
     man = _parse_toml_or_throw(man_text, ctx.manifest_rel)
-    _check_manifest_format!(diags, level, ctx.manifest_rel, man, man_text, intent, do_not)
+    fmt_ver = _check_manifest_format!(diags, level, ctx.manifest_rel, man, man_text, intent, do_not)
+    if fmt_ver !== nothing
+        _check_manifest_top_level!(
+            diags,
+            level,
+            ctx.manifest_rel,
+            man,
+            Int(fmt_ver.minor),
+            man_text,
+            intent,
+            do_not,
+        )
+    end
     _check_manifest_version_filename!(diags, level, ctx.manifest_rel, man, man_text, intent, do_not)
     names, uuids, internal, paths, repos = _manifest_deps_map(man)
     _check_manifest_internal_closure!(diags, level, ctx.manifest_rel, names, internal, intent, do_not)

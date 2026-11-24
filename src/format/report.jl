@@ -108,7 +108,8 @@ function explain_rule(id::AbstractString)
         exist in the paired manifest; manifest internal deps closure; UUID uniqueness;
         Manifest-vX.Y minor version vs julia_version; in --diff mode, resolve sections
         ([deps], [weakdeps], [compat], [sources], [workspace]) changed without project_hash
-        update (hash is never recomputed); [extensions] triggers declared; manifest_format must be \"2.0\".
+        update (hash is never recomputed); [extensions] triggers declared; manifest_format must be Pkg
+        format 2.0, 2.1, or 2.2 (major 2 only); unknown top-level manifest keys fail closed.
 
         warn: [sources] vs manifest repo/path metadata (normalized paths); tracked manifest
         under a workspace subproject directory.

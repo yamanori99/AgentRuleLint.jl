@@ -1,4 +1,4 @@
-manifest_format = "2.1"
+manifest_format = "3.0"
 julia_version = "1.13.0"
 project_hash = "dddddddddddddddddddddddddddddddddddddddd"
 
