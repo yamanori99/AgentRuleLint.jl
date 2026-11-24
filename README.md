@@ -11,11 +11,10 @@ CI guardrail harness for Julia repositories developed with coding agents.
 It enforces repository invariants and catches shortcuts such as lint
 evasion, silent fallbacks, and weakened tests.
 
-## Status
-
-Early development (not yet registered in General). The initial rule set
-was brewed in [DistSSHRun.jl](https://github.com/yamanori99/DistSSHRun.jl)
-and is being extracted into a standalone package.
+> [!NOTE]
+> Early development (not registered in General). The initial rule set
+> was brewed in [DistSSHRun.jl](https://github.com/yamanori99/DistSSHRun.jl)
+> and is being extracted into a standalone package.
 
 ## Planned scope
 
@@ -29,6 +28,11 @@ and is being extracted into a standalone package.
   inputs, and shrinking test coverage in diffs.
 - **Local and CI modes**: run diff-scoped or full-repository checks in
   a single Julia process.
+
+## Setup for coding agents
+
+```text
+TODO: copy-paste setup prompt for coding agents (to be added once the CLI and config format settle).
 
 ## Design (for developers)
 
