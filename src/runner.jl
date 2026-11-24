@@ -157,7 +157,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     end
 
     if diff_scope !== nothing
-        path_events = git_diff_path_events(root, diff_base)
+        path_events = git_diff_path_events(root, diff_scope.base_ref)
         all_diags = filter_diff_violations!(all_diags, diff_scope, path_events)
     end
 
