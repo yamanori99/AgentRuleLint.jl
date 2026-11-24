@@ -14,6 +14,7 @@ const TOP_LEVEL_CONFIG_KEYS = Set(
 )
 const RULE_TABLE_KEYS = Set(["level", "intent", "do_not"])
 const EXPECT_AUDIT_RULE_KEYS = Set(["level", "intent", "do_not", "on_allow_rule"])
+const UNSAFE_BOUNDARY_RULE_KEYS = Set(["level", "intent", "do_not", "allow_modules", "allow_globs"])
 const PROJECT_RULE_KEYS = Set(
     [
         "id",
@@ -154,11 +155,55 @@ function _collect_rule_tables(raw::Dict)
     return out
 end
 
+function _parse_string_array(raw, label::AbstractString)
+    raw isa AbstractVector || throw(ConfigError("$label must be an array"))
+    out = String[]
+    for (i, v) in enumerate(raw)
+        v isa AbstractString || throw(ConfigError("$label[$i] must be a string"))
+        push!(out, String(v))
+    end
+    return out
+end
+
+function _load_unsafe_boundary_config(raw::Dict, rules::Dict{String, RuleSpec})
+    spec = get(rules, "unsafe-boundary", nothing)
+    spec === nothing && return UnsafeBoundaryConfig()
+    allow_modules = String[]
+    allow_globs = Regex[]
+    for (id, content) in _collect_rule_tables(raw)
+        id == "unsafe-boundary" || continue
+        if haskey(content, "allow_modules")
+            allow_modules = _parse_string_array(content["allow_modules"], "rules.unsafe-boundary.allow_modules")
+        end
+        if haskey(content, "allow_globs")
+            globs = _parse_string_array(content["allow_globs"], "rules.unsafe-boundary.allow_globs")
+            for (j, g) in enumerate(globs)
+                push!(allow_globs, compile_path_glob(g, "rules.unsafe-boundary.allow_globs[$j]"))
+            end
+        end
+        break
+    end
+    return UnsafeBoundaryConfig(
+        true,
+        spec.level,
+        allow_modules,
+        allow_globs,
+        spec.intent,
+        spec.do_not,
+    )
+end
+
 function _load_rules_table(raw::Dict)
     rules = Dict{String, RuleSpec}()
     for (id, content) in _collect_rule_tables(raw)
         validate_kebab_rule_id(id, "rules.$id")
-        allowed = id == "expect-audit" ? EXPECT_AUDIT_RULE_KEYS : RULE_TABLE_KEYS
+        allowed = if id == "expect-audit"
+            EXPECT_AUDIT_RULE_KEYS
+        elseif id == "unsafe-boundary"
+            UNSAFE_BOUNDARY_RULE_KEYS
+        else
+            RULE_TABLE_KEYS
+        end
         _reject_unknown_keys!(content, allowed, "rules.$id")
         level = haskey(content, "level") ?
             _parse_rule_level(content["level"], "rules.$id.level") : :deny
@@ -259,7 +304,19 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     if es !== nothing && haskey(es, "on_allow_rule")
         on_allow = _parse_on_allow_rule(es["on_allow_rule"], "rules.expect-audit.on_allow_rule")
     end
-    return PolicyBundle(ver, fmt, max_hits, presets, rules, project, on_allow, config_path, config_source)
+    unsafe = _load_unsafe_boundary_config(raw, rules)
+    return PolicyBundle(
+        ver,
+        fmt,
+        max_hits,
+        presets,
+        rules,
+        project,
+        on_allow,
+        unsafe,
+        config_path,
+        config_source,
+    )
 end
 
 function policy_from_dict(raw::Dict, config_path::String; config_source = ConfigSource())
@@ -393,6 +450,7 @@ function default_policy(root::AbstractString)
         rules,
         ProjectRule[],
         :warn,
+        UnsafeBoundaryConfig(),
         cfg,
         cs,
     )

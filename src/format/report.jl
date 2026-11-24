@@ -94,6 +94,20 @@ function explain_rule(id::AbstractString)
         suppress violations. Multiline-call placement uses the same forbid level as other
         expect-audit integrity findings.
         """
+    elseif id == "unsafe-boundary"
+        return """
+        unsafe-boundary
+
+        Anchor line: the `@eval`, `ccall`, `@ccall`, `Meta.parse`, `invokelatest`, `unsafe_*` call,
+        indirect `getfield`/`getproperty` escape, or related macro line (`@inbounds`, `@generated`,
+        `Base.@assume_effects`).
+
+        Intent: keep runtime `eval`, parsing, FFI, and unsafe intrinsics inside configured
+        `allow_modules` or `allow_globs`. Top-level `@eval` of static literal / quote sequences only
+        is excluded (no runtime interpolation or bare identifiers).
+
+        Config: `[rules.unsafe-boundary]` with optional `allow_modules`, `allow_globs`.
+        """
     elseif startswith(id, "project/")
         return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
     else
@@ -105,7 +119,6 @@ function explain_rule(id::AbstractString)
             "shell-safety/process-pattern" => "preset: hazardous shell / Cmd patterns.",
             "silent-catch" => "detect swallowed exceptions.",
             "test-integrity" => "detect hollow or weakened tests.",
-            "unsafe-boundary" => "flag eval, ccall, and unsafe_* at boundaries.",
         )
         for (slug, blurb) in specs
             id == slug && return "$slug — $blurb (planned built-in / preset)."

@@ -6,6 +6,13 @@ max_hits_per_rule = 20
 level = "forbid"
 on_allow_rule = "warn"
 
+[rules.unsafe-boundary]
+level = "warn"
+allow_modules = []
+allow_globs = []
+intent = "Keep runtime evaluation and FFI inside reviewed boundaries in this package."
+do_not = "Add allow_globs or allow_modules rather than hiding eval, ccall, or unsafe_* calls."
+
 [[project_rules]]
 id = "no-internal-codename"
 level = "deny"

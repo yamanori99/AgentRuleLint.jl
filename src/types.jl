@@ -93,6 +93,17 @@ struct ProjectRule
     do_not::String
 end
 
+struct UnsafeBoundaryConfig
+    active::Bool
+    level::Symbol
+    allow_modules::Vector{String}
+    allow_globs::Vector{Regex}
+    intent::String
+    do_not::String
+end
+
+UnsafeBoundaryConfig() = UnsafeBoundaryConfig(false, :warn, String[], Regex[], "", "")
+
 struct PolicyBundle
     agentrulelint_version::VersionNumber
     default_format::Symbol
@@ -101,6 +112,7 @@ struct PolicyBundle
     rules::Dict{String, RuleSpec}
     project_rules::Vector{ProjectRule}
     on_allow_rule::Symbol
+    unsafe_boundary::UnsafeBoundaryConfig
     config_path::String
     config_source::ConfigSource
 end
