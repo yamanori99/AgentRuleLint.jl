@@ -1,7 +1,7 @@
 name = "AgentRuleLint"
 uuid = "c092dd98-a32b-4bb3-9a47-6744e45ef2e3"
-authors = ["Takanori Yamamoto"]
 version = "0.1.0-DEV"
+authors = ["Takanori Yamamoto"]
 
 [workspace]
 projects = ["test"]
@@ -14,14 +14,14 @@ StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [sources]
-JuliaSyntax = { url = "https://github.com/JuliaLang/julia", subdir = "JuliaSyntax", rev = "bf1cda3cf6755bf3ba89e8c86efd6a71c0120725" }
+JuliaSyntax = {rev = "bf1cda3cf6755bf3ba89e8c86efd6a71c0120725", subdir = "JuliaSyntax", url = "https://github.com/JuliaLang/julia"}
 
 [compat]
-julia = "1.13"
 JuliaSyntax = "2"
 PrecompileTools = "1.4"
 SHA = "1"
 StyledStrings = "1"
 TOML = "1"
+julia = "1.13"
 
 [apps.agentrulelint]
