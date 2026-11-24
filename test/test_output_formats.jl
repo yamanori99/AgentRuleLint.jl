@@ -164,10 +164,13 @@ end
         @test occursin("FAILED", out) && occursin("exit 1", out)
         @test occursin("~~~~~~~~~~~~~~~~~~~~~~~~", out)
         ul_lines = [l for l in split(out, '\n') if occursin('~', l)]
-        @test any(l -> begin
-            m = match(r"~+", l)
-            return m !== nothing && length(m.match) == 24
-        end, ul_lines)
+        @test any(
+            l -> begin
+                m = match(r"~+", l)
+                return m !== nothing && length(m.match) == 24
+            end,
+            ul_lines,
+        )
         @test !any(l -> occursin(r"~{80,}", l), ul_lines)
     end
 
