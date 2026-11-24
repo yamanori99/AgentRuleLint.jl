@@ -1,0 +1,2 @@
+# Golden fixture: semantic Project.toml policy allows adding a new [deps] plus [compat] only.
+# Exercised by test/test_protected_paths.jl Project.toml semantic allow new dep.

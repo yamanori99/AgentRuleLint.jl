@@ -15,6 +15,14 @@ const TOP_LEVEL_CONFIG_KEYS = Set(
 const RULE_TABLE_KEYS = Set(["level", "intent", "do_not"])
 const EXPECT_AUDIT_RULE_KEYS = Set(["level", "intent", "do_not", "on_allow_rule"])
 const UNSAFE_BOUNDARY_RULE_KEYS = Set(["level", "intent", "do_not", "allow_modules", "allow_globs"])
+const PROTECTED_PATHS_RULE_KEYS =
+    Set(["level", "intent", "do_not", "project_toml_policy", "paths"])
+const PROTECTED_PATHS_RULE = "protected-paths"
+const CEILING_RATCHET_RULE = "ceiling-ratchet"
+const SCOPE_PATHS_RULE = "scope-paths"
+const INTEGRITY_FORBID_RULES =
+    Set([PROTECTED_PATHS_RULE, CEILING_RATCHET_RULE, SCOPE_PATHS_RULE])
+const DEFAULT_PROJECT_TOML_POLICY = "semantic"
 const PROJECT_RULE_KEYS = Set(
     [
         "id",
@@ -165,6 +173,22 @@ function _parse_string_array(raw, label::AbstractString)
     return out
 end
 
+function _parse_protected_paths_globs(content::Dict, label::String)
+    raw = get(content, "paths", [])
+    raw isa AbstractVector || throw(ConfigError("$label.paths must be an array"))
+    out = ProtectedGlobEntry[]
+    for (j, entry) in enumerate(raw)
+        sub = "rules.$label.paths[$j]"
+        entry isa Dict || throw(ConfigError("$sub must be a table"))
+        _reject_unknown_keys!(entry, Set(["glob", "reason"]), sub)
+        glob = _require_string(entry, "glob", sub)
+        reason = _require_string(entry, "reason", sub)
+        rx = compile_path_glob(glob, sub)
+        push!(out, ProtectedGlobEntry(rx, reason))
+    end
+    return out
+end
+
 function _load_unsafe_boundary_config(raw::Dict, rules::Dict{String, RuleSpec})
     spec = get(rules, "unsafe-boundary", nothing)
     spec === nothing && return UnsafeBoundaryConfig()
@@ -193,6 +217,12 @@ function _load_unsafe_boundary_config(raw::Dict, rules::Dict{String, RuleSpec})
     )
 end
 
+function _parse_project_toml_policy(raw, label::String)
+    s = strip(raw isa AbstractString ? String(raw) : "")
+    s == DEFAULT_PROJECT_TOML_POLICY && return DEFAULT_PROJECT_TOML_POLICY
+    throw(ConfigError("unknown project_toml_policy '$raw' in $label (expected semantic)"))
+end
+
 function _load_rules_table(raw::Dict)
     rules = Dict{String, RuleSpec}()
     for (id, content) in _collect_rule_tables(raw)
@@ -201,17 +231,69 @@ function _load_rules_table(raw::Dict)
             EXPECT_AUDIT_RULE_KEYS
         elseif id == "unsafe-boundary"
             UNSAFE_BOUNDARY_RULE_KEYS
+        elseif id == PROTECTED_PATHS_RULE
+            PROTECTED_PATHS_RULE_KEYS
         else
             RULE_TABLE_KEYS
         end
         _reject_unknown_keys!(content, allowed, "rules.$id")
         level = haskey(content, "level") ?
             _parse_rule_level(content["level"], "rules.$id.level") : :deny
+        if id in INTEGRITY_FORBID_RULES && level != :forbid
+            throw(
+                ConfigError(
+                    "rules.$id.level must be forbid (integrity rules cannot be weakened)",
+                ),
+            )
+        end
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
-        rules[id] = RuleSpec(id, :agentrulelint, level, intent, do_not, Dict{Symbol, String}())
+        eff_level = id in INTEGRITY_FORBID_RULES ? :forbid : level
+        rules[id] = RuleSpec(id, :agentrulelint, eff_level, intent, do_not, Dict{Symbol, String}())
     end
     return rules
+end
+
+function _inject_builtin_rules!(rules::Dict{String, RuleSpec})
+    if get(rules, PROTECTED_PATHS_RULE, nothing) === nothing
+        rules[PROTECTED_PATHS_RULE] = RuleSpec(
+            PROTECTED_PATHS_RULE,
+            :agentrulelint,
+            :forbid,
+            "Protect designated policy, lockfiles, and workflow paths from silent edits.",
+            "Edit protected files, weaken compat, or rename paths to evade review.",
+            Dict{Symbol, String}(),
+        )
+    end
+    if get(rules, "ceiling-ratchet", nothing) === nothing
+        rules["ceiling-ratchet"] = RuleSpec(
+            "ceiling-ratchet",
+            :agentrulelint,
+            :forbid,
+            "Keep violation and expect ceilings monotonic (down only).",
+            "Raise ceilings or leave stale slack after counts decrease.",
+            Dict{Symbol, String}(),
+        )
+    end
+    return nothing
+end
+
+function _protected_paths_config(raw::Dict, rules::Dict{String, RuleSpec})
+    spec = get(rules, PROTECTED_PATHS_RULE, nothing)
+    spec === nothing &&
+        return DEFAULT_PROJECT_TOML_POLICY, ProtectedGlobEntry[]
+    content = nothing
+    for (id, c) in _collect_rule_tables(raw)
+        id == PROTECTED_PATHS_RULE && (content = c; break)
+    end
+    content === nothing && return DEFAULT_PROJECT_TOML_POLICY, ProtectedGlobEntry[]
+    pol = if haskey(content, "project_toml_policy")
+        _parse_project_toml_policy(content["project_toml_policy"], "rules.$PROTECTED_PATHS_RULE")
+    else
+        DEFAULT_PROJECT_TOML_POLICY
+    end
+    globs = _parse_protected_paths_globs(content, PROTECTED_PATHS_RULE)
+    return pol, globs
 end
 
 function _expect_audit_table(raw::Dict)
@@ -296,6 +378,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
         String[]
     end
     rules = _load_rules_table(raw)
+    _inject_builtin_rules!(rules)
     pr_raw = get(raw, "project_rules", [])
     pr_raw isa AbstractVector || throw(ConfigError("project_rules must be an array"))
     project = _load_project_rules(pr_raw)
@@ -305,6 +388,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
         on_allow = _parse_on_allow_rule(es["on_allow_rule"], "rules.expect-audit.on_allow_rule")
     end
     unsafe = _load_unsafe_boundary_config(raw, rules)
+    ptp, pglobs = _protected_paths_config(raw, rules)
     return PolicyBundle(
         ver,
         fmt,
@@ -316,6 +400,8 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
         unsafe,
         config_path,
         config_source,
+        ptp,
+        pglobs,
     )
 end
 
@@ -439,6 +525,14 @@ function default_policy(root::AbstractString)
             "Raise ceilings or leave stale slack after counts decrease.",
             Dict{Symbol, String}(),
         ),
+        PROTECTED_PATHS_RULE => RuleSpec(
+            PROTECTED_PATHS_RULE,
+            :agentrulelint,
+            :forbid,
+            "Protect designated policy, lockfiles, and workflow paths from silent edits.",
+            "Edit protected files, weaken compat, or rename paths to evade review.",
+            Dict{Symbol, String}(),
+        ),
     )
     cs = ConfigSource(:builtin, "", "", "")
     cfg = joinpath(abspath(root), CONFIG_FILENAME)
@@ -453,6 +547,8 @@ function default_policy(root::AbstractString)
         UnsafeBoundaryConfig(),
         cfg,
         cs,
+        DEFAULT_PROJECT_TOML_POLICY,
+        ProtectedGlobEntry[],
     )
 end
 
