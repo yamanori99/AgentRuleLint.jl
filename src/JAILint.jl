@@ -111,15 +111,10 @@ function _emit_fail_closed(err, io = stderr)
     end
 end
 
-function _resolve_emit_format(root::AbstractString, opts)
+function _resolve_emit_format(result::CheckResult, opts)
     fmt = opts[:format]
     if fmt === nothing
-        pol = resolve_policy(
-            root;
-            config_path = opts[:config_path],
-            config_from = opts[:config_from],
-        )
-        return pol.default_format
+        return result.default_format
     end
     fmt in VALID_OUTPUT_FORMATS ||
         throw(ArgumentError("unknown --format value '$fmt' (expected human|json|agent)"))
@@ -150,7 +145,7 @@ function _cli_check(positional::Vector{String}, opts)
         config_from = opts[:config_from],
         diff_base = opts[:diff_base],
     )
-    fmt = _resolve_emit_format(root, opts)
+    fmt = _resolve_emit_format(result, opts)
     _emit(result, fmt, opts)
     return result.exit_code
 end

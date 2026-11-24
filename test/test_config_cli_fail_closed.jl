@@ -140,6 +140,43 @@
         end
     end
 
+    @testset "emit format uses check policy not disk reload" begin
+        dir = abspath(mktempdir())
+        try
+            ver = string(pkgversion(JAILint))
+            cfg_head = """
+            jailint_version = \"=$(ver)\"
+            default_format = \"json\"
+            """
+            write(joinpath(dir, ".JAILintConfig.toml"), cfg_head)
+            write(joinpath(dir, "ok.jl"), "1\n")
+            run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
+            run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "j@test"]); dir = dir))
+            run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "t"]); dir = dir))
+            run(setenv(Cmd(["git", "-C", dir, "add", "."]); dir = dir))
+            run(
+                setenv(
+                    Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "c"]);
+                    dir = dir,
+                ),
+            )
+            write(
+                joinpath(dir, ".JAILintConfig.toml"),
+                "jailint_version = \"=$(ver)\"\ndefault_format = \"human\"\n",
+            )
+            res = JAILint.check(dir; config_from = "HEAD", paths = ["ok.jl"])
+            @test res.default_format == :json
+            out = joinpath(dir, "emit.txt")
+            cd(dir) do
+                @test JAILint.cli_main(["check", "--config-from", "HEAD", "ok.jl", "--output", out]) == 0
+            end
+            body = read(out, String)
+            @test occursin("\"type\":\"header\"", replace(body, " " => ""))
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
     @testset "CLI default_format from config" begin
         root = mktempdir()
         try

@@ -122,7 +122,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
             "i",
             "d",
         )
-        res = JAILint.CheckResult([d], true, 1, cs, 20, 0, 1)
+        res = JAILint.CheckResult([d], true, 1, cs, :human, 20, 0, 1)
         @test occursin("┌ Error", JAILint.format_human(res; root = ROOT))
         @test occursin("RULE", JAILint.format_agent(res))
         @test occursin("\"type\":\"header\"", replace(JAILint.format_json(res), " " => ""))
