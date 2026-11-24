@@ -75,7 +75,6 @@ function run_check(root::AbstractString; kwargs...)
         config_from = get(kwargs, :config_from, nothing),
     )
     init_registry!(policy)
-    touch_ceilings!(load_ceilings(root))
     paths_kw = get(kwargs, :paths, String[])
     diff_base = get(kwargs, :diff_base, nothing)
     rel_files = discover_files(root; paths = paths_kw, diff_base = diff_base)

@@ -27,23 +27,33 @@ runs:
           export JULIA_APPS_JULIA_CMD="$(command -v julia)"
         fi
         # `release` moves. A new hint then fails weekly on unchanged code.
-        # This tag is that date release. Bump it to take a newer JETLS.
+        # This tag is that date release. Bump .github/jetls-rev to take a newer JETLS.
         # Pkg.Apps.add deletes and rewrites the app env, and fetches the git
         # repo, even when the depot cache already has the packages. Skip that
         # when this rev and Julia are already restored.
-        if [[ "${JETLS_DEPOT_CACHE_EXACT}" == "true" && -x "${HOME}/.julia/bin/jetls" && -f "${HOME}/.julia/environments/apps/JETLS/Manifest.toml" ]]; then
+        jetls_rev="$(tr -d '[:space:]' < "${GITHUB_WORKSPACE}/.github/jetls-rev")"
+        if [[ ! "${jetls_rev}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+          echo "jetls-check: invalid or missing pin in .github/jetls-rev" >&2
+          exit 1
+        fi
+        jetls_want_version="${jetls_rev//-/.}"
+        jetls_have_version=""
+        if [[ -f "${HOME}/.julia/environments/apps/JETLS/Project.toml" ]]; then
+          jetls_have_version="$(sed -n -E 's/^version = "([^"]+)".*/\1/p' "${HOME}/.julia/environments/apps/JETLS/Project.toml" | head -1)"
+        fi
+        if [[ "${JETLS_DEPOT_CACHE_EXACT}" == "true" && -x "${HOME}/.julia/bin/jetls" && -f "${HOME}/.julia/environments/apps/JETLS/Manifest.toml" && "${jetls_have_version}" == "${jetls_want_version}" ]]; then
           if jetls version; then
             echo "jetls-startup: depot cache hit; skip Pkg.Apps.add"
             exit 0
           fi
           echo "jetls-startup: depot cache hit but jetls version failed; installing"
         else
-          echo "jetls-startup: depot cache miss; Pkg.Apps.add"
+          echo "jetls-startup: depot cache miss or pin drift; Pkg.Apps.add"
         fi
-        julia --startup-file=no -e '
+        julia --startup-file=no -e "
           using Pkg
-          Pkg.Apps.add(; url="https://github.com/aviatesk/JETLS.jl", rev="2026-11-23")
-        '
+          Pkg.Apps.add(; url=\"https://github.com/aviatesk/JETLS.jl\", rev=\"${jetls_rev}\")
+        "
     - name: Run jetls check
       shell: bash
       env:

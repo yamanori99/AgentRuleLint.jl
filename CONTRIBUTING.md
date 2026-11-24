@@ -120,6 +120,14 @@ julia --project=. -e 'using Pkg; Pkg.instantiate()'
 julia --project=. -e 'using Pkg; Pkg.test()'
 ```
 
+From the repository root (after `Pkg.instantiate()`):
+
+```bash
+julia --startup-file=no --project=. -m JAILint check
+julia --startup-file=no --project=. -m JAILint check src --format=agent
+julia --startup-file=no --project=. -m JAILint explain expect-audit
+```
+
 Runic checks use an isolated env at `test/runic_env/` (CI and local tests).
 
 ## Code guidelines

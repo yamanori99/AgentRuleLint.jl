@@ -65,5 +65,5 @@ jobs:
           fi
 
           actionlint
-          zizmor --offline --no-progress .github/workflows/actions-lint.yml
+          zizmor --offline --no-progress .github/workflows/
           pinact run --fix=false --no-api

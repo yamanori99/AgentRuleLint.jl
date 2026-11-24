@@ -11,7 +11,7 @@ Run these on the exact tree you will push, with no further edits afterward.
 
 ## Always
 
-1. `runic --check --diff .` using the pin in `.github/runic/Project.toml` when present, else `.cursor/agent-pins/runic/Project.toml`.
+1. `runic --check --diff .` using the pin in `.github/runic/Project.toml`.
 2. Trailing-newline audit on all tracked text files (each file ends with a single newline).
 3. `git diff --check` on the staged and unstaged diff you are about to push.
 4. `./.github/jetls-check.sh` when that script exists and `src/JAILint.jl` and `test/runtests.jl` are present (added in the core foundation PR).

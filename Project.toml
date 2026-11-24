@@ -16,12 +16,12 @@ JuliaSyntax = { url = "https://github.com/JuliaLang/julia", subdir = "JuliaSynta
 [compat]
 julia = "1.13"
 JuliaSyntax = "2"
-PrecompileTools = "1"
-SHA = "0.0.1, 1"
+PrecompileTools = "1.4"
+SHA = "1"
 StyledStrings = "1"
 TOML = "1"
-Aqua = "0.8"
-Test = "0, 1"
+Aqua = "0.8.19"
+Test = "1"
 
 [extras]
 Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"

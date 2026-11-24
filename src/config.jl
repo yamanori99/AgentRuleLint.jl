@@ -138,11 +138,6 @@ function load_ceilings(root::AbstractString)
     return CeilingEntry(viol, exp)
 end
 
-function touch_ceilings!(ce::CeilingEntry)
-    # Fail-closed schema touch: keep ceilings loaded until ceiling-ratchet applies in the runner.
-    return ce
-end
-
 function git_show_file(ref::AbstractString, relpath::AbstractString, root::AbstractString)
     root = abspath(String(root))
     reff = string(ref, "^{commit}")
