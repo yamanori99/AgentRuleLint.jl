@@ -1,2 +1,2 @@
-# jailint-expect: silent-catch reason="mismatch must not suppress"
-x = "INTERNAL_CODENAME"
+# jailint-expect: no-internal-codename reason="must not suppress"
+foo = "INTERNAL_CODENAME"

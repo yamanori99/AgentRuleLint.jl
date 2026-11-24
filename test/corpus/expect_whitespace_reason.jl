@@ -1,2 +1,2 @@
 # jailint-expect: expect-audit reason="   "
-x = 1
+x = "INTERNAL_CODENAME"

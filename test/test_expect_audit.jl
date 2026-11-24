@@ -89,6 +89,12 @@
         @test project_hit(rel("expect_anchor_mismatch_suppress.jl"); suppressed = false)
     end
 
+    @testset "invalid expects do not suppress project findings" begin
+        @test project_hit(rel("expect_empty_reason.jl"); suppressed = false)
+        @test project_hit(rel("expect_whitespace_reason.jl"); suppressed = false)
+        @test project_hit(rel("expect_blank_line.jl"); suppressed = false)
+    end
+
     @testset "mixed group per-rule anchor" begin
         @test has_diag(
             rel("expect_mixed_group_anchor.jl"),
