@@ -3,9 +3,94 @@ using JuliaSyntax: GreenNode, head, is_infix_op_call, span
 const _UNSAFE_BOUNDARY_INTENT =
     "Keep runtime evaluation, metaprogramming escapes, and FFI calls inside reviewed module or path boundaries."
 const _UNSAFE_BOUNDARY_DO_NOT =
-    "Alias Core.eval, split strings, or hide ccall, eval, and unsafe_* calls outside configured allow_modules / allow_globs."
+    "Alias Core.eval to a local name, pass eval/Meta.parse/ccall/invokelatest as values, split strings, Expr(:call,:eval,...), or hide calls outside allow_modules / allow_globs."
 
 const _INDIRECT_EVAL_MODULES = Set(["Base", "Core"])
+
+const _ALLOWED_BOUNDARY_QUALIFIERS = Set(["", "Base", "Core", "Meta", "Base.Meta", "Core.Meta"])
+
+function _qualified_call_parts(fname::AbstractString)
+    parts = split(strip(fname), '.')
+    isempty(parts) && return ("", "")
+    leaf = parts[end]
+    qual = length(parts) == 1 ? "" : join(parts[1:(end - 1)], ".")
+    return (qual, leaf)
+end
+
+function _allowed_boundary_qualifier(qual::AbstractString)
+    return qual in _ALLOWED_BOUNDARY_QUALIFIERS
+end
+
+"""Match dotted call / ref names on the leaf identifier and an allowed qualifier prefix."""
+function _matches_qualified_leaf(fname::AbstractString, leaf::AbstractString)
+    qual, l = _qualified_call_parts(fname)
+    return l == leaf && _allowed_boundary_qualifier(qual)
+end
+
+function _matches_meta_parse_call(fname::AbstractString)
+    qual, leaf = _qualified_call_parts(fname)
+    return leaf == "parse" &&
+        qual in ("Meta", "Base.Meta", "Core.Meta") &&
+        _allowed_boundary_qualifier(qual)
+end
+
+function _macro_qualified_parts(mname::AbstractString)
+    n = strip(mname)
+    startswith(n, "@") && return ("", n[2:end])
+    if occursin(".@", n)
+        parts = split(n, ".@"; limit = 2)
+        return (parts[1], parts[2])
+    end
+    return ("", "")
+end
+
+function _matches_qualified_macro(mname::AbstractString, leaf::AbstractString)
+    qual, base = _macro_qualified_parts(mname)
+    return base == leaf && _allowed_boundary_qualifier(qual)
+end
+
+const _BOUNDARY_VALUE_LEAVES = Set(["eval", "ccall", "invokelatest"])
+
+function _is_boundary_value_ref(refname::AbstractString)
+    refname == "" && return false
+    qual, leaf = _qualified_call_parts(refname)
+    !_allowed_boundary_qualifier(qual) && return false
+    leaf in _BOUNDARY_VALUE_LEAVES && return true
+    return leaf == "parse" && qual in ("Meta", "Base.Meta", "Core.Meta")
+end
+
+function _value_ref_name(node::GreenNode, src::AbstractString, pos::Int)
+    s = summary(node)
+    if s == "."
+        return _dot_callee_name(node, src, pos)
+    elseif s == "Identifier"
+        return _identifier_name(node, src, pos)
+    end
+    return ""
+end
+
+function _assignment_binding_parts(node::GreenNode, src::AbstractString, pos::Int)
+    summary(node) == "=" || return (nothing, 0, nothing, 0)
+    lhs = rhs = nothing
+    lpos = rpos = 0
+    for (c, p) in _walk_kids(node, pos)
+        JuliaSyntax.is_trivia(head(c)) && continue
+        if lhs === nothing
+            lhs = c
+            lpos = p
+        else
+            rhs = c
+            rpos = p
+            break
+        end
+    end
+    return (lhs, lpos, rhs, rpos)
+end
+
+function _lhs_binding_ident(node::GreenNode, src::AbstractString, pos::Int)
+    summary(node) == "Identifier" || return ""
+    return _identifier_name(node, src, pos)
+end
 
 function _walk_kids(node::GreenNode, pos::Int)
     return _child_positions(node, pos)[1]
@@ -57,12 +142,22 @@ function _macrocall_name(node::GreenNode, src::AbstractString, pos::Int)
     return "@" * mname
 end
 
-function _dot_callee_name(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "." || return ""
+function _dot_callee_parts(node::GreenNode, src::AbstractString, pos::Int)
+    summary(node) == "." || return String[]
     parts = String[]
     for (cc, cpp) in _walk_kids(node, pos)
-        is_leaf(cc) && push!(parts, _identifier_name(cc, src, cpp))
+        if summary(cc) == "."
+            append!(parts, _dot_callee_parts(cc, src, cpp))
+        elseif summary(cc) == "Identifier"
+            push!(parts, _identifier_name(cc, src, cpp))
+        end
     end
+    return parts
+end
+
+function _dot_callee_name(node::GreenNode, src::AbstractString, pos::Int)
+    summary(node) == "." || return ""
+    parts = _dot_callee_parts(node, src, pos)
     isempty(parts) && return ""
     txt = join(parts, ".")
     occursin("...", txt) && length(parts) >= 2 && return parts[1] * "." * parts[end]
@@ -151,7 +246,7 @@ function _top_level_literal_at_eval(node::GreenNode, src::AbstractString, pos::I
     at_toplevel || return false
     summary(node) != "macrocall" && return false
     mname = _macrocall_name(node, src, pos)
-    mname != "@eval" && mname != "Base.@eval" && return false
+    _matches_qualified_macro(mname, "eval") || return false
     args = GreenNode[]
     argpos = Int[]
     seen_name = false
@@ -195,16 +290,10 @@ end
 const _UNSAFE_MACRO_SUFFIXES = Set(["eval", "inbounds", "generated", "ccall", "assume_effects"])
 
 function _unsafe_macro_label(name::AbstractString)
-    n = strip(name)
-    if startswith(n, "@")
-        base = n[2:end]
-        return base in _UNSAFE_MACRO_SUFFIXES ? n : ""
-    end
-    if occursin(".@", n)
-        base = split(n, ".@"; limit = 2)[end]
-        return base in _UNSAFE_MACRO_SUFFIXES ? n : ""
-    end
-    return ""
+    qual, leaf = _macro_qualified_parts(name)
+    !_allowed_boundary_qualifier(qual) && return ""
+    leaf in _UNSAFE_MACRO_SUFFIXES || return ""
+    return qual == "" ? "@" * leaf : qual * ".@" * leaf
 end
 
 const _JULIA_UNSAFE_CALLEES = Set(
@@ -227,7 +316,9 @@ const _JULIA_UNSAFE_CALLEES = Set(
 )
 
 function _julia_unsafe_intrinsic_callee(fname::AbstractString)
-    return fname in _JULIA_UNSAFE_CALLEES || occursin(r"^unsafe_[a-z]+[!?]?$", fname)
+    qual, leaf = _qualified_call_parts(fname)
+    !_allowed_boundary_qualifier(qual) && return false
+    return leaf in _JULIA_UNSAFE_CALLEES || occursin(r"^unsafe_[a-z]+[!?]?$", leaf)
 end
 
 function _indirect_eval_field_call(
@@ -260,7 +351,7 @@ mutable struct UnsafeBoundaryWalk
     allow_modules::Vector{String}
     module_stack::Vector{String}
     at_toplevel::Bool
-    in_function_head::Bool
+    dangerous_aliases::Dict{String, String}
     hits::Vector{Tuple{Int, Int, String}}
 end
 
@@ -292,52 +383,73 @@ function _walk_unsafe_boundary!(node::GreenNode, pos::Int, ctx::UnsafeBoundaryWa
     end
 
     if s == "function"
-        old_fn = ctx.in_function_head
         old_top = ctx.at_toplevel
         ctx.at_toplevel = false
+        head_call_seen = false
         for (c, p) in _walk_kids(node, pos)
             JuliaSyntax.is_trivia(head(c)) && continue
-            if summary(c) == "call" && ctx.in_function_head == old_fn
-                ctx.in_function_head = true
-                _walk_unsafe_boundary!(c, p, ctx)
-                ctx.in_function_head = false
+            if !head_call_seen && summary(c) == "call"
+                head_call_seen = true
+                _, args, argpos = _call_expr_parts(c, ctx.source, p)
+                for (ac, ap) in zip(args, argpos)
+                    _walk_unsafe_boundary!(ac, ap, ctx)
+                end
             else
                 _walk_unsafe_boundary!(c, p, ctx)
             end
         end
-        ctx.in_function_head = old_fn
         ctx.at_toplevel = old_top
         return
+    end
+
+    if s == "="
+        lhs, lpos, rhs, rpos = _assignment_binding_parts(node, ctx.source, pos)
+        if lhs !== nothing && rhs !== nothing
+            lhs_name = _lhs_binding_ident(lhs, ctx.source, lpos)
+            refname = _value_ref_name(rhs, ctx.source, rpos)
+            if _is_boundary_value_ref(refname)
+                _record_hit!(ctx, rpos, rhs, "boundary value alias ($refname)")
+                if lhs_name != ""
+                    ctx.dangerous_aliases[lhs_name] = refname
+                end
+            end
+        end
     end
 
     if s == "macrocall"
         mname = _macrocall_name(node, ctx.source, pos)
         macro_label = _unsafe_macro_label(mname)
         if !isempty(macro_label)
-            if macro_label == "@eval" && _top_level_literal_at_eval(node, ctx.source, pos, ctx.at_toplevel)
+            if _matches_qualified_macro(mname, "eval") &&
+                    _top_level_literal_at_eval(node, ctx.source, pos, ctx.at_toplevel)
                 # allowed top-level literal `@eval`
             else
                 _record_hit!(ctx, pos, node, "unsafe boundary escape ($macro_label)")
             end
-        elseif occursin("assume_effects", mname)
-            _record_hit!(ctx, pos, node, "unsafe boundary escape ($mname)")
         end
     elseif s == "call"
         fname, args, argpos = _call_expr_parts(node, ctx.source, pos)
-        if !ctx.in_function_head && _julia_unsafe_intrinsic_callee(fname)
+        if haskey(ctx.dangerous_aliases, fname)
+            _record_hit!(ctx, pos, node, "call via value alias ($fname)")
+        elseif _julia_unsafe_intrinsic_callee(fname)
             _record_hit!(ctx, pos, node, "unsafe_* call ($fname)")
-        elseif fname in ("eval", "Core.eval") || endswith(fname, ".eval")
+        elseif _matches_qualified_leaf(fname, "eval")
             _eval_call_is_runtime(node, ctx.source, pos, args, argpos) &&
                 _record_hit!(ctx, pos, node, "runtime eval ($fname)")
-        elseif fname == "Meta.parse"
+        elseif _matches_meta_parse_call(fname)
             _record_hit!(ctx, pos, node, "Meta.parse boundary escape")
-        elseif fname in ("ccall", "Core.ccall")
+        elseif _matches_qualified_leaf(fname, "ccall")
             _record_hit!(ctx, pos, node, "ccall boundary escape")
-        elseif fname == "invokelatest"
+        elseif _matches_qualified_leaf(fname, "invokelatest")
             _record_hit!(ctx, pos, node, "invokelatest boundary escape")
         elseif fname == "getfield" || fname == "getproperty"
             _indirect_eval_field_call(fname, args, argpos, ctx.source) &&
                 _record_hit!(ctx, pos, node, "indirect eval via $fname")
+        end
+        for (arg, ap) in zip(args, argpos)
+            argref = _value_ref_name(arg, ctx.source, ap)
+            _is_boundary_value_ref(argref) &&
+                _record_hit!(ctx, ap, arg, "boundary value reference ($argref)")
         end
     end
 
@@ -374,7 +486,7 @@ function diagnose_unsafe_boundary(
         cfg.allow_modules,
         String[],
         true,
-        false,
+        Dict{String, String}(),
         Tuple{Int, Int, String}[],
     )
     _walk_unsafe_boundary!(tree, 1, ctx)

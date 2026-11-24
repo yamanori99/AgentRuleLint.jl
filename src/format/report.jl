@@ -98,13 +98,15 @@ function explain_rule(id::AbstractString)
         return """
         unsafe-boundary
 
-        Anchor line: the `@eval`, `ccall`, `@ccall`, `Meta.parse`, `invokelatest`, `unsafe_*` call,
-        indirect `getfield`/`getproperty` escape, or related macro line (`@inbounds`, `@generated`,
-        `Base.@assume_effects`).
+        Anchor line: the `@eval`, `ccall`, `@ccall`, qualified `Base.Meta.parse` / `Core.Meta.parse`,
+        `invokelatest`, `unsafe_*` call, value alias (`const E = Core.eval`), value argument
+        (`map(eval, xs)`), indirect `getfield`/`getproperty` escape, or related macro line
+        (`@inbounds`, `@generated`, `@assume_effects`).
 
         Intent: keep runtime `eval`, parsing, FFI, and unsafe intrinsics inside configured
         `allow_modules` or `allow_globs`. Top-level `@eval` of static literal / quote sequences only
-        is excluded (no runtime interpolation or bare identifiers).
+        is excluded (no runtime interpolation or bare identifiers). Remaining gaps: `Expr` escapes
+        and renames that do not match the tracked value-alias pattern.
 
         Config: `[rules.unsafe-boundary]` with optional `allow_modules`, `allow_globs`.
         """
