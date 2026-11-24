@@ -15,12 +15,20 @@ function _snippet_for_violation(root::AbstractString, d::Violation)
     return strip(line[chars[sc]:chars[ec]])
 end
 
-function format_human(result::CheckResult; root::AbstractString = pwd())
+function format_human(
+        result::CheckResult;
+        root::AbstractString = pwd(),
+        io::IO = stdout,
+        output_width::Union{Nothing, Int} = nothing,
+    )
+    width = resolve_output_width(io; output_width = output_width)
     buf = IOBuffer()
     shown = Dict{String, Int}()
     omitted = Dict{String, Int}()
     max_hits = result.max_hits_per_rule
-    println(buf, "JAILint v$(pkgversion(JAILint)) (pos: utf8-codepoint-1based)")
+    for ln in wrap_prose_lines("", "", "JAILint v$(pkgversion(JAILint)) (pos: utf8-codepoint-1based)", width)
+        println(buf, ln)
+    end
     println(buf)
     for d in result.violations
         d.suppressed && continue
@@ -33,24 +41,31 @@ function format_human(result::CheckResult; root::AbstractString = pwd())
             continue
         end
         label = origin_label(d.origin)
-        println(buf, "┌ Error: $label $(d.rule_id) [$(d.level)]")
-        !isempty(d.intent) && println(buf, "│   intent: $(d.intent)")
-        !isempty(d.do_not) && println(buf, "│   do_not: $(d.do_not)")
+        header = "┌ Error: $label $(d.rule_id) [$(d.level)]"
+        for ln in wrap_prose_lines("", "", header, width)
+            println(buf, ln)
+        end
+        !isempty(d.intent) &&
+            println_wrapped_labeled(buf, "│   ", "intent: ", d.intent, width)
+        !isempty(d.do_not) &&
+            println_wrapped_labeled(buf, "│   ", "do_not: ", d.do_not, width)
         println(buf, "│")
         sl = d.span
         println(buf, "│   $(d.path):$(sl.start_line):$(sl.start_col)-$(sl.end_line):$(sl.end_col)")
-        println(buf, "│     $(d.message)")
+        println_wrapped_labeled(buf, "│     ", "", d.message, width)
         snip = _snippet_for_violation(root, d)
-        !isempty(snip) && println(buf, "│     > $(snip)")
+        !isempty(snip) && println(buf, truncate_quoted_line("│     > ", snip, width))
         println(buf, "└")
         println(buf)
     end
     for (rid, n) in sort(collect(omitted))
-        println(buf, "... (+$n omitted) for rule $rid")
+        for ln in wrap_prose_lines("", "", "... (+$n omitted) for rule $rid", width)
+            println(buf, ln)
+        end
     end
-    println(
-        buf,
-        "Summary: $(result.violation_count) violations, $(result.suppressed_count) suppressed — $(result.exit_code == 0 ? "PASSED" : "FAILED") (exit $(result.exit_code))",
-    )
+    summary = "Summary: $(result.violation_count) violations, $(result.suppressed_count) suppressed — $(result.exit_code == 0 ? "PASSED" : "FAILED") (exit $(result.exit_code))"
+    for ln in wrap_prose_lines("", "", summary, width)
+        println(buf, ln)
+    end
     return String(take!(buf))
 end
