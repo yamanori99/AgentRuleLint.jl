@@ -30,7 +30,8 @@ function format_human(
     )
     width = resolve_output_width(io; output_width = output_width)
     buf = IOBuffer()
-    ceilings = load_ceilings(root)
+    policy = resolve_policy(root)
+    ceilings = load_ceilings(root, policy)
     groups = violations_by_rule(active_violations(result.violations))
     max_hits = result.max_hits_per_rule
     for (rule_id, ds) in groups
