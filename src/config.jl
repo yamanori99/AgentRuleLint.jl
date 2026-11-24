@@ -293,18 +293,20 @@ end
 
 function git_tree_path_exists(root::AbstractString, commit_sha::AbstractString, relpath::AbstractString)
     root = abspath(String(root))
-    cmd = Cmd([
-        "git",
-        "-C",
-        root,
-        "ls-tree",
-        "--name-only",
-        "-z",
-        "--end-of-options",
-        String(commit_sha),
-        "--",
-        String(relpath),
-    ])
+    cmd = Cmd(
+        [
+            "git",
+            "-C",
+            root,
+            "ls-tree",
+            "--name-only",
+            "-z",
+            "--end-of-options",
+            String(commit_sha),
+            "--",
+            String(relpath),
+        ]
+    )
     try
         return !isempty(read(cmd))
     catch err
