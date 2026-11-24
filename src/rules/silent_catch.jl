@@ -1,8 +1,7 @@
 const SILENT_CATCH_ID = "silent-catch"
 
 function _silent_catch_warn_counts(rule::RuleSpec)
-    v = get(rule.extra, :warn_counts_as_handling, "false")
-    return lowercase(strip(v)) in ("true", "1", "yes")
+    return get(rule.extra, :warn_counts_as_handling, "false") == "true"
 end
 
 function _push_silent_catch_violation!(

@@ -55,13 +55,9 @@ function _parse_rule_level(raw, label::String)
 end
 
 function _parse_warn_counts_as_handling(raw, label::String)
-    if raw isa Bool
-        return raw ? "true" : "false"
-    end
-    s = raw isa AbstractString ? lowercase(strip(raw)) : ""
-    s in ("true", "false", "1", "0", "yes", "no") ||
-        throw(ConfigError("unknown warn_counts_as_handling '$raw' in $label (expected true|false)"))
-    return s in ("true", "1", "yes") ? "true" : "false"
+    raw isa Bool ||
+        throw(ConfigError("expected boolean for $label (got $(typeof(raw)))"))
+    return raw ? "true" : "false"
 end
 
 function _parse_on_allow_rule(raw, label::String)
