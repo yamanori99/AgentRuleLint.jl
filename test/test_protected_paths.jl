@@ -258,8 +258,11 @@ RULE = "protected-paths"
             write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
             write(joinpath(dir, ".JETLSConfig.toml"), "ok = 1\n")
             git_commit_all!(dir, "base")
+            ver = string(pkgversion(AgentRuleLint))
             bypass = """
-            $(base_cfg())
+            agentrulelint_version = \"=$(ver)\"
+
+            [rules.protected-paths]
             level = \"allow\"
             """
             write(joinpath(dir, ".AgentRuleLintConfig.toml"), bypass)
