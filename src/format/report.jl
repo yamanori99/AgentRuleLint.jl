@@ -94,6 +94,19 @@ function explain_rule(id::AbstractString)
         suppress violations. Multiline-call placement uses the same forbid level as other
         expect-audit integrity findings.
         """
+    elseif id == "shell-safety/process-pattern"
+        return """
+        shell-safety/process-pattern
+
+        Anchor line: `run(`, `open(`, `read(`, `pipeline(`, backtick Cmd, or `Cmd(`.
+
+        Opt-in via `presets = ["shell-safety"]` in `.AgentRuleLintConfig.toml`. Uses the Syntax-layer
+        constant folder and `collect_cmd_string_literals` to find `pkill`, `killall`, `sh -c` /
+        `bash -c`, `ssh --`, and `sudo` in folded command text.
+
+        Static folding limits: runtime Cmd values, string/cmd interpolation, and symbols outside
+        the shared fold budget are not analyzed (see `collect_cmd_string_literals` docstring).
+        """
     elseif startswith(id, "project/")
         return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
     else

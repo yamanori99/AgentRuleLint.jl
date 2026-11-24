@@ -19,7 +19,7 @@ const _RULE_ANCHOR_RX = Dict(
     "silent-catch" => r"^try\b",
     "unsafe-boundary" => r"^(@eval\b|ccall\b|@ccall\b|unsafe_\w+)",
     "test-integrity" => r"^@test",
-    "shell-safety/process-pattern" => r"^(run\(|`|\bCmd\()",
+    "shell-safety/process-pattern" => r"^(run\(|open\(|read\(|pipeline\(|\bCmd\(|`)",
 )
 
 """

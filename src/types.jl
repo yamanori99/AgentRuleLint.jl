@@ -83,6 +83,15 @@ struct RuleSpec
     extra::Dict{Symbol, String}
 end
 
+struct ShellSafetyConfig
+    active::Bool
+    level::Symbol
+    intent::String
+    do_not::String
+end
+
+ShellSafetyConfig() = ShellSafetyConfig(false, :deny, "", "")
+
 struct ProjectRule
     id::String
     level::Symbol
@@ -101,6 +110,7 @@ struct PolicyBundle
     rules::Dict{String, RuleSpec}
     project_rules::Vector{ProjectRule}
     on_allow_rule::Symbol
+    shell_safety::ShellSafetyConfig
     config_path::String
     config_source::ConfigSource
 end

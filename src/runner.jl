@@ -118,6 +118,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         end
         append!(all_diags, forbid_rule_suppression_attempt(fc.expects, policy, fc))
         append!(all_diags, run_project_rules(fc, policy))
+        append!(all_diags, run_builtin_rules(fc, policy))
     end
 
     used_total = Set{Int}()

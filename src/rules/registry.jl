@@ -4,10 +4,23 @@ function register_builtin!(r::RuleSpec)
     return BUILTIN_RULES[r.id] = r
 end
 
+const _DEFAULT_SHELL_SAFETY_SPEC = RuleSpec(
+    "shell-safety/process-pattern",
+    :preset,
+    :deny,
+    "Reject hazardous shell patterns in statically known Cmd literals.",
+    "Split or dynamically assemble command strings to bypass constant folding.",
+    Dict{Symbol, String}(),
+)
+
 function init_registry!(policy::PolicyBundle)
     empty!(BUILTIN_RULES)
     for (_, r) in policy.rules
         register_builtin!(r)
+    end
+    if policy.shell_safety.active
+        spec = get(policy.rules, "shell-safety/process-pattern", _DEFAULT_SHELL_SAFETY_SPEC)
+        register_builtin!(spec)
     end
     if get(policy.rules, "expect-audit", nothing) === nothing
         register_builtin!(

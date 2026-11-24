@@ -27,7 +27,8 @@ const PROJECT_RULE_KEYS = Set(
 const VALID_RULE_LEVELS = Set([:forbid, :deny, :allow, :warn])
 const VALID_ON_ALLOW_RULE = Set([:error, :warn, :allow])
 const VALID_OUTPUT_FORMATS = Set([:human, :json, :agent])
-const KNOWN_PRESET_NAMES = Set(["shell-safety/process-pattern"])
+const KNOWN_PRESET_NAMES = Set(["shell-safety"])
+const SHELL_SAFETY_PRESET_ID = "shell-safety/process-pattern"
 
 function _reject_unknown_keys!(dict::Dict, allowed::Set{String}, label::String)
     for k in keys(dict)
@@ -154,17 +155,34 @@ function _collect_rule_tables(raw::Dict)
     return out
 end
 
+function _load_shell_safety_config(presets::Vector{String}, rules::Dict{String, RuleSpec})
+    active = "shell-safety" in presets
+    !active && return ShellSafetyConfig()
+    spec = get(rules, SHELL_SAFETY_PRESET_ID, nothing)
+    level = spec === nothing ? :deny : spec.level
+    intent = spec === nothing ? "" : spec.intent
+    do_not = spec === nothing ? "" : spec.do_not
+    return ShellSafetyConfig(true, level, intent, do_not)
+end
+
 function _load_rules_table(raw::Dict)
     rules = Dict{String, RuleSpec}()
     for (id, content) in _collect_rule_tables(raw)
-        validate_kebab_rule_id(id, "rules.$id")
-        allowed = id == "expect-audit" ? EXPECT_AUDIT_RULE_KEYS : RULE_TABLE_KEYS
+        id == SHELL_SAFETY_PRESET_ID || validate_kebab_rule_id(id, "rules.$id")
+        allowed = if id == "expect-audit"
+            EXPECT_AUDIT_RULE_KEYS
+        elseif id == SHELL_SAFETY_PRESET_ID
+            RULE_TABLE_KEYS
+        else
+            RULE_TABLE_KEYS
+        end
         _reject_unknown_keys!(content, allowed, "rules.$id")
         level = haskey(content, "level") ?
             _parse_rule_level(content["level"], "rules.$id.level") : :deny
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
-        rules[id] = RuleSpec(id, :agentrulelint, level, intent, do_not, Dict{Symbol, String}())
+        origin = id == SHELL_SAFETY_PRESET_ID ? :preset : :agentrulelint
+        rules[id] = RuleSpec(id, origin, level, intent, do_not, Dict{Symbol, String}())
     end
     return rules
 end
@@ -259,7 +277,8 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     if es !== nothing && haskey(es, "on_allow_rule")
         on_allow = _parse_on_allow_rule(es["on_allow_rule"], "rules.expect-audit.on_allow_rule")
     end
-    return PolicyBundle(ver, fmt, max_hits, presets, rules, project, on_allow, config_path, config_source)
+    shell = _load_shell_safety_config(presets, rules)
+    return PolicyBundle(ver, fmt, max_hits, presets, rules, project, on_allow, shell, config_path, config_source)
 end
 
 function policy_from_dict(raw::Dict, config_path::String; config_source = ConfigSource())
@@ -393,6 +412,7 @@ function default_policy(root::AbstractString)
         rules,
         ProjectRule[],
         :warn,
+        ShellSafetyConfig(),
         cfg,
         cs,
     )

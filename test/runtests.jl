@@ -190,6 +190,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     include("test_ceiling_ratchet.jl")
     include("test_config_cli_fail_closed.jl")
     include("test_output_width.jl")
+    include("test_shell_safety.jl")
 
     Aqua.test_all(AgentRuleLint)
 
