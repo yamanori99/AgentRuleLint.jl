@@ -1,6 +1,6 @@
 function format_agent(result::CheckResult; max_hits::Int = 20)
     buf = IOBuffer()
-    println(buf, "JAILINT $(result.exit_code == 0 ? "OK" : "FAIL") v$(pkgversion(JAILint)) pos=utf8-codepoint-1based violations=$(result.violation_count)")
+    println(buf, "AGENTRULELINT $(result.exit_code == 0 ? "OK" : "FAIL") v$(pkgversion(AgentRuleLint)) pos=utf8-codepoint-1based violations=$(result.violation_count)")
     println(buf)
     by_rule = Dict{String, Vector{Violation}}()
     for d in result.violations

@@ -1,1 +1,1 @@
-x = 1 # jailint-expect: expect-audit reason="inline"
+x = 1 # agentrulelint-expect: expect-audit reason="inline"

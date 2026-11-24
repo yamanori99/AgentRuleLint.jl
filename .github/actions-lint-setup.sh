@@ -2,7 +2,7 @@
 # Install or verify actionlint, zizmor, and pinact at the pins in actions-lint.env.
 # CI sources this from actions-lint.yml; install-agent-tools.sh sources it on the VM.
 # Set ACTIONS_LINT_GO_SYSTEM=1 to install the Go toolchain under /usr/local/go (CI).
-# Otherwise the Go toolchain goes under GO_ROOT (default ~/.local/share/jailint-agent-tools/go).
+# Otherwise the Go toolchain goes under GO_ROOT (default ~/.local/share/agentrulelint-agent-tools/go).
 set -euo pipefail
 
 _actions_lint_here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -19,7 +19,7 @@ actions_lint_bin_dir() {
 }
 
 actions_lint_go_root() {
-  printf '%s\n' "${GO_ROOT:-${HOME}/.local/share/jailint-agent-tools/go}"
+  printf '%s\n' "${GO_ROOT:-${HOME}/.local/share/agentrulelint-agent-tools/go}"
 }
 
 actions_lint_install_go() {
@@ -96,7 +96,7 @@ actions_lint_install_tools() {
   local bin_dir
   bin_dir="$(actions_lint_bin_dir)"
   mkdir -p "${bin_dir}"
-  export GOPATH="${GOPATH:-${TMPDIR:-/tmp}/jailint-gopath}"
+  export GOPATH="${GOPATH:-${TMPDIR:-/tmp}/agentrulelint-gopath}"
   export GOBIN="${bin_dir}"
   mkdir -p "${GOPATH}"
   go_root="$(actions_lint_go_root)"

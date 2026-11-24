@@ -1,7 +1,7 @@
 ---
 name: rule-authoring
 description: >
-  Author or change JAILint rules: slug identity, intent, corpus, and Runic invariance.
+  Author or change AgentRuleLint rules: slug identity, intent, corpus, and Runic invariance.
   Use when adding rules, presets, or project-scoped checks.
 ---
 

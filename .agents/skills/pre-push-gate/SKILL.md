@@ -2,7 +2,7 @@
 name: pre-push-gate
 description: >
   Final-tree verification before push. Use when preparing a commit or pull request
-  for JAILint.jl, or when asked to run the local agent gate.
+  for AgentRuleLint.jl, or when asked to run the local agent gate.
 ---
 
 # Pre-push gate
@@ -14,7 +14,7 @@ Run these on the exact tree you will push, with no further edits afterward.
 1. `runic --check --diff .` using the pin in `.github/runic/Project.toml`.
 2. Trailing-newline audit on all tracked text files (each file ends with a single newline).
 3. `git diff --check` on the staged and unstaged diff you are about to push.
-4. `./.github/jetls-check.sh` when that script exists and `src/JAILint.jl` and `test/runtests.jl` are present (added in the core foundation PR).
+4. `./.github/jetls-check.sh` when that script exists and `src/AgentRuleLint.jl` and `test/runtests.jl` are present (added in the core foundation PR).
 
 ## When scripts or workflows change
 

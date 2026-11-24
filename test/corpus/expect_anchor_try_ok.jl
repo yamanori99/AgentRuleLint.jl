@@ -1,4 +1,4 @@
-# jailint-expect: silent-catch reason="anchored to try"
+# agentrulelint-expect: silent-catch reason="anchored to try"
 try
     nothing
 catch

@@ -1,37 +1,37 @@
 @testset "expect-audit placement and parsing" begin
     @testset "parse_expect_body rejects empty and whitespace-only reason" begin
         for body in (
-                "jailint-expect: foo reason=\"\"",
-                "jailint-expect: foo reason=\"   \"",
+                "agentrulelint-expect: foo reason=\"\"",
+                "agentrulelint-expect: foo reason=\"   \"",
             )
-            p = JAILint.parse_expect_body(body)
+            p = AgentRuleLint.parse_expect_body(body)
             @test p !== nothing
             @test p.status == :malformed
             @test p.message == "empty reason"
         end
-        p = JAILint.parse_expect_body("jailint-expect: foo reason=\"ok\"")
+        p = AgentRuleLint.parse_expect_body("agentrulelint-expect: foo reason=\"ok\"")
         @test p.status == :ok
     end
 
     @testset "rule anchor kinds" begin
-        @test JAILint.rule_anchor_matches("silent-catch", "try")
-        @test !JAILint.rule_anchor_matches("silent-catch", "catch e")
-        @test !JAILint.rule_anchor_matches("silent-catch", "x = 1")
-        @test JAILint.rule_anchor_matches("test-integrity", "@test x == 1")
-        @test JAILint.rule_anchor_matches("test-integrity", "@testset \"s\" begin end")
-        @test JAILint.rule_anchor_matches("unsafe-boundary", "@eval x")
-        @test JAILint.rule_anchor_matches("unsafe-boundary", "ccall(:q, Cvoid, ())")
-        @test JAILint.rule_anchor_matches("shell-safety/process-pattern", "run(`ls`)")
-        @test JAILint.rule_anchor_matches("shell-safety/process-pattern", "Cmd(\"ls\")")
-        @test JAILint.rule_anchor_matches("project/no-x", "anything()")
-        @test !JAILint.rule_anchor_matches("unknown-built-in", "try")
+        @test AgentRuleLint.rule_anchor_matches("silent-catch", "try")
+        @test !AgentRuleLint.rule_anchor_matches("silent-catch", "catch e")
+        @test !AgentRuleLint.rule_anchor_matches("silent-catch", "x = 1")
+        @test AgentRuleLint.rule_anchor_matches("test-integrity", "@test x == 1")
+        @test AgentRuleLint.rule_anchor_matches("test-integrity", "@testset \"s\" begin end")
+        @test AgentRuleLint.rule_anchor_matches("unsafe-boundary", "@eval x")
+        @test AgentRuleLint.rule_anchor_matches("unsafe-boundary", "ccall(:q, Cvoid, ())")
+        @test AgentRuleLint.rule_anchor_matches("shell-safety/process-pattern", "run(`ls`)")
+        @test AgentRuleLint.rule_anchor_matches("shell-safety/process-pattern", "Cmd(\"ls\")")
+        @test AgentRuleLint.rule_anchor_matches("project/no-x", "anything()")
+        @test !AgentRuleLint.rule_anchor_matches("unknown-built-in", "try")
     end
 
     corpus = joinpath(ROOT, "test", "corpus")
     rel = p -> joinpath("test", "corpus", p)
 
     function check_path(path)
-        return JAILint.check(ROOT; paths = [path])
+        return AgentRuleLint.check(ROOT; paths = [path])
     end
 
     function has_diag(path, pred)
@@ -114,10 +114,10 @@
         )
     end
 
-    @testset "detect_malformed_jailint uses trailing helper" begin
-        src = "x = 1 # jailint-expect: foo reason=\"y\"\n"
-        @test any(d -> d[2] == "trailing inline expect", JAILint.detect_malformed_jailint(src))
-        src2 = "# jailint-nope\n"
-        @test any(d -> occursin("malformed", d[2]), JAILint.detect_malformed_jailint(src2))
+    @testset "detect_malformed_agentrulelint uses trailing helper" begin
+        src = "x = 1 # agentrulelint-expect: foo reason=\"y\"\n"
+        @test any(d -> d[2] == "trailing inline expect", AgentRuleLint.detect_malformed_agentrulelint(src))
+        src2 = "# agentrulelint-nope\n"
+        @test any(d -> occursin("malformed", d[2]), AgentRuleLint.detect_malformed_agentrulelint(src2))
     end
 end

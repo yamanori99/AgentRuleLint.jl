@@ -1,4 +1,4 @@
-# jailint-expect: silent-catch reason="ok above try"
+# agentrulelint-expect: silent-catch reason="ok above try"
 try
     nothing
 catch

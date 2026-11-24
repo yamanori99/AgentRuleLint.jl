@@ -1,4 +1,4 @@
-# jailint-expect: project/no-internal-codename reason="outside call"
+# agentrulelint-expect: project/no-internal-codename reason="outside call"
 
 foo(
     bar,

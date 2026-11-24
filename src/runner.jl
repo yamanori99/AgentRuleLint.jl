@@ -131,7 +131,7 @@ function run_check(root::AbstractString; kwargs...)
 end
 
 function ratchet_write!(root::AbstractString, result::CheckResult)
-    path = joinpath(abspath(root), ".jailint/ceilings.toml")
+    path = joinpath(abspath(root), ".agentrulelint/ceilings.toml")
     mkpath(dirname(path))
     counts = Dict{String, Dict{String, Int}}()
     for d in result.violations
@@ -141,7 +141,7 @@ function ratchet_write!(root::AbstractString, result::CheckResult)
         counts[key][d.path] = get(counts[key], d.path, 0) + 1
     end
     lines = String[
-        "# Updated via jailint ratchet --write",
+        "# Updated via agentrulelint ratchet --write",
         "# Monotonic non-increasing semantics apply on manual review.",
     ]
     for (rid, paths) in sort(collect(counts))
