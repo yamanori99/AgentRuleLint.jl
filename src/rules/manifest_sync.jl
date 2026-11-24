@@ -216,6 +216,7 @@ function discover_manifest_project_pairs(root::AbstractString, tracked::Vector{S
         push!(orphans, m)
     end
     sort!(unique!(orphans))
+    conflicts = filter(t -> !_manifest_sync_skip_path(t[1]), conflicts)
     return pairs, orphans, conflicts
 end
 
