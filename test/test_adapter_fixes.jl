@@ -21,7 +21,8 @@
             )
             write(joinpath(dir, "new.jl"), "2\n")
             run(setenv(Cmd(["git", "-C", dir, "add", "new.jl"]); dir = dir))
-            paths = AgentRuleLint.git_diff_name_status(dir, "HEAD")
+            entries = AgentRuleLint.git_diff_name_status(dir, "HEAD")
+            paths = [p for (_, p) in entries]
             @test "new.jl" in paths
         finally
             rm(dir, recursive = true, force = true)
