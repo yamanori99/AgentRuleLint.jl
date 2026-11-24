@@ -8,8 +8,8 @@
 
 **JAILint.jl** (Julia Agent Invariant Linter) is a static linter and
 CI guardrail harness for Julia repositories developed with coding agents.
-It enforces repository invariants and catches lint evasion, silent
-fallbacks, and weakened tests.
+It enforces repository invariants and catches shortcuts such as lint
+evasion, silent fallbacks, and weakened tests.
 
 ## Status
 
