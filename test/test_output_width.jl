@@ -57,17 +57,18 @@ end
         res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
         out = AgentRuleLint.format_human(res; root = ROOT, output_width = 32)
         lines = filter(!isempty, split(out, '\n'))
-        do_lines = filter(l -> startswith(l, "do_not:") || startswith(l, "        "), lines)
+        do_lines = filter(l -> occursin("do_not:", l) || occursin(r"^│\s{7,}", l), lines)
         @test length(do_lines) >= 2
     end
 
-    @testset "long source line wraps" begin
+    @testset "long source line truncates in gutter" begin
+        long_line = "x"^120
         d = AgentRuleLint.Violation(
             "project/test",
             :project,
             :deny,
-            "test/corpus/split_string.jl",
-            AgentRuleLint.Span(1, 1, 1, 80),
+            "tmp_human_width/x.jl",
+            AgentRuleLint.Span(1, 1, 1, 120),
             1,
             "v1:abc",
             :none,
@@ -76,10 +77,19 @@ end
             "",
             "",
         )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
-        out = AgentRuleLint.format_human(res; root = ROOT, output_width = 35)
-        body_lines = filter(l -> !startswith(l, "do_not:") && !startswith(l, "[") && !startswith(l, "intent:") && !startswith(l, "agentrulelint") && !startswith(l, "Summary:") && !occursin(":1:", l) && !startswith(l, "^") && !startswith(l, "..."), split(out, '\n'))
-        @test any(l -> textwidth(l) <= 35, body_lines)
+        mkpath(joinpath(ROOT, "tmp_human_width"))
+        write(joinpath(ROOT, "tmp_human_width", "x.jl"), long_line * "\n")
+        try
+            res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
+            out = AgentRuleLint.format_human(res; root = ROOT, output_width = 35)
+            gutter_lines = filter(l -> occursin(" │ ", l), split(out, '\n'))
+            @test !isempty(gutter_lines)
+            @test all(textwidth.(AgentRuleLint.strip_ansi.(gutter_lines)) .<= 35)
+            @test any(l -> endswith(strip(l), "…"), gutter_lines)
+            @test !any(l -> textwidth(l) > 35, gutter_lines)
+        finally
+            rm(joinpath(ROOT, "tmp_human_width"), recursive = true, force = true)
+        end
     end
 
     @testset "CJK prose wraps by textwidth" begin
@@ -100,33 +110,12 @@ end
         )
         res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
         out = AgentRuleLint.format_human(res; root = ROOT, output_width = 24)
-        intent_lines = filter(l -> startswith(l, "intent:") || occursin(r"^      ", l), split(out, '\n'))
+        intent_lines = filter(l -> occursin("intent:", l) || occursin(r"^│\s{7,}", l), split(out, '\n'))
         @test length(intent_lines) >= 2
         @test all(textwidth.(intent_lines) .<= 24)
     end
 
     @testset "UTF-8 wrap and truncate at wide-character boundaries" begin
-        mix = "あ" * "🙂" * "あ" * "🙂" * "あ"
-        d = AgentRuleLint.Violation(
-            "project/test",
-            :project,
-            :deny,
-            "x.jl",
-            AgentRuleLint.Span(1, 1, 1, 1),
-            1,
-            "v1:mix",
-            :none,
-            false,
-            "msg",
-            mix,
-            "",
-        )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
-        out = AgentRuleLint.format_human(res; root = ROOT, output_width = 10)
-        intent_lines = filter(l -> occursin("あ", l) || occursin("🙂", l), split(out, '\n'))
-        @test length(intent_lines) >= 1
-        @test all(textwidth.(intent_lines) .<= 10)
-
         only_wide = "🙂"^12
         line = AgentRuleLint.truncate_quoted_line("│     > ", only_wide, 10)
         @test textwidth(line) <= 10

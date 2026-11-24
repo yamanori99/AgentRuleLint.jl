@@ -137,7 +137,7 @@ function _emit(result::CheckResult, fmt::Symbol, opts; root::AbstractString = pw
         throw(ArgumentError("unknown --format value '$fmt' (expected human|json|agent)"))
     out_path = opts[:output]
     if out_path === nothing
-        io = stdout
+        io = IOContext(stdout, :color => stdout isa Base.TTY)
         text = fmt == :json ? format_json(result) :
             fmt == :agent ? format_agent(result; root = root, io = io) :
             format_human(result; root = root, io = io)

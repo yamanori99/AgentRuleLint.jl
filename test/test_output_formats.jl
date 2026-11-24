@@ -77,7 +77,6 @@ end
         @test strip_ansi_local(colored) == plain
         @test occursin("\e[36m", colored)
         @test occursin("\e[31m", colored)
-        @test occursin("\e[1m", colored)
     end
 
     @testset "json schema validation" begin
@@ -140,8 +139,52 @@ end
         res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "split_string.jl")])
         human = AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
         agent = AgentRuleLint.format_agent(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
-        @test occursin("ceiling=-", human)
+        @test occursin("ceiling 0)", human)
         @test occursin("ceiling=-", agent)
+    end
+
+    @testset "human framed layout golden" begin
+        paths = [
+            joinpath("test", "corpus", "block_expect.jl"),
+            joinpath("test", "corpus", "split_string.jl"),
+        ]
+        res = AgentRuleLint.check(ROOT; paths = paths)
+        io = IOContext(IOBuffer(), :color => false)
+        out = AgentRuleLint.format_human(res; root = ROOT, io = io)
+        @test occursin("AgentRuleLint v", out)
+        @test occursin("utf8-codepoint-1based", out)
+        @test occursin("┌ Error:", out)
+        @test occursin("└ @ AgentRuleLint", out)
+        @test occursin("└ @ Project", out)
+        @test occursin("block comment expect forbidden", out)
+        @test occursin("forbidden literal matched", out)
+        @test occursin("│", out)
+        @test occursin(" │ ", out)
+        @test occursin("Summary:", out)
+        @test occursin("FAILED", out) && occursin("exit 1", out)
+        @test occursin("~~~~~~~~~~~~~~~~~~~~~~~~", out)
+        ul_lines = [l for l in split(out, '\n') if occursin('~', l)]
+        @test any(l -> begin
+            m = match(r"~+", l)
+            return m !== nothing && length(m.match) == 24
+        end, ul_lines)
+        @test !any(l -> occursin(r"~{80,}", l), ul_lines)
+    end
+
+    @testset "human COLUMNS=60 code lines never wrap" begin
+        old = get(ENV, "COLUMNS", nothing)
+        ENV["COLUMNS"] = "60"
+        try
+            res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
+            out = AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
+            for line in split(out, '\n'; keepempty = false)
+                occursin(" │ ", line) || continue
+                @test Base.Unicode.textwidth(AgentRuleLint.strip_ansi(line)) <= 60
+                @test count('~', line) <= 60
+            end
+        finally
+            old === nothing ? pop!(ENV, "COLUMNS", nothing) : (ENV["COLUMNS"] = old)
+        end
     end
 
     @testset "explain uses registry docs" begin

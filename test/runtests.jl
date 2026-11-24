@@ -123,8 +123,10 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
             "d",
         )
         res = AgentRuleLint.CheckResult([d], true, 1, cs, :human, 20, 0, 1)
-        @test occursin("[Project]", AgentRuleLint.format_human(res; root = ROOT))
-        @test occursin("agentrulelint explain", AgentRuleLint.format_human(res; root = ROOT))
+        io = IOContext(IOBuffer(), :color => false)
+        human = AgentRuleLint.format_human(res; root = ROOT, io = io)
+        @test occursin("[Project]", human)
+        @test occursin("└ @ Project", human)
         @test occursin("RULE", AgentRuleLint.format_agent(res; root = ROOT))
         @test occursin("\"type\":\"header\"", replace(AgentRuleLint.format_json(res), " " => ""))
     end

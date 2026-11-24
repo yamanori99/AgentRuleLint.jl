@@ -14,12 +14,19 @@ function _human_rule_id_styled(io::IO, rule_id::AbstractString)
     return emit_plain_or_styled(io, String(rule_id); color = :cyan)
 end
 
-function _human_loc_styled(io::IO, loc::AbstractString)
-    return emit_plain_or_styled(
-        io,
-        String(loc);
-        bold = color_enabled(io),
+function _human_group_header(
+        io::IO,
+        label::AbstractString,
+        rule_id::AbstractString,
+        level::Symbol,
+        total::Int,
+        ceiling_s::AbstractString,
     )
+    rid = _human_rule_id_styled(io, rule_id)
+    lvl = _human_level_styled(io, level)
+    head = human_console_level(level)
+    counts = human_violation_phrase(total)
+    return "┌ $head: $label $rid [$lvl] ($counts, ceiling $ceiling_s)"
 end
 
 function format_human(
@@ -31,59 +38,78 @@ function format_human(
     width = resolve_output_width(io; output_width = output_width)
     buf = IOBuffer()
     policy = resolve_policy(root)
+    init_registry!(policy)
     ceilings = load_ceilings(root, policy)
     groups = violations_by_rule(active_violations(result.violations))
     max_hits = result.max_hits_per_rule
+    cfg_label = result.config_source.path
+
+    banner = human_policy_banner(result)
+    if visible_textwidth(banner) <= width
+        println(buf, banner)
+    else
+        for ln in wrap_prose_lines("", "", banner, width)
+            println(buf, ln)
+        end
+    end
+    println(buf)
+
     for (rule_id, ds) in groups
         d0 = ds[1]
         label = origin_label(d0.origin)
         total = length(ds)
-        ceiling = rule_violation_total(ceilings, rule_id)
-        ceiling_s = ceiling > 0 ? string(ceiling) : "-"
-        rid_s = _human_rule_id_styled(io, rule_id)
-        lvl_s = _human_level_styled(io, d0.level)
-        header = "$label $rid_s level=$lvl_s count=$total ceiling=$ceiling_s"
+        ceiling_s = human_ceiling_display(ceilings, rule_id)
+        header = _human_group_header(io, label, rule_id, d0.level, total, ceiling_s)
         for ln in wrap_prose_lines("", "", header, width)
             println(buf, ln)
         end
-        !isempty(d0.intent) && println_wrapped_labeled(buf, "", "intent: ", d0.intent, width)
-        !isempty(d0.do_not) && println_wrapped_labeled(buf, "", "do_not: ", d0.do_not, width)
-        println(buf)
+        intent = d0.intent
+        do_not = d0.do_not
+        if isempty(intent) && haskey(BUILTIN_RULES, rule_id)
+            spec = BUILTIN_RULES[rule_id]
+            intent = spec.intent
+            do_not = spec.do_not
+        end
+        !isempty(intent) &&
+            println_wrapped_labeled(buf, "│   ", "intent: ", intent, width)
+        !isempty(do_not) &&
+            println_wrapped_labeled(buf, "│   ", "do_not: ", do_not, width)
+        println(buf, "│")
+
         limit = min(total, max_hits)
         for i in 1:limit
             d = ds[i]
-            loc = format_span_loc(d)
-            loc_out = _human_loc_styled(io, loc)
-            for ln in wrap_prose_lines("", "", loc_out, width)
+            loc_body = format_span_loc(d)
+            (d.span == Span(1, 1, 1, 1) && d.anchor_line == 1) && (loc_body = d.path)
+            for ln in wrap_prose_lines("", "", "│   $loc_body", width)
                 println(buf, ln)
             end
+            !isempty(d.message) &&
+                println_wrapped_labeled(buf, "│     ", "", d.message, width)
             line = source_line_at(root, d)
-            if !isempty(line)
-                for ln in wrap_prose_lines("", "", line, width)
-                    println(buf, ln)
-                end
-                ul = underline_for_span(line, d.span)
-                !isempty(ul) && for ln in wrap_prose_lines("", "", ul, width)
-                    println(buf, ln)
-                end
-            end
-            println(buf)
+            !isempty(line) && println_human_code_gutter(buf, width, d.anchor_line, line, d.span)
+            println(buf, "│")
         end
+
         if total > limit
-            for ln in wrap_prose_lines("", "", "... (+$(total - limit) omitted)", width)
+            omit = "│     ... (+$(total - limit) omitted)"
+            for ln in wrap_prose_lines("", "", omit, width)
                 println(buf, ln)
             end
-            println(buf)
         end
-        footer = "agentrulelint explain $rule_id"
+
+        footer = human_rule_footer(rule_id, d0.origin, cfg_label)
         for ln in wrap_prose_lines("", "", footer, width)
             println(buf, ln)
         end
         println(buf)
     end
+
     rule_hits = length(groups)
+    status = result.exit_code == 0 ? "PASSED" : "FAILED"
+    by_origin = human_summary_by_origin(groups)
     summary =
-        "Summary: $(result.violation_count) violations, $rule_hits rules, exit $(result.exit_code)"
+        "Summary: $(result.violation_count) violations across $rule_hits rules ($by_origin) — $status (exit $(result.exit_code))"
     for ln in wrap_prose_lines("", "", summary, width)
         println(buf, ln)
     end

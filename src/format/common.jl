@@ -45,7 +45,7 @@ function source_line_at(root::AbstractString, d::Violation)
     return String(lines[d.anchor_line])
 end
 
-function underline_for_span(line::AbstractString, span::Span)
+function underline_for_span(line::AbstractString, span::Span; marker::Char = '^')
     isempty(line) && return ""
     n = length(line)
     sc = clamp(span.start_col, 1, max(n, 1))
@@ -55,10 +55,96 @@ function underline_for_span(line::AbstractString, span::Span)
         if col < sc
             write(buf, ' ')
         elseif col <= ec
-            write(buf, '^')
+            write(buf, marker)
         end
     end
     return String(take!(buf))
+end
+
+function human_console_level(level::Symbol)
+    return level in HUMAN_LEVEL_YELLOW ? "Warning" : "Error"
+end
+
+function human_violation_phrase(n::Int)
+    return n == 1 ? "1 violation" : "$n violations"
+end
+
+function human_ceiling_display(ceilings::CeilingEntry, rule_id::String)
+    total = rule_violation_total(ceilings, rule_id)
+    return string(total)
+end
+
+function human_policy_banner(result::CheckResult)
+    cs = result.config_source
+    base = if cs.kind == :git_ref && !isempty(cs.ref)
+        sha = isempty(cs.sha) ? "?" : cs.sha
+        "policy bundle base: $(cs.ref) @ $sha"
+    elseif cs.kind == :path && !isempty(cs.path)
+        "policy bundle base: $(cs.path)"
+    elseif cs.kind == :builtin
+        "policy bundle base: builtin"
+    else
+        "policy bundle base: $(string(cs.kind))"
+    end
+    return "AgentRuleLint v$(pkgversion(AgentRuleLint)) ($base, pos: utf8-codepoint-1based)"
+end
+
+function human_rule_footer(rule_id::String, origin::Symbol, config_path::AbstractString)
+    if origin == :agentrulelint
+        return "└ @ AgentRuleLint (run `agentrulelint explain $rule_id` for details)"
+    elseif origin == :project
+        cfg = isempty(config_path) ? ".AgentRuleLintConfig.toml" : config_path
+        return "└ @ Project $cfg ([[project_rules]])"
+    else
+        return "└ @ $(origin_label(origin)) (run `agentrulelint explain $rule_id` for details)"
+    end
+end
+
+function _human_gutter_prefixes(line_no::Int)
+    num = string(line_no)
+    line_prefix = "│" * repeat(' ', 5) * num * " │ "
+    w = visible_textwidth(line_prefix)
+    inner = w - visible_textwidth("│ ")
+    inner < 1 && (inner = 1)
+    ul_prefix = "│" * repeat(' ', inner - 1) * "│ "
+    return line_prefix, ul_prefix
+end
+
+function _human_truncate_code(body::AbstractString, prefix::AbstractString, width::Int)
+    budget = width - visible_textwidth(prefix)
+    budget < 1 && return string(prefix, ELLIPSIS_CHAR)
+    return string(prefix, _truncate_chars(body, budget, with_ellipsis = true))
+end
+
+function println_human_code_gutter(
+        buf::IO,
+        width::Int,
+        line_no::Int,
+        line::AbstractString,
+        span::Span,
+    )
+    line_prefix, ul_prefix = _human_gutter_prefixes(line_no)
+    src = _truncate_chars(line, width - visible_textwidth(line_prefix), with_ellipsis = true)
+    println(buf, _human_truncate_code(src, line_prefix, width))
+    ul_body = underline_for_span(src, span; marker = '~')
+    !isempty(ul_body) || return nothing
+    ul = strip(ul_body, ' ')
+    isempty(ul) && return nothing
+    println(buf, _human_truncate_code(ul, ul_prefix, width))
+    return nothing
+end
+
+function human_summary_by_origin(groups)
+    counts = Dict{String, Int}()
+    for (_, ds) in groups
+        label = origin_label(ds[1].origin)
+        counts[label] = get(counts, label, 0) + 1
+    end
+    parts = String[]
+    for (label, n) in sort(collect(counts))
+        push!(parts, "$n $label")
+    end
+    return join(parts, ", ")
 end
 
 function color_enabled(io::IO)
