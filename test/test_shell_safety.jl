@@ -10,6 +10,19 @@ function _shell_config(extra::AbstractString = "")
     """
 end
 
+const _SHELL_POSITIVE = String[
+    "shell_pkill_backtick.jl",
+    "shell_sh_dash_c.jl",
+    "shell_sudo_cmd.jl",
+    "shell_open_sh_c.jl",
+    "shell_pipeline_sudo.jl",
+    "shell_cmd_pkill.jl",
+    "shell_cmd_folded_c.jl",
+    "shell_bash_lc.jl",
+    "shell_killall.jl",
+    "shell_ssh_remote.jl",
+]
+
 function _shell_hits(root::AbstractString, relpath::AbstractString)
     res = AgentRuleLint.check(root; config_path = joinpath(root, ".AgentRuleLintConfig.toml"), paths = [relpath])
     return filter(d -> d.rule_id == "shell-safety/process-pattern" && !d.suppressed, res.violations)
@@ -78,19 +91,6 @@ end
             rm(root, recursive = true, force = true)
         end
     end
-
-    const _SHELL_POSITIVE = String[
-        "shell_pkill_backtick.jl",
-        "shell_sh_dash_c.jl",
-        "shell_sudo_cmd.jl",
-        "shell_open_sh_c.jl",
-        "shell_pipeline_sudo.jl",
-        "shell_cmd_pkill.jl",
-        "shell_cmd_folded_c.jl",
-        "shell_bash_lc.jl",
-        "shell_killall.jl",
-        "shell_ssh_remote.jl",
-    ]
 
     @testset "golden hits" begin
         root = mktempdir()

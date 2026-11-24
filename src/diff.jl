@@ -13,6 +13,16 @@ struct DiffScope
     files::Vector{DiffFileContext}
 end
 
+"""Single path from `git diff --name-status` (rename/copy records both `path` and `old_path`)."""
+struct DiffPathEvent
+    status::Char
+    path::String
+    old_path::String
+end
+
+const _DIFF_NAME_STATUS_SINGLE = Set(['A', 'M', 'D', 'T'])
+const _DIFF_NAME_STATUS_PAIR = Set(['R', 'C'])
+
 function _git_root(path::AbstractString)
     root = abspath(String(path))
     isdir(root) || throw(GitError("not a directory: $root"))
@@ -57,16 +67,17 @@ function resolve_diff_base_arg(raw)
     return strip(String(raw))
 end
 
-function git_diff_name_status(root::AbstractString, base::AbstractString)
-    root = _git_root(root)
-    base = verify_diff_base_ref(root, base)
-    cmd = Cmd(
+function _git_diff_name_status_cmd(root::AbstractString, base::AbstractString)
+    return Cmd(
         [
             "git",
             "-C",
             root,
+            "-c",
+            "diff.renames=true",
             "diff",
             "-z",
+            "-M",
             "--no-ext-diff",
             "--no-textconv",
             "--name-status",
@@ -74,6 +85,57 @@ function git_diff_name_status(root::AbstractString, base::AbstractString)
             base,
         ],
     )
+end
+
+function _parse_diff_name_status_z(parts::Vector{SubString{String}})
+    i = 1
+    singles = Tuple{Char, String}[]
+    events = DiffPathEvent[]
+    while i <= length(parts)
+        status = String(parts[i])
+        isempty(status) &&
+            throw(GitError("malformed git diff name-status: empty status entry"))
+        st = status[1]
+        i += 1
+        if st in _DIFF_NAME_STATUS_PAIR
+            i + 1 > length(parts) &&
+                throw(GitError("truncated git diff name-status record for status '$status'"))
+            oldp = normalize_path(parts[i])
+            newp = normalize_path(parts[i + 1])
+            i += 2
+            push!(singles, (st, newp))
+            push!(events, DiffPathEvent(st, newp, oldp))
+        elseif st in _DIFF_NAME_STATUS_SINGLE
+            i > length(parts) &&
+                throw(GitError("truncated git diff name-status record for status '$status'"))
+            path = normalize_path(parts[i])
+            i += 1
+            push!(singles, (st, path))
+            push!(events, DiffPathEvent(st, path, ""))
+        else
+            throw(GitError("unknown git diff name-status '$status'"))
+        end
+    end
+    singles = unique(singles)
+    return singles, events
+end
+
+function _parse_diff_name_status_payload(payload::AbstractString)
+    parts = split(String(payload), '\0'; keepempty = false)
+    singles, _ = _parse_diff_name_status_z(parts)
+    return singles
+end
+
+function _parse_diff_path_events_payload(payload::AbstractString)
+    parts = split(String(payload), '\0'; keepempty = false)
+    _, events = _parse_diff_name_status_z(parts)
+    return events
+end
+
+function git_diff_name_status(root::AbstractString, base::AbstractString)
+    root = _git_root(root)
+    base = verify_diff_base_ref(root, base)
+    cmd = _git_diff_name_status_cmd(root, base)
     bytes = try
         read(cmd)
     catch err
@@ -81,25 +143,21 @@ function git_diff_name_status(root::AbstractString, base::AbstractString)
         throw(GitError("git diff failed for base=$(base)"))
     end
     isempty(bytes) && return Tuple{Char, String}[]
-    parts = split(String(bytes), '\0'; keepempty = false)
-    out = Tuple{Char, String}[]
-    i = 1
-    while i <= length(parts)
-        status = parts[i]
-        i += 1
-        if status[1] == 'R' && i + 1 <= length(parts)
-            i += 1
-            path = parts[i]
-            i += 1
-        elseif status[1] in ('A', 'M', 'D', 'C', 'T') && i <= length(parts)
-            path = parts[i]
-            i += 1
-        else
-            continue
-        end
-        push!(out, (status[1], normalize_path(path)))
+    return _parse_diff_name_status_payload(String(bytes))
+end
+
+function git_diff_path_events(root::AbstractString, base::AbstractString)
+    root = _git_root(root)
+    base = verify_diff_base_ref(root, base)
+    cmd = _git_diff_name_status_cmd(root, base)
+    bytes = try
+        read(cmd)
+    catch err
+        err isa InterruptException && rethrow()
+        throw(GitError("git diff failed for base=$(base)"))
     end
-    return unique(out)
+    isempty(bytes) && return DiffPathEvent[]
+    return _parse_diff_path_events_payload(String(bytes))
 end
 
 const _HUNK_RE = r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@"

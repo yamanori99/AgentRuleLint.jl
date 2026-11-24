@@ -102,6 +102,11 @@ struct ProjectRule
     do_not::String
 end
 
+struct ProtectedGlobEntry
+    regex::Regex
+    reason::String
+end
+
 struct PolicyBundle
     agentrulelint_version::VersionNumber
     default_format::Symbol
@@ -113,6 +118,8 @@ struct PolicyBundle
     shell_safety::ShellSafetyConfig
     config_path::String
     config_source::ConfigSource
+    project_toml_policy::String
+    protected_path_globs::Vector{ProtectedGlobEntry}
 end
 
 struct CeilingEntry
