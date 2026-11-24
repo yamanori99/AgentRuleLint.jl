@@ -43,7 +43,7 @@ jobs:
           version: ${{ steps.runic-pin.outputs.version }}
 
   aqua:
-    name: Aqua (1.13, ubuntu-latest, x64)
+    name: Aqua (Julia 1.13, ubuntu-latest, x64)
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -62,7 +62,7 @@ jobs:
 
   # JETLS depot: restore every run; save on main push only. Exact hit skips Pkg.Apps.add.
   jetls:
-    name: JETLS (1.13, ubuntu-latest, x64)
+    name: JETLS (Julia 1.13, ubuntu-latest, x64)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
@@ -135,7 +135,7 @@ jobs:
           key: ${{ steps.jetls-depot-cache.outputs.cache-primary-key }}
 
   test-pre:
-    name: JAILint (1.14-pre, ubuntu-latest, x64)
+    name: JAILint (Julia 1.14-pre, ubuntu-latest, x64)
     continue-on-error: true
     needs: [runic, aqua, jetls]
     runs-on: ubuntu-latest
@@ -164,7 +164,7 @@ jobs:
         run: julia --startup-file=no --project=. --color=yes -e 'using Pkg; Pkg.test()'
 
   test:
-    name: JAILint (1.13, ubuntu-latest, x64)
+    name: JAILint (Julia 1.13, ubuntu-latest, x64)
     needs: [runic, aqua, jetls]
     runs-on: ubuntu-latest
     timeout-minutes: 30
