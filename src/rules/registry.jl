@@ -66,6 +66,18 @@ function init_registry!(policy::PolicyBundle)
             ),
         )
     end
+    if get(policy.rules, "scope-paths", nothing) === nothing
+        register_builtin!(
+            RuleSpec(
+                "scope-paths",
+                :agentrulelint,
+                :forbid,
+                "Reject diff changes outside a trusted path allowlist.",
+                "Edit files outside --allow-paths scope passed from CI or a human wrapper.",
+                Dict{Symbol, String}(),
+            ),
+        )
+    end
     if get(policy.rules, "protected-paths", nothing) === nothing
         register_builtin!(
             RuleSpec(
