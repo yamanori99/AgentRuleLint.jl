@@ -58,10 +58,10 @@
         root = mktempdir()
         try
             for (rule, extra) in (
-                ("protected-paths", ""),
-                ("ceiling-ratchet", ""),
-                ("scope-paths", ""),
-            )
+                    ("protected-paths", ""),
+                    ("ceiling-ratchet", ""),
+                    ("scope-paths", ""),
+                )
                 cfg = minimal_config(
                     """
                     [rules.$rule]

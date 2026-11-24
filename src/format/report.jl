@@ -111,6 +111,8 @@ function explain_rule(id::AbstractString)
         Without `--diff`, `--allow-paths` is a usage error (exit 2). An empty or whitespace-only
         list is a usage error. Absolute paths, `..` segments, and backslash separators are rejected
         at glob parse time (exit 2).
+
+        Integrity level: `scope-paths` must use `level = "forbid"` in config (ConfigError otherwise).
         """
     elseif id == "protected-paths"
         return """

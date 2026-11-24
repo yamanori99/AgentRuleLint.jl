@@ -114,24 +114,4 @@ const SCOPE_ROOT = dirname(@__DIR__)
         @test isfile(joinpath(@__DIR__, "corpus", "scope_paths_outside_allow.jl"))
     end
 
-    @testset "mutation: scope-paths disabled" begin
-        dir = abspath(mktempdir())
-        try
-            init_git_repo!(dir)
-            write(
-                joinpath(dir, ".AgentRuleLintConfig.toml"),
-                minimal_cfg() * "\n[rules.scope-paths]\nlevel = \"allow\"\n",
-            )
-            write(joinpath(dir, "wide.txt"), "a\n")
-            git_commit_all!(dir, "base")
-            write(joinpath(dir, "wide.txt"), "b\n")
-            git_commit_all!(dir, "change")
-            cd(dir) do
-                res = AgentRuleLint.check(dir; diff_base = "HEAD^1", allow_paths = ["src/**"])
-                @test isempty(scope_hits(res))
-            end
-        finally
-            rm(dir, recursive = true, force = true)
-        end
-    end
 end

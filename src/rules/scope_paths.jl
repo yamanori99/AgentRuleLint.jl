@@ -1,7 +1,5 @@
 # Built-in `scope-paths`: trusted `--allow-paths` gate (diff only).
 
-const SCOPE_PATHS_RULE = "scope-paths"
-
 function compile_allow_path_globs(raw::Vector{String})
     isempty(raw) &&
         throw(ArgumentError("--allow-paths requires at least one non-empty glob"))
@@ -57,7 +55,7 @@ function _path_matches_allowlist(path::AbstractString, allow_regexes::Vector{Reg
 end
 
 function _event_paths(ev::DiffPathEvent)
-    return ev.status == 'R' ? (ev.old_path, ev.path) : (ev.path,)
+    return ev.status in ('R', 'C') ? (ev.old_path, ev.path) : (ev.path,)
 end
 
 """
@@ -66,9 +64,7 @@ end
 Every changed path (including deletes and both sides of renames) must match an allow glob.
 """
 function enforce_scope_paths(events::Vector{DiffPathEvent}, allow_regexes::Vector{Regex}, policy::PolicyBundle)
-    spec = get(policy.rules, SCOPE_PATHS_RULE, nothing)
-    spec === nothing && return Violation[]
-    spec.level == :allow && return Violation[]
+    get(policy.rules, SCOPE_PATHS_RULE, nothing) === nothing && return Violation[]
     out = Violation[]
     seen = Set{String}()
     for ev in events
