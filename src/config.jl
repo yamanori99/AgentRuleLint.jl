@@ -222,6 +222,16 @@ function _inject_builtin_rules!(rules::Dict{String, RuleSpec})
             Dict{Symbol, String}(),
         )
     end
+    if get(rules, "scope-paths", nothing) === nothing
+        rules["scope-paths"] = RuleSpec(
+            "scope-paths",
+            :agentrulelint,
+            :forbid,
+            "Reject diff changes outside a trusted path allowlist.",
+            "Edit files outside --allow-paths scope passed from CI or a human wrapper.",
+            Dict{Symbol, String}(),
+        )
+    end
     return nothing
 end
 

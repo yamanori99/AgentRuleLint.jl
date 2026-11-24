@@ -189,6 +189,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     include("test_diff_mode.jl")
     include("test_ceiling_ratchet.jl")
     include("test_protected_paths.jl")
+    include("test_scope_paths.jl")
     include("test_config_cli_fail_closed.jl")
     include("test_output_width.jl")
 

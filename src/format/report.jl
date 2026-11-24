@@ -94,6 +94,24 @@ function explain_rule(id::AbstractString)
         suppress violations. Multiline-call placement uses the same forbid level as other
         expect-audit integrity findings.
         """
+    elseif id == "scope-paths"
+        return """
+        scope-paths
+
+        Group: integrity. Level: forbid (no inline expects).
+
+        Active only when `check` receives `--allow-paths GLOB,...` together with `--diff <base>`.
+        The allowlist is accepted only from the CLI or the `check(...; allow_paths=...)` keyword,
+        never from `.AgentRuleLintConfig.toml`, so only a trusted CI workflow input or human wrapper
+        can widen scope.
+
+        Every changed path in the diff (add, modify, delete, rename on both sides) must match at
+        least one glob. Otherwise the rule flags the path.
+
+        Without `--diff`, `--allow-paths` is a usage error (exit 2). An empty or whitespace-only
+        list is a usage error. Absolute paths, `..` segments, and backslash separators are rejected
+        at glob parse time (exit 2).
+        """
     elseif id == "protected-paths"
         return """
         protected-paths
