@@ -1,0 +1,12 @@
+[deps]
+AgentRuleLint = "c092dd98-a32b-4bb3-9a47-6744e45ef2e3"
+Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
+Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
+
+[sources]
+AgentRuleLint = {path = ".."}
+
+[compat]
+Aqua = "0.8.19"
+Test = "1"
+julia = "1.13"

@@ -3,6 +3,9 @@ uuid = "c092dd98-a32b-4bb3-9a47-6744e45ef2e3"
 authors = ["Takanori Yamamoto"]
 version = "0.1.0-DEV"
 
+[workspace]
+projects = ["test"]
+
 [deps]
 JuliaSyntax = "70703baa-626e-46a2-a12c-08ffd08c73b4"
 PrecompileTools = "aea7be01-6a6a-4083-8856-8a6e6704d82a"
@@ -20,12 +23,3 @@ PrecompileTools = "1.4"
 SHA = "1"
 StyledStrings = "1"
 TOML = "1"
-Aqua = "0.8.19"
-Test = "1"
-
-[extras]
-Aqua = "4c88cf16-eb10-579e-8560-4a9242c79595"
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-
-[targets]
-test = ["Test", "Aqua"]

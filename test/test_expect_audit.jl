@@ -9,8 +9,9 @@
             @test p.status == :malformed
             @test p.message == "empty reason"
         end
-        p = AgentRuleLint.parse_expect_body("agentrulelint-expect: foo reason=\"ok\"")
-        @test p.status == :ok
+        p_ok = AgentRuleLint.parse_expect_body("agentrulelint-expect: foo reason=\"ok\"")
+        @test p_ok !== nothing
+        @test p_ok.status == :ok
     end
 
     @testset "rule anchor kinds" begin
@@ -27,7 +28,6 @@
         @test !AgentRuleLint.rule_anchor_matches("unknown-built-in", "try")
     end
 
-    corpus = joinpath(ROOT, "test", "corpus")
     rel = p -> joinpath("test", "corpus", p)
 
     function check_path(path)
