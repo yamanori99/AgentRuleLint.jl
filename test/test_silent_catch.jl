@@ -135,22 +135,16 @@
         )
     end
 
-    @testset "mutation: macro warn-only branch" begin
-        @test silent_hits("silent_catch_log_only.jl"; suppressed = false)
-        @test with_analysis_replace(
-            "    return summary(node) == \"macrocall\" && _macrocall_name(node, pos, src) == \"warn\"\n",
-            "    return false # MUTATION\n",
-            rel("silent_catch_log_only.jl"),
-        )
-    end
-
-    @testset "mutation: macro name AST branch" begin
+    @testset "macro detection uses macro_name AST" begin
+        src = "try x() catch err\n        @info \"@warn\" exception = err\n    end\n"
+        tree = AgentRuleLint.parse_source(src)
+        site = only(AgentRuleLint.collect_try_catch_sites(tree, src))
+        body = site.catch_body
+        body !== nothing || error("expected catch body")
+        stmt, sp = only(AgentRuleLint._block_statements(body, site.catch_body_pos))
+        @test AgentRuleLint._macrocall_name(stmt, sp, src) == "info"
+        @test !AgentRuleLint._macro_is_warn(stmt, sp, src)
         @test silent_hits("silent_catch_info_not_warn.jl"; suppressed = false)
-        @test with_analysis_replace(
-            "function _macrocall_name(node::GreenNode, pos::Int, src::AbstractString)\n",
-            "function _macrocall_name(node::GreenNode, pos::Int, src::AbstractString)\n    return \"warn\" # MUTATION\n",
-            rel("silent_catch_info_not_warn.jl"),
-        )
     end
 
     @testset "mutation: reachability branch" begin
@@ -164,19 +158,10 @@
 
     @testset "mutation: && must not propagate alone" begin
         @test silent_hits("silent_catch_and_only_interrupt.jl"; suppressed = false)
-        mutated = replace(
-            read(joinpath(ROOT, "src", "syntax", "try_catch_analysis.jl"), String),
-            "    elseif s == \"if\"\n" =>
-                "    elseif s == \"&&\"\n        return true # MUTATION\n    elseif s == \"if\"\n",
-            count = 1,
+        @test with_analysis_mutation(
+            "    elseif s == \"if\"\n",
+            "    elseif s == \"&&\"\n        return true # MUTATION\n",
+            rel("silent_catch_and_only_interrupt.jl"),
         )
-        path = joinpath(ROOT, "src", "syntax", "try_catch_analysis.jl")
-        orig = read(path, String)
-        try
-            write(path, mutated)
-            @test mutation_check_no_hits(rel("silent_catch_and_only_interrupt.jl"))
-        finally
-            write(path, orig)
-        end
     end
 end

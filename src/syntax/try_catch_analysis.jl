@@ -307,7 +307,7 @@ function _catch_body_swallows(
             continue
         end
         _stmt_is_warn_only(stmt, sp, src; warn_counts = warn_counts_as_handling) && return true
-        # MUTATION reachable
+        _stmt_unconditional_return(stmt) && (reachable = false)
     end
     return any_non_handling
 end
