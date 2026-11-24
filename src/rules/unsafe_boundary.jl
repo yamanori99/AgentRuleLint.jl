@@ -69,7 +69,7 @@ function _value_ref_name(node::GreenNode, src::AbstractString, pos::Int)
     return ""
 end
 
-function _assignment_binding_parts(node::GreenNode, src::AbstractString, pos::Int)
+function _assignment_binding_parts(node::GreenNode, pos::Int)
     summary(node) == "=" || return (nothing, 0, nothing, 0)
     lhs = rhs = nothing
     lpos = rpos = 0
@@ -403,7 +403,7 @@ function _walk_unsafe_boundary!(node::GreenNode, pos::Int, ctx::UnsafeBoundaryWa
     end
 
     if s == "="
-        lhs, lpos, rhs, rpos = _assignment_binding_parts(node, ctx.source, pos)
+        lhs, lpos, rhs, rpos = _assignment_binding_parts(node, pos)
         if lhs !== nothing && rhs !== nothing
             lhs_name = _lhs_binding_ident(lhs, ctx.source, lpos)
             refname = _value_ref_name(rhs, ctx.source, rpos)
