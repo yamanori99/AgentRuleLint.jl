@@ -70,12 +70,14 @@ src/                     # package sources and CLI (@main)
   diff.jl                # git diff scope
   expect.jl              # suppression comment parsing
   fingerprints.jl        # stable diagnostic fingerprints
+  path_glob.jl           # project-rule path glob patterns → Regex
   runner.jl              # rule orchestration
   types.jl               # shared types
   format/                # human, JSON, agent output
   rules/                 # built-in and project rules
   syntax/                # JuliaSyntax adapter (no eval)
 test/                    # Pkg.test suite
+  Project.toml           # workspace test project (Aqua, Test)
   runtests.jl            # test entry
   test_*.jl              # focused tests
   corpus/                # golden regression fixtures
@@ -87,8 +89,7 @@ scripts/                 # maintainer shell helpers
 AGENTS.md                # agent automation guide
 CONTRIBUTING.md          # contributor and issue workflow
 SECURITY.md              # security and protected paths
-Project.toml             # package metadata and [apps]
-Manifest.toml            # pinned dev dependencies
+Project.toml             # package metadata, [workspace], and [apps]
 ```
 
 - **Fail-closed**: malformed suppression comments, unknown options, or broken
