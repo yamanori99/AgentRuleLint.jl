@@ -43,8 +43,7 @@ if ! command -v jetls >/dev/null 2>&1; then
 fi
 
 _log="$(mktemp)"
-cleanup_log() { rm -f "${_log}"; }
-trap cleanup_log EXIT
+trap 'rm -f "${_log}"' EXIT
 set +e
 jetls check --root=. --exit-severity=hint --show-severity=hint "${jetls_args[@]}" "${files[@]}" >"${_log}" 2>&1
 _status=$?
