@@ -94,6 +94,30 @@ function explain_rule(id::AbstractString)
         suppress violations. Multiline-call placement uses the same forbid level as other
         expect-audit integrity findings.
         """
+    elseif id == "manifest-sync"
+        return """
+        manifest-sync
+
+        Anchor line: project table key or manifest header field (e.g. [deps], project_hash).
+
+        Group: integrity. Pure TOML against git-tracked Project.toml / Manifest.toml pairs
+        (Manifest.toml, Manifest-vX.Y.toml, JuliaManifest.toml, and Project.toml `manifest` paths).
+        Untracked working-tree manifests are out of scope.
+
+        deny: project [deps] (including workspace subprojects), [weakdeps], and [extras] UUIDs
+        exist in the paired manifest; manifest internal deps closure; UUID uniqueness;
+        Manifest-vX.Y minor version vs julia_version; in --diff mode, resolve sections
+        ([deps], [weakdeps], [compat], [sources], [workspace]) changed without project_hash
+        update (hash is never recomputed); [extensions] triggers declared; manifest_format must be \"2.0\".
+
+        warn: [sources] vs manifest repo/path metadata (normalized paths); tracked manifest
+        under a workspace subproject directory.
+
+        Out of scope: Pkg resolvability, registry presence, git-tree-sha1 verification,
+        [compat] semver satisfaction, Artifacts.toml, Preferences.
+
+        Unparseable TOML is a fail-closed error (exit 2).
+        """
     elseif startswith(id, "project/")
         return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
     else
@@ -101,7 +125,7 @@ function explain_rule(id::AbstractString)
             "protected-paths" => "forbid edits to protected policy and workflow paths.",
             "scope-paths" => "enforce trusted path allowlists.",
             "ceiling-ratchet" => "keep violation/expect ceilings monotonic.",
-            "manifest-sync" => "tracked Manifest must match Project.toml.",
+            "manifest-sync" => "tracked Manifest must match Project.toml (see `explain manifest-sync`).",
             "shell-safety/process-pattern" => "preset: hazardous shell / Cmd patterns.",
             "silent-catch" => "detect swallowed exceptions.",
             "test-integrity" => "detect hollow or weakened tests.",

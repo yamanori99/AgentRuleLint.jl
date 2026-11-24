@@ -382,6 +382,17 @@ function default_policy(root::AbstractString)
             "Raise ceilings or leave stale slack after counts decrease.",
             Dict{Symbol, String}(),
         ),
+        "manifest-sync" => RuleSpec(
+            "manifest-sync",
+            :agentrulelint,
+            :deny,
+            "Tracked Manifest.toml files must stay consistent with Project.toml (integrity).",
+            "Edit [deps] or other resolve sections without updating the tracked manifest.",
+            Dict{Symbol, String}(
+                :group => "integrity",
+                :fix => "Run Pkg.resolve and commit Manifest.toml with project_hash updates.",
+            ),
+        ),
     )
     cs = ConfigSource(:builtin, "", "", "")
     cfg = joinpath(abspath(root), CONFIG_FILENAME)

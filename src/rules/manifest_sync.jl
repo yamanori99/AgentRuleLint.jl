@@ -1,0 +1,664 @@
+# Built-in manifest-sync: pure TOML invariants for git-tracked Project/Manifest pairs.
+
+const MANIFEST_SYNC_RULE = "manifest-sync"
+
+const STANDARD_MANIFEST_BASENAMES = (
+    "Manifest.toml",
+    "JuliaManifest.toml",
+)
+
+const MANIFEST_V_RE = r"^Manifest-v(\d+)\.(\d+)\.toml$"
+
+const RESOLVE_SECTION_KEYS = ("deps", "weakdeps", "compat", "sources", "workspace")
+
+const MANIFEST_SYNC_FIXTURE_PREFIX = "test/corpus/manifest_sync/"
+
+function _manifest_sync_skip_path(rel::AbstractString)
+    return startswith(normalize_path(rel), MANIFEST_SYNC_FIXTURE_PREFIX)
+end
+
+struct ManifestProjectContext
+    manifest_rel::String
+    project_rel::String
+    workspace_projects::Vector{String}
+end
+
+function _manifest_sync_spec(policy::PolicyBundle)
+    return get(policy.rules, MANIFEST_SYNC_RULE, nothing)
+end
+
+function git_ls_tracked_files(root::AbstractString)
+    root = abspath(String(root))
+    cmd = Cmd(["git", "-C", root, "ls-files", "-z", "--end-of-options"])
+    bytes = try
+        read(cmd)
+    catch err
+        err isa InterruptException && rethrow()
+        throw(GitError("git ls-files failed for $(root)"))
+    end
+    isempty(bytes) && return String[]
+    parts = split(String(bytes), '\0'; keepempty = false)
+    return sort(unique(normalize_path.(parts)))
+end
+
+function _is_manifest_basename(name::AbstractString)
+    name in STANDARD_MANIFEST_BASENAMES && return true
+    return match(MANIFEST_V_RE, name) !== nothing
+end
+
+function _read_worktree_text(root::AbstractString, relpath::AbstractString)
+    ap = joinpath(root, relpath)
+    !isfile(ap) && throw(ParseError("tracked file missing on disk: $relpath"))
+    bytes = read(ap)
+    isvalid(String, bytes) || throw(ParseError("file is not valid UTF-8: $relpath"))
+    return String(bytes)
+end
+
+function _parse_toml_or_throw(text::AbstractString, label::AbstractString)
+    try
+        return TOML.parse(String(text))
+    catch err
+        throw(ParseError("TOML parse error in $label: $(err)"))
+    end
+end
+
+function _toml_get_dict(raw, key::AbstractString, label::AbstractString)
+    !haskey(raw, key) && return Dict{String, Any}()
+    v = raw[key]
+    v isa Dict || throw(ParseError("expected table for $key in $label"))
+    return Dict{String, Any}(String(k) => v for (k, v) in v)
+end
+
+function _project_dep_tables(proj::Dict)
+    out = Dict{String, String}()
+    for key in ("deps", "weakdeps", "extras")
+        tbl = _toml_get_dict(proj, key, "Project.toml")
+        for (name, uuid) in tbl
+            uuid isa AbstractString || continue
+            out[name] = String(strip(uuid))
+        end
+    end
+    return out
+end
+
+function _workspace_subprojects(proj_rel::AbstractString, proj::Dict)
+    ws = _toml_get_dict(proj, "workspace", proj_rel)
+    !haskey(ws, "projects") && return String[]
+    raw = ws["projects"]
+    raw isa AbstractVector || return String[]
+    out = String[]
+    base_dir = dirname(proj_rel)
+    for p in raw
+        p isa AbstractString || continue
+        push!(out, normalize_path(joinpath(base_dir, String(p), "Project.toml")))
+    end
+    return out
+end
+
+function _custom_manifest_rel(proj::Dict, project_rel::AbstractString)
+    !haskey(proj, "manifest") && return nothing
+    m = proj["manifest"]
+    m isa AbstractString || throw(ParseError("Project.toml manifest key must be a string ($project_rel)"))
+    return normalize_path(joinpath(dirname(project_rel), String(m)))
+end
+
+function discover_manifest_project_pairs(root::AbstractString, tracked::Vector{String})
+    tracked_set = Set(tracked)
+    manifest_paths = String[]
+    for p in tracked
+        _is_manifest_basename(basename(p)) && push!(manifest_paths, p)
+    end
+    for p in tracked
+        basename(p) == "Project.toml" || continue
+        text = _read_worktree_text(root, p)
+        proj = _parse_toml_or_throw(text, p)
+        custom = _custom_manifest_rel(proj, p)
+        custom === nothing && continue
+        custom in tracked_set || continue
+        custom in manifest_paths || push!(manifest_paths, custom)
+    end
+    sort!(unique!(manifest_paths))
+    pairs = ManifestProjectContext[]
+    for m in manifest_paths
+        _manifest_sync_skip_path(m) && continue
+        proj_rel = normalize_path(joinpath(dirname(m), "Project.toml"))
+        proj_rel in tracked_set || continue
+        text = _read_worktree_text(root, proj_rel)
+        proj = _parse_toml_or_throw(text, proj_rel)
+        ws = filter(s -> s in tracked_set, _workspace_subprojects(proj_rel, proj))
+        push!(pairs, ManifestProjectContext(m, proj_rel, ws))
+    end
+    return pairs
+end
+
+function _manifest_dep_record(entry)
+    entry isa AbstractVector || return nothing
+    isempty(entry) && return nothing
+    rec = first(entry)
+    rec isa Dict || return nothing
+    return rec
+end
+
+function _manifest_deps_map(man::Dict)
+    raw = get(man, "deps", Dict())
+    raw isa Dict || throw(ParseError("manifest deps must be a table"))
+    names = Set{String}()
+    uuids = Dict{String, String}()
+    internal = Dict{String, Vector{String}}()
+    paths = Dict{String, String}()
+    repos = Dict{String, Dict{String, String}}()
+    for (name, entry) in raw
+        sn = String(name)
+        rec = _manifest_dep_record(entry)
+        rec === nothing && continue
+        push!(names, sn)
+        haskey(rec, "uuid") && (uuids[sn] = String(rec["uuid"]))
+        if haskey(rec, "deps")
+            d = rec["deps"]
+            d isa AbstractVector && (internal[sn] = String[string(x) for x in d])
+        end
+        haskey(rec, "path") && (paths[sn] = String(rec["path"]))
+        repo = Dict{String, String}()
+        for k in ("repo-url", "repo-rev", "repo-subdir")
+            haskey(rec, k) && (repo[k] = String(rec[k]))
+        end
+        !isempty(repo) && (repos[sn] = repo)
+    end
+    return names, uuids, internal, paths, repos
+end
+
+function _normalize_rel_path(base_dir::AbstractString, raw::AbstractString)
+    s = replace(strip(String(raw)), '\\' => '/')
+    isabspath(s) && return normalize_path(s)
+    return normalize_path(joinpath(base_dir, s))
+end
+
+function _line_number_for_substring(source::AbstractString, needle::AbstractString; default_line = 1)
+    pos = findfirst(needle, source)
+    pos === nothing && return default_line
+    return 1 + count('\n', source[1:((pos.start) - 1)])
+end
+
+function _push_ms_violation!(
+        diags::Vector{Violation},
+        level::Symbol,
+        path::String,
+        line::Int,
+        msg::String,
+        intent::String,
+        do_not::String,
+    )
+    ln = max(line, 1)
+    sp = Span(ln, 1, ln, 1)
+    push!(
+        diags,
+        Violation(
+            MANIFEST_SYNC_RULE,
+            :agentrulelint,
+            level,
+            path,
+            sp,
+            ln,
+            "",
+            :none,
+            false,
+            msg,
+            intent,
+            do_not,
+        ),
+    )
+    return nothing
+end
+
+function _resolve_slice(proj::Dict)
+    out = Dict{String, Any}()
+    for k in RESOLVE_SECTION_KEYS
+        haskey(proj, k) || continue
+        out[k] = proj[k]
+    end
+    return out
+end
+
+function _line_for_dep(source::AbstractString, pkg::AbstractString)
+    for n in ("$pkg =", "[deps.$pkg]", "\"$pkg\" =")
+        ln = _line_number_for_substring(source, n, default_line = 0)
+        ln > 0 && return ln
+    end
+    return 1
+end
+
+function _check_manifest_format!(
+        diags::Vector{Violation},
+        level::Symbol,
+        manifest_rel::String,
+        man::Dict,
+        source::AbstractString,
+        intent::String,
+        do_not::String,
+    )
+    fmt = get(man, "manifest_format", nothing)
+    if fmt === nothing
+        _push_ms_violation!(diags, level, manifest_rel, 1, "missing manifest_format (fail-closed)", intent, do_not)
+        return
+    end
+    s = fmt isa AbstractString ? String(fmt) : string(fmt)
+    s == "2.0" && return nothing
+    ln = _line_number_for_substring(source, "manifest_format", default_line = 1)
+    _push_ms_violation!(
+        diags,
+        level,
+        manifest_rel,
+        ln,
+        "unsupported manifest_format '$s' (expected \"2.0\")",
+        intent,
+        do_not,
+    )
+    return nothing
+end
+
+function _check_manifest_version_filename!(
+        diags::Vector{Violation},
+        level::Symbol,
+        manifest_rel::String,
+        man::Dict,
+        source::AbstractString,
+        intent::String,
+        do_not::String,
+    )
+    m = match(MANIFEST_V_RE, basename(manifest_rel))
+    m === nothing && return nothing
+    major = parse(Int, m.captures[1])
+    minor = parse(Int, m.captures[2])
+    jv = get(man, "julia_version", nothing)
+    if jv === nothing
+        _push_ms_violation!(
+            diags,
+            level,
+            manifest_rel,
+            1,
+            "Manifest-v filename requires julia_version",
+            intent,
+            do_not,
+        )
+        return nothing
+    end
+    jvs = jv isa AbstractString ? String(jv) : string(jv)
+    parts = split(jvs, '.'; limit = 3)
+    length(parts) >= 2 || begin
+        _push_ms_violation!(diags, level, manifest_rel, 1, "invalid julia_version in manifest", intent, do_not)
+        return nothing
+    end
+    (parse(Int, parts[1]), parse(Int, parts[2])) == (major, minor) && return nothing
+    ln = _line_number_for_substring(source, "julia_version", default_line = 1)
+    _push_ms_violation!(
+        diags,
+        level,
+        manifest_rel,
+        ln,
+        "Manifest-v$(major).$(minor) disagrees with julia_version $(jvs) at minor level",
+        intent,
+        do_not,
+    )
+    return nothing
+end
+
+function _collect_project_uuids(root::AbstractString, ctx::ManifestProjectContext)
+    combined = Dict{String, String}()
+    pkg_src = Dict{String, String}()
+    pkg_text = Dict{String, String}()
+    for rel in vcat([ctx.project_rel], ctx.workspace_projects)
+        text = _read_worktree_text(root, rel)
+        proj = _parse_toml_or_throw(text, rel)
+        for (pkg, uuid) in _project_dep_tables(proj)
+            combined[pkg] = uuid
+            pkg_src[pkg] = rel
+            pkg_text[pkg] = text
+        end
+    end
+    return combined, pkg_src, pkg_text
+end
+
+function _check_project_deps_in_manifest!(
+        diags::Vector{Violation},
+        level::Symbol,
+        ctx::ManifestProjectContext,
+        wanted::Dict{String, String},
+        pkg_src::Dict{String, String},
+        pkg_text::Dict{String, String},
+        names::Set{String},
+        uuids::Dict{String, String},
+        intent::String,
+        do_not::String,
+    )
+    for (pkg, want_uuid) in sort(collect(wanted))
+        rel = get(pkg_src, pkg, ctx.project_rel)
+        text = get(pkg_text, pkg, "")
+        if pkg ∉ names
+            _push_ms_violation!(
+                diags,
+                level,
+                rel,
+                _line_for_dep(text, pkg),
+                "dependency '$pkg' missing from manifest $(ctx.manifest_rel)",
+                intent,
+                do_not,
+            )
+            continue
+        end
+        got = get(uuids, pkg, "")
+        got == want_uuid && continue
+        _push_ms_violation!(
+            diags,
+            level,
+            rel,
+            _line_for_dep(text, pkg),
+            "dependency '$pkg' UUID mismatch: project $(want_uuid) vs manifest $(got)",
+            intent,
+            do_not,
+        )
+    end
+    return nothing
+end
+
+function _check_manifest_internal_closure!(
+        diags::Vector{Violation},
+        level::Symbol,
+        manifest_rel::String,
+        names::Set{String},
+        internal::Dict{String, Vector{String}},
+        intent::String,
+        do_not::String,
+    )
+    for (pkg, refs) in sort(collect(internal))
+        for ref in refs
+            ref in names && continue
+            _push_ms_violation!(
+                diags,
+                level,
+                manifest_rel,
+                1,
+                "manifest entry '$pkg' references missing dependency '$ref'",
+                intent,
+                do_not,
+            )
+        end
+    end
+    return nothing
+end
+
+function _check_uuid_uniqueness!(
+        diags::Vector{Violation},
+        level::Symbol,
+        manifest_rel::String,
+        uuids::Dict{String, String},
+        intent::String,
+        do_not::String,
+    )
+    inv = Dict{String, String}()
+    for (pkg, uuid) in uuids
+        other = get(inv, uuid, nothing)
+        if other !== nothing
+            _push_ms_violation!(
+                diags,
+                level,
+                manifest_rel,
+                1,
+                "duplicate manifest UUID $uuid ($other and $pkg)",
+                intent,
+                do_not,
+            )
+            continue
+        end
+        inv[uuid] = pkg
+    end
+    return nothing
+end
+
+function _source_dict(src)
+    src isa Dict || return nothing
+    return Dict{String, Any}(String(k) => v for (k, v) in src)
+end
+
+function _check_sources_warn!(
+        diags::Vector{Violation},
+        ctx::ManifestProjectContext,
+        proj::Dict,
+        project_text::AbstractString,
+        man_paths::Dict{String, String},
+        man_repos::Dict{String, Dict{String, String}},
+        intent::String,
+        do_not::String,
+    )
+    sources = _toml_get_dict(proj, "sources", ctx.project_rel)
+    base = dirname(ctx.project_rel)
+    for (pkg, src) in sort(collect(sources))
+        sd = _source_dict(src)
+        sd === nothing && continue
+        if haskey(sd, "path")
+            want = _normalize_rel_path(base, String(sd["path"]))
+            got = get(man_paths, pkg, "")
+            got = got == "" ? "" : _normalize_rel_path(base, got)
+            want == got && continue
+            _push_ms_violation!(
+                diags,
+                :warn,
+                ctx.project_rel,
+                _line_for_dep(project_text, pkg),
+                "sources path for '$pkg' disagrees with manifest path",
+                intent,
+                do_not,
+            )
+            continue
+        end
+        haskey(sd, "url") || continue
+        repo = get(man_repos, pkg, Dict{String, String}())
+        url_ok = get(repo, "repo-url", "") == String(sd["url"])
+        rev_ok = !haskey(sd, "rev") || get(repo, "repo-rev", "") == String(sd["rev"])
+        sub_ok = !haskey(sd, "subdir") || get(repo, "repo-subdir", "") == String(sd["subdir"])
+        url_ok && rev_ok && sub_ok && continue
+        _push_ms_violation!(
+            diags,
+            :warn,
+            ctx.project_rel,
+            _line_for_dep(project_text, pkg),
+            "sources entry for '$pkg' disagrees with manifest repo metadata",
+            intent,
+            do_not,
+        )
+    end
+    return nothing
+end
+
+function _extension_triggers(proj::Dict)
+    !haskey(proj, "extensions") && return String[]
+    ext = proj["extensions"]
+    ext isa Dict || return String[]
+    out = String[]
+    for (_, v) in ext
+        if v isa AbstractString
+            push!(out, String(v))
+        elseif v isa AbstractVector
+            for x in v
+                x isa AbstractString && push!(out, String(x))
+            end
+        end
+    end
+    return out
+end
+
+function _check_extensions!(
+        diags::Vector{Violation},
+        level::Symbol,
+        project_rel::String,
+        proj::Dict,
+        project_text::AbstractString,
+        intent::String,
+        do_not::String,
+    )
+    declared = Set(keys(_toml_get_dict(proj, "deps", project_rel)))
+    for w in keys(_toml_get_dict(proj, "weakdeps", project_rel))
+        push!(declared, w)
+    end
+    for trig in _extension_triggers(proj)
+        trig in declared && continue
+        _push_ms_violation!(
+            diags,
+            level,
+            project_rel,
+            _line_for_dep(project_text, trig),
+            "extension trigger '$trig' is not declared in [deps] or [weakdeps]",
+            intent,
+            do_not,
+        )
+    end
+    return nothing
+end
+
+function _warn_subproject_manifests!(
+        diags::Vector{Violation},
+        ctx::ManifestProjectContext,
+        tracked_set::Set{String},
+        intent::String,
+        do_not::String,
+    )
+    for sub in ctx.workspace_projects
+        dir = dirname(sub)
+        for cand in ("Manifest.toml", "JuliaManifest.toml")
+            rel = normalize_path(joinpath(dir, cand))
+            rel in tracked_set || continue
+            _push_ms_violation!(
+                diags,
+                :warn,
+                sub,
+                1,
+                "workspace subproject has its own tracked manifest ($rel)",
+                intent,
+                do_not,
+            )
+        end
+    end
+    return nothing
+end
+
+function _manifest_project_hash(text::AbstractString, label::AbstractString)
+    man = _parse_toml_or_throw(text, label)
+    h = get(man, "project_hash", nothing)
+    h isa AbstractString || return nothing
+    return String(h)
+end
+
+function _check_project_hash_diff!(
+        diags::Vector{Violation},
+        level::Symbol,
+        root::AbstractString,
+        diff_base::AbstractString,
+        ctx::ManifestProjectContext,
+        intent::String,
+        do_not::String,
+    )
+    proj_now_text = _read_worktree_text(root, ctx.project_rel)
+    proj_now = _parse_toml_or_throw(proj_now_text, ctx.project_rel)
+    sha = git_resolve_commit_sha(root, diff_base)
+    git_tree_path_exists(root, sha, ctx.project_rel) || return nothing
+    proj_base_text = git_show_blob_at_commit(root, sha, ctx.project_rel)
+    proj_base = _parse_toml_or_throw(proj_base_text, "$(ctx.project_rel)@$diff_base")
+    _resolve_slice(proj_now) == _resolve_slice(proj_base) && return nothing
+    man_text = _read_worktree_text(root, ctx.manifest_rel)
+    now_hash = _manifest_project_hash(man_text, ctx.manifest_rel)
+    now_hash === nothing && return nothing
+    git_tree_path_exists(root, sha, ctx.manifest_rel) || return nothing
+    base_text = git_show_blob_at_commit(root, sha, ctx.manifest_rel)
+    base_hash = _manifest_project_hash(base_text, "$(ctx.manifest_rel)@$sha")
+    base_hash === nothing && return nothing
+    now_hash == base_hash || return nothing
+    ln = _line_number_for_substring(proj_now_text, "julia =", default_line = 1)
+    ln == 1 && (ln = _line_number_for_substring(proj_now_text, "[deps]", default_line = 1))
+    _push_ms_violation!(
+        diags,
+        level,
+        ctx.project_rel,
+        ln,
+        "resolve sections in $(ctx.project_rel) changed vs $(diff_base) but project_hash is unchanged",
+        intent,
+        do_not,
+    )
+    return nothing
+end
+
+function _manifest_sync_in_scope(paths::Vector{String}, diff_base)
+    diff_base !== nothing && return true
+    isempty(paths) && return true
+    for p in paths
+        bn = basename(normalize_path(p))
+        bn == "Project.toml" && return true
+        _is_manifest_basename(bn) && return true
+        startswith(normalize_path(p), "test/corpus/manifest_sync/") && return true
+    end
+    return false
+end
+
+function run_manifest_sync(
+        root::AbstractString,
+        policy::PolicyBundle;
+        diff_base = nothing,
+        paths = String[],
+    )
+    spec = _manifest_sync_spec(policy)
+    spec === nothing && return Violation[]
+    spec.level == :allow && return Violation[]
+    _manifest_sync_in_scope(paths, diff_base) || return Violation[]
+    level = spec.level
+    intent = spec.intent
+    do_not = spec.do_not
+    tracked = git_ls_tracked_files(root)
+    tracked_set = Set(tracked)
+    pairs = discover_manifest_project_pairs(root, tracked)
+    diags = Violation[]
+    for ctx in pairs
+        _audit_manifest_pair!(diags, root, ctx, tracked_set, level, intent, do_not, diff_base)
+    end
+    return diags
+end
+
+function _audit_manifest_pair!(
+        diags::Vector{Violation},
+        root::AbstractString,
+        ctx::ManifestProjectContext,
+        tracked_set::Set{String},
+        level::Symbol,
+        intent::String,
+        do_not::String,
+        diff_base,
+    )
+    man_text = _read_worktree_text(root, ctx.manifest_rel)
+    man = _parse_toml_or_throw(man_text, ctx.manifest_rel)
+    _check_manifest_format!(diags, level, ctx.manifest_rel, man, man_text, intent, do_not)
+    _check_manifest_version_filename!(diags, level, ctx.manifest_rel, man, man_text, intent, do_not)
+    names, uuids, internal, paths, repos = _manifest_deps_map(man)
+    _check_manifest_internal_closure!(diags, level, ctx.manifest_rel, names, internal, intent, do_not)
+    _check_uuid_uniqueness!(diags, level, ctx.manifest_rel, uuids, intent, do_not)
+    wanted, pkg_src, pkg_text = _collect_project_uuids(root, ctx)
+    _check_project_deps_in_manifest!(
+        diags,
+        level,
+        ctx,
+        wanted,
+        pkg_src,
+        pkg_text,
+        names,
+        uuids,
+        intent,
+        do_not,
+    )
+    proj_text = _read_worktree_text(root, ctx.project_rel)
+    proj = _parse_toml_or_throw(proj_text, ctx.project_rel)
+    _check_sources_warn!(diags, ctx, proj, proj_text, paths, repos, intent, do_not)
+    for rel in vcat([ctx.project_rel], ctx.workspace_projects)
+        sub_text = _read_worktree_text(root, rel)
+        sub_proj = _parse_toml_or_throw(sub_text, rel)
+        _check_extensions!(diags, level, rel, sub_proj, sub_text, intent, do_not)
+    end
+    _warn_subproject_manifests!(diags, ctx, tracked_set, intent, do_not)
+    diff_base !== nothing && _check_project_hash_diff!(diags, level, root, diff_base, ctx, intent, do_not)
+    return nothing
+end

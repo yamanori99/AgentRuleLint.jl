@@ -6,6 +6,11 @@ max_hits_per_rule = 20
 level = "forbid"
 on_allow_rule = "warn"
 
+[rules.manifest-sync]
+level = "deny"
+intent = "Keep git-tracked manifests aligned with Project.toml resolve sections and workspace subprojects."
+do_not = "Change [deps], [compat], [sources], or [workspace] without updating the paired manifest and project_hash."
+
 [[project_rules]]
 id = "no-internal-codename"
 level = "deny"

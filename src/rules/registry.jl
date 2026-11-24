@@ -21,5 +21,17 @@ function init_registry!(policy::PolicyBundle)
             ),
         )
     end
+    if get(policy.rules, "manifest-sync", nothing) === nothing
+        register_builtin!(
+            RuleSpec(
+                "manifest-sync",
+                :agentrulelint,
+                :deny,
+                "Tracked manifests must match Project.toml.",
+                "Drift project resolve sections away from the manifest.",
+                Dict{Symbol, String}(:group => "integrity"),
+            ),
+        )
+    end
     return nothing
 end
