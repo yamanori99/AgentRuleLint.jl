@@ -27,15 +27,16 @@ cleanup() {
 }
 trap cleanup EXIT
 
+run_tests() {
+  "${JULIA[@]}" -e "using Test, AgentRuleLint; include(joinpath(\"${ROOT}\", \"test\", \"runtests.jl\"))"
+}
+
 for fn in "${!MAP[@]}"; do
   testset="${MAP[$fn]}"
   cp "${tmpdir}/manifest_sync.jl.bak" "$SRC"
   sed -i "/^function ${fn}/! s/${fn}!/# MUTATION ${fn}!/g" "$SRC"
-  if "${JULIA[@]}" -e '
-    using Test, AgentRuleLint
-    include(joinpath("'${ROOT}'", "test", "runtests.jl"))
-  ' 2>/dev/null; then
-    echo "MUTATION FAIL: disabling ${fn} did not break tests (expected failure for '"'${testset}'"')"
+  if run_tests 2>/dev/null; then
+    echo "MUTATION FAIL: disabling ${fn} did not break tests (expected failure for ${testset})"
     exit 1
   fi
   echo "MUTATION OK: ${fn} -> would break '${testset}'"
@@ -43,10 +44,7 @@ done
 
 cp "${tmpdir}/manifest_sync.jl.bak" "$SRC"
 sed -i 's/got == want_uuid && continue/continue  # MUTATION uuid/' "$SRC"
-if "${JULIA[@]}" -e '
-  using Test, AgentRuleLint
-  include(joinpath("'${ROOT}'", "test", "runtests.jl"))
-' 2>/dev/null; then
+if run_tests 2>/dev/null; then
   echo "MUTATION FAIL: skipping UUID compare did not break tests (expected detector: project deps UUID mismatch)"
   exit 1
 fi
