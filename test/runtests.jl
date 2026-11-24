@@ -64,7 +64,7 @@ const CORPUS = joinpath(@__DIR__, "corpus")
         @test JAILint.main(["check", "LICENSE"]) == 0
     end
 
-    Aqua.test_all(JAILint; ambiguities = false, unbound_deps = false)
+    Aqua.test_all(JAILint; ambiguities = false, unbound_args = false)
 
     include("test_runic_invariance.jl")
 end

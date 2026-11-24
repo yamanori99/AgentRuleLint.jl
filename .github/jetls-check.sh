@@ -30,7 +30,8 @@ for arg in "$@"; do
 done
 
 if [[ "$print_files" == true ]]; then
-    printf '%s\n' "${files[@]}"
+    # Single line (space-separated) for GITHUB_OUTPUT in CI.
+    printf '%s\n' "${files[*]}"
     exit 0
 fi
 
