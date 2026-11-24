@@ -12,7 +12,6 @@ concurrency:
 
 permissions:
   contents: read
-  actions: write # depot + JETLS caches (restore all events; save main push only)
 
 jobs:
   runic:
@@ -21,6 +20,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: julia-actions/setup-julia@da908477b5db94c10ffce8cfea9f2b3b9d5db687 # v3.0.3
         with:
@@ -44,16 +45,21 @@ jobs:
 
   aqua:
     name: Aqua (Julia 1.13, ubuntu-latest, x64)
+    permissions:
+      contents: read
+      actions: write # julia-depot-cache save on main push
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: julia-actions/setup-julia@da908477b5db94c10ffce8cfea9f2b3b9d5db687 # v3.0.3
         with:
           version: "1.13"
 
-      - uses: ./.github/actions/julia-depot-cache
+      - uses: ./.github/actions/julia-depot-cache # zizmor: ignore[self-repository]
         with:
           cache-scratchspaces: false
 
@@ -63,12 +69,17 @@ jobs:
   # JETLS depot: restore every run; save on main push only. Exact hit skips Pkg.Apps.add.
   jetls:
     name: JETLS (Julia 1.13, ubuntu-latest, x64)
+    permissions:
+      contents: read
+      actions: write # JETLS depot cache save on main push
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:
       JULIA_CPU_TARGET: "generic;sandybridge,-xsaveopt,clone_all;haswell,-rdrnd,base(1);x86-64-v4,-rdrnd,base(1)"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - id: files
         run: echo "list=$(./.github/jetls-check.sh --print-files)" >> "$GITHUB_OUTPUT"
@@ -114,7 +125,7 @@ jobs:
           restore-keys: |
             jetls-depot-${{ runner.os }}-${{ steps.runner.outputs.julia }}-${{ steps.runner.outputs.cputarget }}-${{ steps.jetls-rev.outputs.rev }}-
 
-      - uses: ./.github/actions/jetls-check
+      - uses: ./.github/actions/jetls-check # zizmor: ignore[self-repository]
         with:
           files: ${{ steps.files.outputs.list }}
           depot-cache-exact: ${{ steps.jetls-depot-cache.outputs.cache-hit == 'true' }}
@@ -136,16 +147,21 @@ jobs:
     name: Pkg.test (Julia 1.14-pre, ubuntu-latest, x64)
     continue-on-error: true
     needs: [runic, aqua, jetls]
+    permissions:
+      contents: read
+      actions: write # julia-depot-cache save on main push
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: julia-actions/setup-julia@da908477b5db94c10ffce8cfea9f2b3b9d5db687 # v3.0.3
         with:
           version: "~1.14.0-0"
 
-      - uses: ./.github/actions/julia-depot-cache
+      - uses: ./.github/actions/julia-depot-cache # zizmor: ignore[self-repository]
         with:
           cache-scratchspaces: false
 
@@ -164,16 +180,21 @@ jobs:
   test:
     name: Pkg.test (Julia 1.13, ubuntu-latest, x64)
     needs: [runic, aqua, jetls]
+    permissions:
+      contents: read
+      actions: write # julia-depot-cache save on main push
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - uses: julia-actions/setup-julia@da908477b5db94c10ffce8cfea9f2b3b9d5db687 # v3.0.3
         with:
           version: "1.13"
 
-      - uses: ./.github/actions/julia-depot-cache
+      - uses: ./.github/actions/julia-depot-cache # zizmor: ignore[self-repository]
         with:
           cache-scratchspaces: false
 
