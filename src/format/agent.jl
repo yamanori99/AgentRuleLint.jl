@@ -17,7 +17,9 @@ function format_agent(
         d.expect_status == :fulfilled && continue
         push!(get!(by_rule, d.rule_id, Violation[]), d)
     end
-    for (rid, ds) in sort(collect(by_rule))
+    diag_order(v) = (v.path, v.span, v.rule_id)
+    for (rid, ds) in sort(collect(by_rule); by = first)
+        ds = sort(ds; by = diag_order)
         lvl = ds[1].level
         orig = origin_label(ds[1].origin)
         rule_line = "RULE $orig $rid level=$lvl count=$(length(ds))"
