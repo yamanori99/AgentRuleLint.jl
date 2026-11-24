@@ -14,9 +14,22 @@
         write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
     end
 
+    function materialize_toml_fixtures!(root::AbstractString)
+        for (dir, _, files) in walkdir(root)
+            for f in files
+                endswith(f, ".toml.fixture") || continue
+                src = joinpath(dir, f)
+                dest = joinpath(dir, replace(f, ".fixture" => ""))
+                cp(src, dest; force = true)
+            end
+        end
+        return nothing
+    end
+
     function init_git_fixture(src::AbstractString)
         dir = abspath(mktempdir())
         cp(src, dir; force = true)
+        materialize_toml_fixtures!(dir)
         run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
         run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "t@test"]); dir = dir))
         run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "t"]); dir = dir))
@@ -229,21 +242,14 @@
         end
     end
 
-    @testset "fixture prefix exempts corpus only" begin
-        dir = init_git_fixture(joinpath(FIXTURES, "negative_missing_dep"))
-        try
-            res = AgentRuleLint.check(ROOT; paths = String[])
-            skipped = any(
-                d -> startswith(d.path, "test/corpus/manifest_sync/"),
-                filter(
-                    d -> d.rule_id == "manifest-sync" && !d.suppressed,
-                    res.violations,
-                ),
-            )
-            @test !skipped
-        finally
-            rm(dir, recursive = true, force = true)
+    @testset "manifest_sync corpus fixtures are not tracked as Project/Manifest" begin
+        for p in split(strip(read(Cmd(`git -C $ROOT ls-files`), String)), '\n'; keepempty = false)
+            startswith(p, "test/corpus/manifest_sync/") || continue
+            @test endswith(p, ".toml.fixture")
         end
+        res = AgentRuleLint.check(ROOT; paths = String[])
+        ms = filter(d -> d.rule_id == "manifest-sync" && !d.suppressed, res.violations)
+        @test all(v -> !startswith(v.path, "test/corpus/manifest_sync/"), ms)
     end
 
     @testset "manifests outside fixture prefix are still checked" begin

@@ -104,7 +104,7 @@ reused.
 
 ## Golden corpus
 
-`manifest-sync` skips git-tracked manifests under `test/corpus/manifest_sync/` when linting this repository (intentional negative fixtures); manifests elsewhere in the tree are still checked.
+`manifest-sync` golden fixtures under `test/corpus/manifest_sync/` are stored as `*.toml.fixture` (not tracked as `Project.toml` / `Manifest*.toml`); tests materialize them in a temp git repo.
 
 Under `test/corpus/`:
 

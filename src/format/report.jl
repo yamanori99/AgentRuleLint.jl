@@ -102,9 +102,7 @@ function explain_rule(id::AbstractString)
 
         Group: integrity. Pure TOML against git-tracked Project.toml / Manifest.toml pairs
         (Manifest.toml, Manifest-vX.Y.toml, JuliaManifest.toml, and Project.toml `manifest` paths).
-        Untracked working-tree manifests are out of scope. When linting this repository,
-        git-tracked manifests under test/corpus/manifest_sync/ are skipped (negative fixtures);
-        manifests elsewhere in the tree are still checked.
+        Untracked working-tree manifests are out of scope.
 
         deny: project [deps] (including workspace subprojects), [weakdeps], and [extras] UUIDs
         exist in the paired manifest; manifest internal deps closure; UUID uniqueness;
