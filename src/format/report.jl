@@ -52,7 +52,7 @@ function format_report(fingerprint::AbstractString, diagnostic::Violation, sourc
     buf = IOBuffer()
     header = Dict{String, Any}(
         "type" => "header",
-        "jailint_version" => string(pkgversion(JAILint)),
+        "agentrulelint_version" => string(pkgversion(AgentRuleLint)),
         "julia_version" => string(VERSION),
         "parser" => parser_rev_string(),
         "position_encoding" => "utf8-codepoint-1based",
@@ -83,10 +83,10 @@ function explain_rule(id::AbstractString)
         return """
         expect-audit
 
-        Anchor line: first non-blank code line after contiguous `# jailint-expect:` lines
+        Anchor line: first non-blank code line after contiguous `# agentrulelint-expect:` lines
         that matches the target syntax kind for the referenced rule (e.g. `try`, `@eval`, `@test*`).
 
-        Syntax: `# jailint-expect: <rule-id> reason="..."` (ASCII, standalone line only; non-empty reason).
+        Syntax: `# agentrulelint-expect: <rule-id> reason="..."` (ASCII, standalone line only; non-empty reason).
 
         Suppresses only violations whose anchor_line matches that line.
         Expects are forbidden above `catch`, inside `# runic: off` regions, inside multiline

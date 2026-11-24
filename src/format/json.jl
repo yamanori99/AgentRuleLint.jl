@@ -18,7 +18,7 @@ function format_json(result::CheckResult)
     lines = String[]
     header = Dict{String, Any}(
         "type" => "header",
-        "jailint_version" => string(pkgversion(JAILint)),
+        "agentrulelint_version" => string(pkgversion(AgentRuleLint)),
         "julia_version" => string(VERSION),
         "parser" => parser_rev_string(),
         "config_source" => config_source_dict(result.config_source),

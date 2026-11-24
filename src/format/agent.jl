@@ -6,7 +6,7 @@ function format_agent(
     )
     width = resolve_output_width(io; output_width = output_width)
     buf = IOBuffer()
-    headline = "JAILINT $(result.exit_code == 0 ? "OK" : "FAIL") v$(pkgversion(JAILint)) pos=utf8-codepoint-1based violations=$(result.violation_count)"
+    headline = "AGENTRULELINT $(result.exit_code == 0 ? "OK" : "FAIL") v$(pkgversion(AgentRuleLint)) pos=utf8-codepoint-1based violations=$(result.violation_count)"
     for ln in wrap_prose_lines("", "", headline, width)
         println(buf, ln)
     end

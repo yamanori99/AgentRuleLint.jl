@@ -1,32 +1,34 @@
-const _textwidth = Base.Unicode.textwidth
-
-const OUTPUT_WIDTH_CAP = Ref(80)
-const OUTPUT_WRAP_PROSE = Ref(true)
-const OUTPUT_TRUNCATE_QUOTED = Ref(true)
+const OUTPUT_WIDTH_CAP = 80
 
 const ELLIPSIS_CHAR = "…"
 
-_ansi_pattern = r"\e\[[0-9;]*m"
+const _ansi_pattern = r"\e\[[0-9;]*m"
 
 function strip_ansi(s::AbstractString)
     return replace(s, _ansi_pattern => "")
 end
 
 function visible_textwidth(s::AbstractString)
-    return _textwidth(strip_ansi(s))
+    return Base.Unicode.textwidth(strip_ansi(s))
 end
 
 """
     output_displaysize(io::IO=stdout) -> Int
 
-Return `min(cols, OUTPUT_WIDTH_CAP[])` where `cols` is from `displaysize(io)`
-(TTY, else `ENV["COLUMNS"]`, else 80).
+Return `min(cols, OUTPUT_WIDTH_CAP)` where `cols` is the column count from
+`displaysize(io)` (TTY, else `ENV["COLUMNS"]`, else 80).
 """
 function output_displaysize(io::IO = stdout)
     _, cols = displaysize(io)
-    return min(cols, OUTPUT_WIDTH_CAP[])
+    return min(cols, OUTPUT_WIDTH_CAP)
 end
 
+"""
+    resolve_output_width(io; output_width=nothing) -> Int
+
+Default width from `output_displaysize(io)`. Pass `output_width` only in tests
+or other explicit callers that must pin width without a TTY/`COLUMNS`.
+"""
 function resolve_output_width(io::IO = stdout; output_width::Union{Nothing, Int} = nothing)
     output_width !== nothing && return output_width
     return output_displaysize(io)
@@ -35,20 +37,6 @@ end
 function _prose_budget(prefix::AbstractString, width::Int)
     w = width - visible_textwidth(prefix)
     return max(w, 1)
-end
-
-function _char_display_width(c::AbstractChar)
-    return _textwidth(c)
-end
-
-function _substr_chars(s::AbstractString, i::Integer, j::Integer)
-    return s[i:j]
-end
-
-function _substring_through_index(s::AbstractString, last_i::Integer)
-    fi = firstindex(s)
-    last_i < fi && return ""
-    return _substr_chars(s, fi, last_i)
 end
 
 function _truncate_chars(text::AbstractString, maxw::Int; with_ellipsis::Bool = true)
@@ -61,7 +49,7 @@ function _truncate_chars(text::AbstractString, maxw::Int; with_ellipsis::Bool = 
     last_i = nothing
     stopped_early = false
     for i in eachindex(text)
-        cw = _char_display_width(text[i])
+        cw = Base.Unicode.textwidth(text[i])
         if w + cw > limit
             stopped_early = true
             break
@@ -70,7 +58,8 @@ function _truncate_chars(text::AbstractString, maxw::Int; with_ellipsis::Bool = 
         last_i = i
     end
     last_i === nothing && return with_ellipsis ? ELLIPSIS_CHAR : ""
-    body = _substring_through_index(text, last_i)
+    fi = firstindex(text)
+    body = fi <= last_i ? text[fi:last_i] : ""
     needs_ellipsis = with_ellipsis && stopped_early
     return needs_ellipsis ? body * ELLIPSIS_CHAR : body
 end
@@ -85,7 +74,7 @@ function _wrap_char_chunks(text::AbstractString, budget::Int)
         chunk_end = nothing
         i = line_start
         while i <= last_i
-            cw = _char_display_width(text[i])
+            cw = Base.Unicode.textwidth(text[i])
             if w + cw > budget
                 break
             end
@@ -94,10 +83,8 @@ function _wrap_char_chunks(text::AbstractString, budget::Int)
             i === last_i && break
             i = nextind(text, i)
         end
-        chunk_end === nothing && begin
-            chunk_end = line_start
-        end
-        push!(lines, _substr_chars(text, line_start, chunk_end))
+        chunk_end === nothing && (chunk_end = line_start)
+        push!(lines, text[line_start:chunk_end])
         chunk_end >= last_i && break
         line_start = nextind(text, chunk_end)
     end
@@ -142,11 +129,10 @@ function wrap_prose_lines(
         first_prefix::AbstractString,
         cont_prefix::AbstractString,
         text::AbstractString,
-        width::Int;
-        wrap::Bool = OUTPUT_WRAP_PROSE[],
+        width::Int,
     )
     budget = _prose_budget(first_prefix, width)
-    chunks = wrap ? _wrap_words(text, budget) : [String(text)]
+    chunks = _wrap_words(text, budget)
     lines = String[]
     for (i, chunk) in enumerate(chunks)
         prefix = i == 1 ? first_prefix : cont_prefix
@@ -155,38 +141,18 @@ function wrap_prose_lines(
     return lines
 end
 
-function wrap_labeled_prose(
-        margin::AbstractString,
-        label::AbstractString,
-        text::AbstractString,
-        width::Int;
-        kwargs...,
-    )
+function wrap_labeled_prose(margin::AbstractString, label::AbstractString, text::AbstractString, width::Int)
     first_prefix = string(margin, label)
-    cont_prefix = string(margin, repeat(' ', _textwidth(label)))
-    return wrap_prose_lines(first_prefix, cont_prefix, text, width; kwargs...)
+    cont_prefix = string(margin, repeat(' ', Base.Unicode.textwidth(label)))
+    return wrap_prose_lines(first_prefix, cont_prefix, text, width)
 end
 
-function truncate_quoted_line(
-        prefix::AbstractString,
-        body::AbstractString,
-        width::Int;
-        truncate::Bool = OUTPUT_TRUNCATE_QUOTED[],
-    )
+function truncate_quoted_line(prefix::AbstractString, body::AbstractString, width::Int)
     line = string(prefix, body)
-    !truncate && return line
     visible_textwidth(line) <= width && return line
     budget = width - visible_textwidth(prefix) - visible_textwidth(ELLIPSIS_CHAR)
     budget < 1 && return string(prefix, ELLIPSIS_CHAR)
     return string(prefix, _truncate_chars(body, budget, with_ellipsis = true))
-end
-
-function println_wrapped_prose(buf::IO, prefixes, text::AbstractString, width::Int)
-    first_prefix, cont_prefix = prefixes
-    for ln in wrap_prose_lines(first_prefix, cont_prefix, text, width)
-        println(buf, ln)
-    end
-    return nothing
 end
 
 function println_wrapped_labeled(buf::IO, margin::AbstractString, label::AbstractString, text::AbstractString, width::Int)

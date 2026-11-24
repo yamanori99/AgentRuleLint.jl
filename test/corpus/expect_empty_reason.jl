@@ -1,3 +1,3 @@
-# jailint-expect: expect-audit reason=""
+# agentrulelint-expect: expect-audit reason=""
 
 x = "INTERNAL_CODENAME"

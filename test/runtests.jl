@@ -1,15 +1,15 @@
-using JAILint
+using AgentRuleLint
 using Test
 using Aqua
 
 const ROOT = dirname(@__DIR__)
 const CORPUS = joinpath(ROOT, "test", "corpus")
 
-@testset "JAILint" begin
+@testset "AgentRuleLint" begin
     @testset "constant folding" begin
         src = "s = \"a\" * \"b\"\n"
-        tree = JAILint.parse_source(src)
-        folds = JAILint.collect_folded_string_exprs(tree, src)
+        tree = AgentRuleLint.parse_source(src)
+        folds = AgentRuleLint.collect_folded_string_exprs(tree, src)
         vals = [f.value for f in folds]
         @test "ab" in vals
         full = only(filter(f -> f.value == "ab", folds))
@@ -19,32 +19,32 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
 
     @testset "reduce(*, strings) folding" begin
         hit = "x = reduce(*, [\"INT\", \"ERNAL_CODENAME\"])\n"
-        tree = JAILint.parse_source(hit)
-        folds = JAILint.collect_folded_string_exprs(tree, hit)
+        tree = AgentRuleLint.parse_source(hit)
+        folds = AgentRuleLint.collect_folded_string_exprs(tree, hit)
         vals = [f.value for f in folds]
         @test "INTERNAL_CODENAME" in vals
         @test "INTINT" ∉ vals
 
         miss = "x = reduce(*, [\"INT\", \"FOO\"])\n"
-        tree2 = JAILint.parse_source(miss)
-        vals2 = [f.value for f in JAILint.collect_folded_string_exprs(tree2, miss)]
+        tree2 = AgentRuleLint.parse_source(miss)
+        vals2 = [f.value for f in AgentRuleLint.collect_folded_string_exprs(tree2, miss)]
         @test "INTFOO" in vals2
         @test "INTINTFOO" ∉ vals2
     end
 
     @testset "fold step budget" begin
         src = "a = \"x\" * \"y\"\nb = \"p\" * \"q\"\nc = \"r\" * \"s\"\n"
-        tree = JAILint.parse_source(src)
-        full = JAILint.collect_folded_string_exprs(tree, src)
+        tree = AgentRuleLint.parse_source(src)
+        full = AgentRuleLint.collect_folded_string_exprs(tree, src)
         @test length(full) >= 3
         # Budget exhaustion returns folds collected so far (not an empty vector).
-        partial = JAILint.collect_folded_string_exprs(tree, src; max_steps = 15)
+        partial = AgentRuleLint.collect_folded_string_exprs(tree, src; max_steps = 15)
         @test !isempty(partial)
         @test length(partial) < length(full)
     end
 
     @testset "parse fail-closed" begin
-        @test_throws JAILint.ParseError JAILint.parse_source("x = (\n")
+        @test_throws AgentRuleLint.ParseError AgentRuleLint.parse_source("x = (\n")
     end
 
     @testset "corpus golden per file" begin
@@ -59,7 +59,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
             "reduce_star.jl" => true,
         )
         for (file, want_hit) in expect_hits
-            res = JAILint.check(ROOT; paths = [joinpath("test", "corpus", file)])
+            res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", file)])
             hits = any(
                 d -> d.rule_id == "project/no-internal-codename" && !d.suppressed,
                 res.violations,
@@ -69,7 +69,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     end
 
     @testset "expect-audit fixtures" begin
-        res = JAILint.check(ROOT; paths = [joinpath("test", "corpus")])
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
         blank = any(
             d -> d.path == "test/corpus/expect_blank_line.jl" &&
                 d.rule_id == "expect-audit" &&
@@ -97,7 +97,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
         bad = joinpath(fixtures, "syntax_error_tmp.jl")
         try
             write(bad, "x = (\n")
-            @test_throws JAILint.ParseError JAILint.check(
+            @test_throws AgentRuleLint.ParseError AgentRuleLint.check(
                 ROOT;
                 paths = [joinpath("test", "fixtures", "syntax_error_tmp.jl")],
             )
@@ -107,13 +107,13 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     end
 
     @testset "formatters" begin
-        cs = JAILint.ConfigSource()
-        d = JAILint.Violation(
+        cs = AgentRuleLint.ConfigSource()
+        d = AgentRuleLint.Violation(
             "project/test",
             :project,
             :deny,
             "test/corpus/split_string.jl",
-            JAILint.Span(1, 1, 1, 10),
+            AgentRuleLint.Span(1, 1, 1, 10),
             1,
             "v1:abc",
             :none,
@@ -122,41 +122,41 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
             "i",
             "d",
         )
-        res = JAILint.CheckResult([d], true, 1, cs, :human, 20, 0, 1)
-        @test occursin("┌ Error", JAILint.format_human(res; root = ROOT))
-        @test occursin("RULE", JAILint.format_agent(res))
-        @test occursin("\"type\":\"header\"", replace(JAILint.format_json(res), " " => ""))
+        res = AgentRuleLint.CheckResult([d], true, 1, cs, :human, 20, 0, 1)
+        @test occursin("┌ Error", AgentRuleLint.format_human(res; root = ROOT))
+        @test occursin("RULE", AgentRuleLint.format_agent(res))
+        @test occursin("\"type\":\"header\"", replace(AgentRuleLint.format_json(res), " " => ""))
     end
 
     @testset "report CLI" begin
-        res = JAILint.check(ROOT; paths = [joinpath("test", "corpus", "split_string.jl")])
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "split_string.jl")])
         d = first(filter(x -> x.rule_id == "project/no-internal-codename" && !x.suppressed, res.violations))
-        out = JAILint.format_report(d.fingerprint, d, "secret = \"x\"\n")
+        out = AgentRuleLint.format_report(d.fingerprint, d, "secret = \"x\"\n")
         @test occursin("pattern_hash", out)
         cd(ROOT) do
-            @test JAILint.cli_main(["report", d.fingerprint]) == 0
-            @test JAILint.cli_main(["report", "v1:000000000000000000000000000000000000000000"]) == 2
+            @test AgentRuleLint.cli_main(["report", d.fingerprint]) == 0
+            @test AgentRuleLint.cli_main(["report", "v1:000000000000000000000000000000000000000000"]) == 2
         end
     end
 
     @testset "CLI exit codes" begin
         cd(ROOT) do
-            @test JAILint.cli_main(["explain", "expect-audit"]) == 0
-            @test JAILint.cli_main(["check", "LICENSE"]) == 0
-            @test JAILint.cli_main(["check", "test/corpus/split_string.jl"]) == 1
-            @test JAILint.cli_main(["nope"]) == 2
+            @test AgentRuleLint.cli_main(["explain", "expect-audit"]) == 0
+            @test AgentRuleLint.cli_main(["check", "LICENSE"]) == 0
+            @test AgentRuleLint.cli_main(["check", "test/corpus/split_string.jl"]) == 1
+            @test AgentRuleLint.cli_main(["nope"]) == 2
         end
     end
 
-    @testset "CLI subprocess -m JAILint" begin
-        cmd = `julia --startup-file=no --project=$(ROOT) -m JAILint explain expect-audit`
+    @testset "CLI subprocess -m AgentRuleLint" begin
+        cmd = `julia --startup-file=no --project=$(ROOT) -m AgentRuleLint explain expect-audit`
         @test success(run(cmd))
     end
 
     @testset "config-from" begin
-        pol = JAILint.resolve_policy(ROOT; config_from = "HEAD")
+        pol = AgentRuleLint.resolve_policy(ROOT; config_from = "HEAD")
         @test pol.config_source.kind == :git_ref
-        @test_throws JAILint.GitError JAILint.resolve_policy(ROOT; config_from = "not-a-ref-zzz")
+        @test_throws AgentRuleLint.GitError AgentRuleLint.resolve_policy(ROOT; config_from = "not-a-ref-zzz")
     end
 
     include("test_expect_audit.jl")
@@ -164,7 +164,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     include("test_config_cli_fail_closed.jl")
     include("test_output_width.jl")
 
-    Aqua.test_all(JAILint)
+    Aqua.test_all(AgentRuleLint)
 
     include("test_runic_invariance.jl")
 end

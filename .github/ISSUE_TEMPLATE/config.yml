@@ -1,8 +1,8 @@
 blank_issues_enabled: false
 contact_links:
   - name: Security vulnerability (private)
-    url: https://github.com/yamanori99/JAILint.jl/security/advisories/new
+    url: https://github.com/yamanori99/AgentRuleLint.jl/security/advisories/new
     about: Report bypasses of protected-paths, --config-from, or other trust boundaries — not public issues.
   - name: Contributing guide
-    url: https://github.com/yamanori99/JAILint.jl/blob/main/CONTRIBUTING.md
-    about: How to file issues with jailint report, --format=agent, and golden corpus consent.
+    url: https://github.com/yamanori99/AgentRuleLint.jl/blob/main/CONTRIBUTING.md
+    about: How to file issues with agentrulelint report, --format=agent, and golden corpus consent.

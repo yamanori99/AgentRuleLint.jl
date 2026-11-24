@@ -44,14 +44,14 @@ body:
     id: json_header
     attributes:
       label: JSON header line
-      description: From `jailint check --format=json` if check ran; else minimal `{"type":"header","jailint_version":"..."}` you can construct.
+      description: From `agentrulelint check --format=json` if check ran; else minimal `{"type":"header","agentrulelint_version":"..."}` you can construct.
     validations:
       required: true
 
   - type: textarea
     id: config
     attributes:
-      label: Minimal .JAILintConfig.toml
+      label: Minimal .AgentRuleLintConfig.toml
       description: Redact secrets; use smallest config that reproduces the bug.
       render: shell
     validations:

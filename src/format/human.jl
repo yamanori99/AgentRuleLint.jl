@@ -26,7 +26,8 @@ function format_human(
     shown = Dict{String, Int}()
     omitted = Dict{String, Int}()
     max_hits = result.max_hits_per_rule
-    for ln in wrap_prose_lines("", "", "JAILint v$(pkgversion(JAILint)) (pos: utf8-codepoint-1based)", width)
+    banner = "AgentRuleLint v$(pkgversion(AgentRuleLint)) (pos: utf8-codepoint-1based)"
+    for ln in wrap_prose_lines("", "", banner, width)
         println(buf, ln)
     end
     println(buf)

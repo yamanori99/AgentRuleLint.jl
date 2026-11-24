@@ -1,15 +1,15 @@
-# JAILint.jl
+# AgentRuleLint.jl
 
 <!-- markdownlint-disable MD013 -->
-[![Status](https://img.shields.io/badge/status-0.1.0--DEV-orange?style=flat-square)](https://github.com/yamanori99/JAILint.jl)
+[![Status](https://img.shields.io/badge/status-0.1.0--DEV-orange?style=flat-square)](https://github.com/yamanori99/AgentRuleLint.jl)
 [![Julia 1.13+](https://img.shields.io/badge/Julia-1.13+-9558B2?style=flat-square&logo=julia&logoColor=white)](https://julialang.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](LICENSE)
 <!-- markdownlint-enable MD013 -->
 
-**JAILint.jl** (Julia Agent Invariant Linter) is a static linter and CI
-guardrail harness for Julia repositories developed with coding agents. It
-enforces repository invariants and catches shortcuts such as lint evasion,
-silent fallbacks, and weakened tests.
+**AgentRuleLint.jl** is a static linter and CI guardrail harness for Julia
+repositories worked on with AI coding agents. It enforces invariants and agent
+policy rules, and catches shortcuts such as lint evasion, silent fallbacks, and
+weakened tests.
 
 > [!NOTE]
 > **0.1.0-DEV** (not registered in General). Rules were first exercised in
@@ -19,16 +19,16 @@ silent fallbacks, and weakened tests.
 ## Quick start
 
 ```sh
-git clone https://github.com/yamanori99/JAILint.jl "$HOME/JAILint.jl"
-julia --project="$HOME/JAILint.jl" -e 'using Pkg; Pkg.instantiate()'
+git clone https://github.com/yamanori99/AgentRuleLint.jl "$HOME/AgentRuleLint.jl"
+julia --project="$HOME/AgentRuleLint.jl" -e 'using Pkg; Pkg.instantiate()'
 
 cd path/to/your/repo
-julia --project="$HOME/JAILint.jl" -m JAILint check
-julia --project="$HOME/JAILint.jl" -m JAILint check src
-julia --project="$HOME/JAILint.jl" -m JAILint explain expect-audit
+julia --project="$HOME/AgentRuleLint.jl" -m AgentRuleLint check
+julia --project="$HOME/AgentRuleLint.jl" -m AgentRuleLint check src
+julia --project="$HOME/AgentRuleLint.jl" -m AgentRuleLint explain expect-audit
 ```
 
-Place `.JAILintConfig.toml` at the repository root.
+Place `.AgentRuleLintConfig.toml` at the repository root.
 
 ## Planned scope
 

@@ -1,4 +1,4 @@
-# Immutable value types for JAILint (parse-don't-validate).
+# Immutable value types for AgentRuleLint (parse-don't-validate).
 
 struct Span
     start_line::Int
@@ -93,7 +93,7 @@ struct ProjectRule
 end
 
 struct PolicyBundle
-    jailint_version::VersionNumber
+    agentrulelint_version::VersionNumber
     default_format::Symbol
     max_hits_per_rule::Int
     presets::Vector{String}
@@ -156,7 +156,7 @@ is_fail_closed(err) =
     err isa ConfigError || err isa GitError || err isa ParseError
 
 origin_label(o::Symbol) =
-    o == :jailint ? "[JAILint]" : o == :preset ? "[Preset]" : "[Project]"
+    o == :agentrulelint ? "[AgentRuleLint]" : o == :preset ? "[Preset]" : "[Project]"
 
 rule_display_id(r::RuleSpec) = r.id
 project_rule_id(pr::ProjectRule) = "project/$(pr.id)"
