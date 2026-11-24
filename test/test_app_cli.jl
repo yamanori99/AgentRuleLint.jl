@@ -8,6 +8,14 @@ function _run_capture(cmd::Cmd)
     return proc.exitcode, String(take!(stdout)), String(take!(stderr))
 end
 
+# Discard one child run so measured stdout/stderr are not polluted by Julia's
+# package precompile progress (see `Base.precompilepkgs` in Julia `precompilation.jl`,
+# which writes summary lines such as "Precompiling …" to `io`, defaulting to `stderr`).
+function _warmup_capture(cmd::Cmd)
+    _run_capture(cmd)
+    return nothing
+end
+
 function _module_cmd(args::Vector{String})
     return Cmd(
         vcat(
@@ -31,7 +39,9 @@ end
     project_toml_before = read(_PROJECT_TOML)
 
     cd(_APP_ROOT) do
-        code_m, out_m, err_m = _run_capture(_module_cmd(args))
+        module_cmd = _module_cmd(args)
+        _warmup_capture(module_cmd)
+        code_m, out_m, err_m = _run_capture(module_cmd)
         code_cli = AgentRuleLint.cli_main(args)
         @test code_cli == code_m
 
@@ -63,6 +73,7 @@ end
                 "JULIA_DEPOT_PATH" => depot,
                 "JULIA_LOAD_PATH" => "@:@stdlib",
             )
+            _warmup_capture(app_cmd)
             code_app, out_app, err_app = _run_capture(app_cmd)
 
             @test code_app == code_m
@@ -77,4 +88,15 @@ end
     end
 
     @test read(_PROJECT_TOML) == project_toml_before
+end
+
+@testset "Pkg app child stderr comparison strictness" begin
+    args = ["check", "test/corpus"]
+    module_cmd = _module_cmd(args)
+    _warmup_capture(module_cmd)
+    _, _, err_a = _run_capture(module_cmd)
+    _, _, err_b = _run_capture(module_cmd)
+    # Identical back-to-back captures: precompile noise would often make these differ.
+    @test err_a == err_b
+    @test !("cli stderr marker\n" == "other stderr marker\n")
 end
