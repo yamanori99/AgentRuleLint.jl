@@ -2,7 +2,7 @@
 # Idempotent Runic + JETLS install. A person runs it, or `.cursor/install.sh` runs it at cloud VM startup.
 # An agent does not start it unless the person asked. OS and CURSOR_AGENT do not grant that.
 # On Linux, the shellcheck package comes from apt.
-# Runic pin: .cursor/agent-pins/runic/Project.toml [compat]. JETLS: .cursor/agent-pins/jetls-rev.
+# Runic pin: .github/runic/Project.toml [compat]. JETLS: .github/jetls-rev.
 # actionlint / zizmor / pinact: .github/actions-lint.env (CI reads the same file).
 # Julia 1.13 is `julia +1.13` on PATH, or a 1.13 julia already on PATH. No fixed install path.
 #
@@ -13,8 +13,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=../scripts/section.sh
 source "${ROOT}/scripts/section.sh"
-JETLS_REV_FILE="${ROOT}/.cursor/agent-pins/jetls-rev"
-RUNIC_COMPAT="${ROOT}/.cursor/agent-pins/runic/Project.toml"
+JETLS_REV_FILE="${ROOT}/.github/jetls-rev"
+RUNIC_COMPAT="${ROOT}/.github/runic/Project.toml"
 RUNIC_UUID="62bfec6d-59d7-401d-8490-b29ee721c001"
 
 runic_pin_from_compat() {
@@ -151,6 +151,15 @@ jetls_manifest_ok() {
   grep -q 'JETLSCore' "${manifest}"
 }
 
+jetls_rev_at_pin() {
+  local project="${DEPOT}/environments/apps/JETLS/Project.toml"
+  [[ -f "${project}" ]] || return 1
+  local ver
+  ver="$(sed -n -E 's/^version = "([^"]+)".*/\1/p' "${project}" | head -1)"
+  local want="${jetls_rev//-/.}"
+  [[ "${ver}" == "${want}" ]]
+}
+
 runic_shared_ok() {
   julia_tool "
     using Pkg
@@ -227,7 +236,7 @@ fi
 section "install-agent-tools: runic ok"
 
 section "install-agent-tools: jetls ${jetls_rev}"
-if jetls_app_ok && jetls_manifest_ok; then
+if jetls_app_ok && jetls_manifest_ok && jetls_rev_at_pin; then
   echo "install-agent-tools: jetls already installed (rev=${jetls_rev})"
 else
   echo "install-agent-tools: installing JETLS rev=${jetls_rev}"

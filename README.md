@@ -18,14 +18,17 @@ silent fallbacks, and weakened tests.
 
 ## Quick start
 
-```bash
-julia --startup-file=no --project=. -m JAILint check
-julia --startup-file=no --project=. -m JAILint check src --format=agent
-julia --startup-file=no --project=. -m JAILint explain expect-audit
+```sh
+git clone https://github.com/yamanori99/JAILint.jl "$HOME/JAILint.jl"
+julia --project="$HOME/JAILint.jl" -e 'using Pkg; Pkg.instantiate()'
+
+cd path/to/your/repo
+julia --project="$HOME/JAILint.jl" -m JAILint check
+julia --project="$HOME/JAILint.jl" -m JAILint check src
+julia --project="$HOME/JAILint.jl" -m JAILint explain expect-audit
 ```
 
-Place `.JAILintConfig.toml` at the repository root; optional per-rule caps
-live in `.jailint/ceilings.toml` (updated via `jailint ratchet --write`).
+Place `.JAILintConfig.toml` at the repository root.
 
 ## Planned scope
 

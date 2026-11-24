@@ -92,11 +92,9 @@ jobs:
         id: jetls-rev
         run: |
           set -euo pipefail
-          rev="$(grep -E -m 1 -o 'rev="[0-9]{4}-[0-9]{2}-[0-9]{2}"' .github/actions/jetls-check/action.yml || true)"
-          rev="${rev#rev=\"}"
-          rev="${rev%\"}"
+          rev="$(tr -d '[:space:]' < .github/jetls-rev)"
           if [[ ! "${rev}" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
-            echo "jetls job: date pin missing in .github/actions/jetls-check/action.yml" >&2
+            echo "jetls job: date pin missing or invalid in .github/jetls-rev" >&2
             exit 1
           fi
           echo "rev=${rev}" >> "${GITHUB_OUTPUT}"
@@ -135,7 +133,7 @@ jobs:
           key: ${{ steps.jetls-depot-cache.outputs.cache-primary-key }}
 
   test-pre:
-    name: JAILint (Julia 1.14-pre, ubuntu-latest, x64)
+    name: Pkg.test (Julia 1.14-pre, ubuntu-latest, x64)
     continue-on-error: true
     needs: [runic, aqua, jetls]
     runs-on: ubuntu-latest
@@ -164,7 +162,7 @@ jobs:
         run: julia --startup-file=no --project=. --color=yes -e 'using Pkg; Pkg.test()'
 
   test:
-    name: JAILint (Julia 1.13, ubuntu-latest, x64)
+    name: Pkg.test (Julia 1.13, ubuntu-latest, x64)
     needs: [runic, aqua, jetls]
     runs-on: ubuntu-latest
     timeout-minutes: 30

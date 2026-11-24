@@ -16,7 +16,7 @@ description: >
 ## Allowed fixes
 
 - Correct the code to satisfy the invariant the check encodes.
-- Fix pins only via the canonical files (`.github/runic/Project.toml` and `.github/actions/jetls-check/action.yml` after the core PR lands; until then `.cursor/agent-pins/`; workflow tools in `.github/actions-lint.env`).
+- Fix pins only via the canonical files (`.github/runic/Project.toml`, `.github/jetls-rev`; workflow tools in `.github/actions-lint.env`).
 - Update tests and corpus when behavior intentionally changes.
 
 ## Forbidden shortcuts
