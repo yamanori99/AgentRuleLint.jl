@@ -102,6 +102,69 @@ function git_diff_name_status(root::AbstractString, base::AbstractString)
     return unique(out)
 end
 
+struct GitDiffRename
+    old_path::String
+    new_path::String
+end
+
+"""All diff paths plus rename old→new pairs (git name-status -z)."""
+function git_diff_paths_and_renames(root::AbstractString, base::AbstractString)
+    root = _git_root(root)
+    base = verify_diff_base_ref(root, base)
+    cmd = Cmd(
+        [
+            "git",
+            "-C",
+            root,
+            "diff",
+            "-z",
+            "--no-ext-diff",
+            "--no-textconv",
+            "--name-status",
+            "--end-of-options",
+            base,
+        ],
+    )
+    bytes = try
+        read(cmd)
+    catch err
+        err isa InterruptException && rethrow()
+        throw(GitError("git diff failed for base=$(base)"))
+    end
+    entries = Tuple{Char, String}[]
+    renames = GitDiffRename[]
+    isempty(bytes) && return entries, renames
+    parts = split(String(bytes), '\0'; keepempty = false)
+    i = 1
+    while i <= length(parts)
+        status = parts[i]
+        i += 1
+        if status[1] == 'R' && i + 1 <= length(parts)
+            old_path = normalize_path(parts[i])
+            i += 1
+            new_path = normalize_path(parts[i])
+            i += 1
+            push!(entries, ('R', new_path))
+            push!(renames, GitDiffRename(old_path, new_path))
+        elseif status[1] in ('A', 'M', 'D', 'C', 'T') && i <= length(parts)
+            path = normalize_path(parts[i])
+            i += 1
+            push!(entries, (status[1], path))
+        else
+            continue
+        end
+    end
+    renames_out = GitDiffRename[]
+    seen_rename = Set{Tuple{String, String}}()
+    for r in renames
+        key = (r.old_path, r.new_path)
+        key in seen_rename && continue
+        push!(seen_rename, key)
+        push!(renames_out, r)
+    end
+    return unique(entries), renames_out
+end
+
 const _HUNK_RE = r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@"
 
 function _parse_unified_hunks(body::AbstractString)
@@ -207,11 +270,22 @@ function violation_on_changed_lines(d::Violation, changed::Set{Int})
     return d.anchor_line in changed
 end
 
+function _keep_deleted_test_integrity(d::Violation, status::Char)
+    d.rule_id != "test-integrity" && return false
+    status != 'D' && return false
+    p = normalize_path(d.path)
+    return p == "test/runtests.jl" || startswith(p, "test/")
+end
+
 function filter_diff_violations!(diags::Vector{Violation}, scope::DiffScope)
     out = Violation[]
     for d in diags
         st = diff_path_status(scope, d.path)
-        st == 'D' && continue
+        if st == 'D'
+            _keep_deleted_test_integrity(d, st) || continue
+            push!(out, d)
+            continue
+        end
         changed = diff_changed_lines(scope, d.path)
         violation_on_changed_lines(d, changed) || continue
         push!(out, d)

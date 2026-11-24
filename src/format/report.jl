@@ -119,6 +119,10 @@ function explain_rule(id::AbstractString)
         (5) `exit(...)` or `Base.exit(...)` in `test/runtests.jl` or a statically included test file;
         (6) in `--diff` mode, literal `atol`/`rtol` loosening in `isapprox`/`≈` vs base (named tolerance constants are a known blind spot).
 
+        Diff deletion checks flag removed `test/runtests.jl` or included test files still listed in the base driver; a rename plus a matching `include` update for the new path in the same diff is allowed.
+
+        `isapprox` pairing uses `@testset` name (or `<toplevel>`), per–testset ordinal for identical positional shapes, and a normalized positional-argument signature. Unpaired calls are skipped (no guess).
+
         Does not count static `@test` totals (refactor false positives). Always-failing tests remain JETLS / the test runner's job.
         """
     elseif startswith(id, "project/")

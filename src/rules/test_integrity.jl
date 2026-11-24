@@ -13,7 +13,10 @@ struct RuntestsEntry
 end
 
 struct ApproxTolSnapshot
-    index::Int
+    testset::String
+    arg_sig::String
+    within_testset::Int
+    pairing_key::String
     line::Int
     byte_start::Int
     byte_end::Int
@@ -369,6 +372,29 @@ function _parse_kw_tolerance(parameters_node::GreenNode, src::AbstractString, po
     return atol, rtol
 end
 
+function _approx_arg_signature(node::GreenNode, src::AbstractString, pos::Int)
+    summary(node) == "call" || return ""
+    parts = String[]
+    seen_callee = false
+    for (c, cp) in _child_positions(node, pos)[1]
+        JuliaSyntax.is_trivia(head(c)) && continue
+        summary(c) == "parameters" && break
+        if !seen_callee
+            seen_callee = true
+            continue
+        end
+        s = summary(c)
+        if s in ("Float", "Integer", "Identifier", "string", "Bool")
+            push!(parts, s * ":" * _node_text_trim(c, src, cp))
+        elseif s == "call" || s == "."
+            push!(parts, _node_text_trim(c, src, cp))
+        else
+            push!(parts, s)
+        end
+    end
+    return join(parts, ",")
+end
+
 function _call_is_approx(node::GreenNode, src::AbstractString, pos::Int)
     s = summary(node)
     s == "call" || return false
@@ -381,8 +407,21 @@ function _call_is_approx(node::GreenNode, src::AbstractString, pos::Int)
     return false
 end
 
-function _walk_approx_snaps!(out::Vector{ApproxTolSnapshot}, node::GreenNode, pos::Int, src::AbstractString)
+function _walk_approx_snaps!(
+        out::Vector{ApproxTolSnapshot},
+        node::GreenNode,
+        pos::Int,
+        src::AbstractString,
+        testset::String,
+        ordinals::Dict{Tuple{String, String}, Int},
+    )
     if _call_is_approx(node, src, pos)
+        arg_sig = _approx_arg_signature(node, src, pos)
+        isempty(arg_sig) && return nothing
+        bucket = (testset, arg_sig)
+        ordinals[bucket] = get(ordinals, bucket, 0) + 1
+        within = ordinals[bucket]
+        pairing_key = "$(testset)\0$(within)\0$(arg_sig)"
         atol = nothing
         rtol = nothing
         for (c, cp) in _child_positions(node, pos)[1]
@@ -390,17 +429,43 @@ function _walk_approx_snaps!(out::Vector{ApproxTolSnapshot}, node::GreenNode, po
             atol, rtol = _parse_kw_tolerance(c, src, cp)
         end
         sp = span_from_byte_range(src, pos, pos + span(node) - 1)
-        push!(out, ApproxTolSnapshot(length(out) + 1, sp.start_line, pos, pos + span(node) - 1, atol, rtol))
+        push!(
+            out,
+            ApproxTolSnapshot(
+                testset,
+                arg_sig,
+                within,
+                pairing_key,
+                sp.start_line,
+                pos,
+                pos + span(node) - 1,
+                atol,
+                rtol,
+            ),
+        )
+    end
+    if summary(node) == "macrocall" && _macrocall_name(node, src, pos) == "testset"
+        args, argpos = _macrocall_args(node, pos)
+        child_ts = ""
+        if !isempty(args)
+            lit = _folded_string_arg(args[1], src, argpos[1])
+            lit !== nothing && (child_ts = lit)
+        end
+        for (c, cp) in _child_positions(node, pos)[1]
+            JuliaSyntax.is_trivia(head(c)) || _walk_approx_snaps!(out, c, cp, src, child_ts, ordinals)
+        end
+        return nothing
     end
     for (c, cp) in _child_positions(node, pos)[1]
-        JuliaSyntax.is_trivia(head(c)) || _walk_approx_snaps!(out, c, cp, src)
+        JuliaSyntax.is_trivia(head(c)) || _walk_approx_snaps!(out, c, cp, src, testset, ordinals)
     end
     return nothing
 end
 
 function _collect_approx_tolerances(tree::GreenNode, src::AbstractString)::Vector{ApproxTolSnapshot}
     out = ApproxTolSnapshot[]
-    _walk_approx_snaps!(out, tree, 1, src)
+    ordinals = Dict{Tuple{String, String}, Int}()
+    _walk_approx_snaps!(out, tree, 1, src, "<toplevel>", ordinals)
     return out
 end
 
@@ -443,12 +508,15 @@ function _diff_test_skip_broken!(
         base_ref::AbstractString,
     )
     sha = git_resolve_commit_sha(root, base_ref)
-    git_tree_path_exists(root, sha, path) || return
     head_tree = parse_source(head_src; filename = path)
     counts = _count_macro_ops(head_tree, head_src, _SKIP_BROKEN_MACROS)
-    base_src = git_show_blob_at_commit(root, sha, path)
-    base_tree = parse_source(base_src; filename = path)
-    base_counts = _count_macro_ops(base_tree, base_src, _SKIP_BROKEN_MACROS)
+    base_counts = if git_tree_path_exists(root, sha, path)
+        base_src = git_show_blob_at_commit(root, sha, path)
+        base_tree = parse_source(base_src; filename = path)
+        _count_macro_ops(base_tree, base_src, _SKIP_BROKEN_MACROS)
+    else
+        Dict(m => 0 for m in _SKIP_BROKEN_MACROS)
+    end
     for m in _SKIP_BROKEN_MACROS
         get(counts, m, 0) <= get(base_counts, m, 0) && continue
         ln, b0, b1 = _first_macro_line(head_tree, head_src, m)
@@ -510,11 +578,14 @@ function _diff_approx_tolerances!(
     base_tree = parse_source(base_src; filename = path)
     head_snaps = _collect_approx_tolerances(head_tree, head_src)
     base_snaps = _collect_approx_tolerances(base_tree, base_src)
-    base_by_idx = Dict(s.index => s for s in base_snaps)
+    base_by_key = Dict{String, ApproxTolSnapshot}()
+    for s in base_snaps
+        !haskey(base_by_key, s.pairing_key) && (base_by_key[s.pairing_key] = s)
+    end
     for snap in head_snaps
-        on_changed = any(ln -> ln in changed, snap.line:snap.line)
+        on_changed = snap.line in changed
         !on_changed && continue
-        base = get(base_by_idx, snap.index, nothing)
+        base = get(base_by_key, snap.pairing_key, nothing)
         base === nothing && continue
         loosen = _tol_grew(base.atol, snap.atol) || _tol_grew(base.rtol, snap.rtol)
         loosen || continue
@@ -529,6 +600,194 @@ function _diff_approx_tolerances!(
         )
     end
     return nothing
+end
+
+function _normalize_test_include_path(path::AbstractString)
+    p = normalize_path(path)
+    !startswith(p, "test/") && (p = "test/" * lstrip(p, '/'))
+    return p
+end
+
+function _include_paths_match(a::AbstractString, b::AbstractString)
+    return _normalize_test_include_path(a) == _normalize_test_include_path(b)
+end
+
+function _head_runtests_normalized(contexts::Vector{FileContext}, root::AbstractString)
+    for fc in contexts
+        fc.parsed.path == RUNTESTS_REL && return fc.parsed.normalized
+    end
+    ap = joinpath(abspath(root), RUNTESTS_REL)
+    isfile(ap) || return ""
+    return normalize_source(read(ap, String))
+end
+
+function _base_runtests_include_set(root::AbstractString, sha::AbstractString)
+    git_tree_path_exists(root, sha, RUNTESTS_REL) || return Set{String}()
+    base_src = git_show_blob_at_commit(root, sha, RUNTESTS_REL)
+    return Set(_normalize_test_include_path(p) for p in literal_include_graph(base_src) if p != RUNTESTS_REL)
+end
+
+function _head_runtests_include_set(head_src::AbstractString)
+    isempty(head_src) && return Set{String}()
+    return Set(_normalize_test_include_path(p) for p in literal_include_graph(head_src) if p != RUNTESTS_REL)
+end
+
+function _diff_anchor_for_deleted(diff_scope::DiffScope, contexts::Vector{FileContext}, root::AbstractString)
+    for f in diff_scope.files
+        f.status in ('A', 'M') || continue
+        startswith(f.path, "test/") || continue
+        for fc in contexts
+            fc.parsed.path == f.path && return (f.path, fc.parsed.normalized)
+        end
+    end
+    for fc in contexts
+        fc.parsed.path == RUNTESTS_REL && return (RUNTESTS_REL, fc.parsed.normalized)
+    end
+    ap = joinpath(abspath(root), RUNTESTS_REL)
+    isfile(ap) && return (RUNTESTS_REL, normalize_source(read(ap, String)))
+    for f in diff_scope.files
+        f.status in ('A', 'M') && return (f.path, "")
+    end
+    return (RUNTESTS_REL, "")
+end
+
+function _push_deleted_test_file!(
+        diags::Vector{Violation},
+        policy::PolicyBundle,
+        anchor_path::String,
+        anchor_src::AbstractString,
+        diff_scope::DiffScope,
+        deleted_rel::String,
+        msg::String,
+    )
+    lvl = _test_integrity_level(policy)
+    lvl == :allow && return nothing
+    intent, do_not = _test_integrity_spec(policy)
+    report_path = _normalize_test_include_path(deleted_rel)
+    if report_path != _normalize_test_include_path(RUNTESTS_REL) && !isempty(anchor_src)
+        changed = diff_changed_lines(diff_scope, anchor_path)
+        line = isempty(changed) ? 1 : minimum(changed)
+        if anchor_path == RUNTESTS_REL
+            key = replace(basename(deleted_rel), "\\" => "/")
+            keyq = "\"$key\""
+            for (i, ln) in enumerate(split(anchor_src, '\n'; keepempty = true))
+                occursin("include", ln) && occursin(keyq, ln) && (line = i; break)
+            end
+        end
+        b0, _, stop = line_byte_span(anchor_src, line)
+        le = stop > b0 ? stop - 1 : b0
+        b1 = min(le, ncodeunits(anchor_src))
+        b1 < b0 && (b1 = min(4, ncodeunits(anchor_src)); b0 = 1)
+        sp = span_from_byte_range(anchor_src, b0, b1)
+        push!(
+            diags,
+            Violation(
+                TEST_INTEGRITY_RULE,
+                :agentrulelint,
+                lvl,
+                report_path,
+                sp,
+                sp.start_line,
+                "",
+                :none,
+                false,
+                msg,
+                intent,
+                do_not,
+            ),
+        )
+        return nothing
+    end
+    push!(
+        diags,
+        Violation(
+            TEST_INTEGRITY_RULE,
+            :agentrulelint,
+            lvl,
+            report_path,
+            Span(),
+            0,
+            "",
+            :none,
+            false,
+            msg,
+            intent,
+            do_not,
+        ),
+    )
+    return nothing
+end
+
+function _rename_covers_include(old_rel::String, head_includes::Set{String}, renames::Vector{GitDiffRename})
+    for r in renames
+        _include_paths_match(r.old_path, old_rel) || continue
+        new_rel = _normalize_test_include_path(r.new_path)
+        new_rel in head_includes && return true
+        any(inc -> _include_paths_match(inc, new_rel), head_includes) && return true
+    end
+    return false
+end
+
+function _diff_deleted_test_files!(
+        policy::PolicyBundle,
+        root::AbstractString,
+        diff_base::AbstractString,
+        diff_scope::DiffScope,
+        contexts::Vector{FileContext},
+        renames::Vector{GitDiffRename},
+    )
+    diags = Violation[]
+    sha = git_resolve_commit_sha(root, diff_base)
+    anchor_path, anchor_src = _diff_anchor_for_deleted(diff_scope, contexts, root)
+    head_rt = _head_runtests_normalized(contexts, root)
+    head_includes = _head_runtests_include_set(head_rt)
+    base_includes = _base_runtests_include_set(root, sha)
+
+    for f in diff_scope.files
+        if f.path == RUNTESTS_REL && f.status == 'D'
+            _push_deleted_test_file!(
+                diags,
+                policy,
+                anchor_path,
+                anchor_src,
+                diff_scope,
+                RUNTESTS_REL,
+                "deleted test/runtests.jl in diff",
+            )
+        end
+    end
+
+    deleted_paths = Set{String}()
+    for f in diff_scope.files
+        f.status == 'D' || continue
+        startswith(f.path, "test/") || continue
+        push!(deleted_paths, _normalize_test_include_path(f.path))
+    end
+    for r in renames
+        push!(deleted_paths, _normalize_test_include_path(r.old_path))
+    end
+
+    for rel in deleted_paths
+        rel == _normalize_test_include_path(RUNTESTS_REL) && continue
+        _rename_covers_include(rel, head_includes, renames) && continue
+        covered = false
+        for base_inc in base_includes
+            _include_paths_match(base_inc, rel) || continue
+            covered = true
+            break
+        end
+        covered || continue
+        _push_deleted_test_file!(
+            diags,
+            policy,
+            anchor_path,
+            anchor_src,
+            diff_scope,
+            rel,
+            "deleted test file still referenced from base test/runtests.jl: $rel",
+        )
+    end
+    return diags
 end
 
 function run_test_integrity(
@@ -563,6 +822,10 @@ function run_test_integrity(
     diff_base === nothing && return diags
 
     sha = git_resolve_commit_sha(root, diff_base)
+    if diff_scope !== nothing
+        _, renames = git_diff_paths_and_renames(root, diff_base)
+        append!(diags, _diff_deleted_test_files!(policy, root, diff_base, diff_scope, contexts, renames))
+    end
     for fc in contexts
         path = fc.parsed.path
         !_under_test_tree(path) && continue
