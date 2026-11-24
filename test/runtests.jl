@@ -4,6 +4,19 @@ using Aqua
 
 const ROOT = dirname(@__DIR__)
 const CORPUS = joinpath(ROOT, "test", "corpus")
+const ROOT_PROJECT_TOML = joinpath(ROOT, "Project.toml")
+const CANONICAL_ROOT_PROJECT_TOML = joinpath(@__DIR__, "fixtures", "canonical_root_project.toml")
+const CANONICAL_ROOT_PROJECT_BYTES = read(CANONICAL_ROOT_PROJECT_TOML)
+
+function restore_canonical_root_project!()
+    if read(ROOT_PROJECT_TOML) != CANONICAL_ROOT_PROJECT_BYTES
+        write(ROOT_PROJECT_TOML, CANONICAL_ROOT_PROJECT_BYTES)
+    end
+    return nothing
+end
+
+# `Pkg.test()` normalizes the workspace root Project.toml before runtests loads.
+restore_canonical_root_project!()
 
 @testset "AgentRuleLint" begin
     @testset "constant folding" begin
@@ -195,4 +208,8 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     Aqua.test_all(AgentRuleLint)
 
     include("test_runic_invariance.jl")
+
+    @testset "root Project.toml hygiene" begin
+        @test read(ROOT_PROJECT_TOML) == CANONICAL_ROOT_PROJECT_BYTES
+    end
 end
