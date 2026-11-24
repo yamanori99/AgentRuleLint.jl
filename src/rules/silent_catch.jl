@@ -49,7 +49,8 @@ function run_silent_catch(fc::FileContext, policy::PolicyBundle)
         swallows = catch_swallows_exception(
             body,
             site.catch_body_pos,
-            source;
+            source,
+            site.catch_var;
             warn_counts_as_handling = warn_counts,
         )
         swallows || continue
