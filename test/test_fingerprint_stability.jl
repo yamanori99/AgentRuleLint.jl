@@ -1,13 +1,12 @@
-using JAILint
 using Test
 
 const ROOT = dirname(@__DIR__)
 
-function violation_fps(res::JAILint.CheckResult, pred)
+function violation_fps(res::CheckResult, pred)
     return [d.fingerprint for d in res.violations if pred(d)]
 end
 
-function sole_fp(res::JAILint.CheckResult, pred)
+function sole_fp(res::CheckResult, pred)
     fps = violation_fps(res, pred)
     length(fps) == 1 || error("expected one fingerprint, got $(length(fps))")
     return only(fps)
