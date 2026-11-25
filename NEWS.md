@@ -16,13 +16,21 @@ Migrate by choosing an explicit level, for example:
 on_allow_rule = "forbid"
 ```
 
-### Fold-budget exhaustion is `analysis-incomplete` (not exit 3)
+### **[CI-breaking]** Fold-budget exhaustion is `analysis-incomplete` (not exit 3)
 
 Constant-fold step-budget exhaustion (`FoldBudgetExceeded`) emits the built-in
 integrity rule `analysis-incomplete` (`:forbid`, never expect-suppressible) with
-message `analysis incomplete: constant-fold budget exceeded in <file>`. Project-rule
-literal folding, shell-safety Cmd folding, and test-integrity `@test` folding share
-this rule. It no longer maps to an internal-error exit code.
+message `analysis incomplete: constant-fold budget exceeded in <file> (<analyzer>)`.
+Project-rule literal folding, shell-safety Cmd folding, and test-integrity `@test`
+folding share this rule (at most one finding per file). It no longer maps to an
+internal-error exit code.
+
+Migrate notes:
+
+- Project rules that previously truncated folding silently now fail CI with a
+  `forbid` finding when the budget is exhausted.
+- test-integrity's former `deny` "too complex to verify" finding could be
+  suppressed with a reasoned expect; `analysis-incomplete` cannot.
 
 ### InternalError retains backtrace
 

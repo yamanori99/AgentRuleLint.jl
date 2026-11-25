@@ -102,8 +102,9 @@ function _run_project_rules_julia!(
             )
         end
     end
-    if collected.budget_exceeded && !any(is_analysis_incomplete, diags)
-        push_analysis_incomplete!(diags, policy, path, source, 1, 1)
+    if collected.budget_exceeded
+        at = max(1, collected.at_byte)
+        push_analysis_incomplete!(diags, policy, path, source, at, at, rule_id)
     end
     return nothing
 end

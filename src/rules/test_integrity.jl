@@ -303,6 +303,7 @@ function _walk_test_integrity_node!(
                         source,
                         pos,
                         pos + span(node) - 1,
+                        TEST_INTEGRITY_RULE,
                     )
                 end
             end

@@ -24,7 +24,7 @@
             "",
             :none,
             false,
-            AgentRuleLint.analysis_incomplete_message("f.jl"),
+            AgentRuleLint.analysis_incomplete_message("f.jl", "project/no-pad"),
             "i",
             "d",
         )
@@ -66,14 +66,24 @@
             write(joinpath(root, "padded.jl"), "x = $pad\ny = \"SECRET_PAD\"\n")
             res = AgentRuleLint.check(root; paths = ["padded.jl"])
             incomplete = filter(AgentRuleLint.is_analysis_incomplete, res.violations)
-            @test !isempty(incomplete)
-            @test all(d -> d.level == :forbid && !d.suppressed, incomplete)
-            @test all(d -> d.rule_id == AgentRuleLint.ANALYSIS_INCOMPLETE_RULE, incomplete)
-            @test res.exit_code != 3
+            @test length(incomplete) == 1
+            @test incomplete[1].level == :forbid && !incomplete[1].suppressed
+            @test occursin("(project/no-pad)", incomplete[1].message)
             @test res.exit_code == 1
         finally
             rm(root, recursive = true, force = true)
         end
+    end
+
+    @testset "one analysis-incomplete finding per file" begin
+        path = joinpath("test", "corpus", "test_integrity_fold_budget.jl")
+        res = AgentRuleLint.check(ROOT; paths = [path])
+        incomplete = filter(
+            d -> AgentRuleLint.is_analysis_incomplete(d) && endswith(string(d.path), "test_integrity_fold_budget.jl"),
+            res.violations,
+        )
+        @test length(incomplete) == 1
+        @test occursin(r"\((project/no-internal-codename|test-integrity)\)", incomplete[1].message)
     end
 
     @testset "level cannot be weakened" begin

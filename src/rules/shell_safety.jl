@@ -120,7 +120,16 @@ function diagnose_shell_safety(fc::FileContext, policy::PolicyBundle, eff_level:
         )
     end
     if collected.budget_exceeded
-        push_analysis_incomplete!(diags, policy, fc.parsed.path, source, 1, 1)
+        at = max(1, collected.at_byte)
+        push_analysis_incomplete!(
+            diags,
+            policy,
+            fc.parsed.path,
+            source,
+            at,
+            at,
+            "shell-safety/process-pattern",
+        )
     end
     return diags
 end

@@ -333,14 +333,8 @@ end
 
 function _inject_builtin_rules!(rules::Dict{String, RuleSpec})
     if get(rules, ANALYSIS_INCOMPLETE_RULE, nothing) === nothing
-        rules[ANALYSIS_INCOMPLETE_RULE] = RuleSpec(
-            ANALYSIS_INCOMPLETE_RULE,
-            :agentrulelint,
-            :forbid,
-            "Fail closed when static analysis cannot finish (constant-fold budget).",
-            "Pad files with enough folds to exhaust the budget and hide later findings, or suppress the incomplete diagnostic.",
-            Dict{Symbol, String}(),
-        )
+        # `ANALYSIS_INCOMPLETE_RULE_DEF` is defined later in the module; resolved at call time.
+        rules[ANALYSIS_INCOMPLETE_RULE] = rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF)
     end
     if get(rules, PROTECTED_PATHS_RULE, nothing) === nothing
         rules[PROTECTED_PATHS_RULE] = RuleSpec(
@@ -596,14 +590,8 @@ end
 function default_policy(root::AbstractString)
     ver = AGENTRULELINT_VERSION
     rules = Dict{String, RuleSpec}(
-        ANALYSIS_INCOMPLETE_RULE => RuleSpec(
-            ANALYSIS_INCOMPLETE_RULE,
-            :agentrulelint,
-            :forbid,
-            "Fail closed when static analysis cannot finish (constant-fold budget).",
-            "Pad files with enough folds to exhaust the budget and hide later findings, or suppress the incomplete diagnostic.",
-            Dict{Symbol, String}(),
-        ),
+        # `ANALYSIS_INCOMPLETE_RULE_DEF` is defined later in the module; resolved at call time.
+        ANALYSIS_INCOMPLETE_RULE => rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF),
         "expect-audit" => RuleSpec(
             "expect-audit",
             :agentrulelint,

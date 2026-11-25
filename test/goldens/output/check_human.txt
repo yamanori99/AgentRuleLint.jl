@@ -1,30 +1,20 @@
 AgentRuleLint v0.1.0-DEV (policy bundle base: .AgentRuleLintConfig.toml, pos:
 utf8-line-col)
 
-┌ Error: [AgentRuleLint] analysis-incomplete [forbid] (4 violations, ceiling 0)
+┌ Error: [AgentRuleLint] analysis-incomplete [forbid] (2 violations, ceiling 0)
 │   intent: Fail closed when static analysis cannot finish (constant-fold
 │           budget).
 │   do_not: Pad files with enough folds to exhaust the budget and hide later
 │           findings, or suppress the incomplete diagnostic.
 │
-│   test/corpus/test_integrity_fold_budget.jl
+│   test/corpus/test_integrity_fold_budget.jl:2:31988-2:31988
 │     analysis incomplete: constant-fold budget exceeded in
-│     test/corpus/test_integrity_fold_budget.jl
-│     > # Long == chain exceeds FOLD_MAX_STEPS (16000); trivial if fully folded…
-│       ~
-│   test/corpus/test_integrity_fold_budget.jl:2:1-2:128042
-│     analysis incomplete: constant-fold budget exceeded in
-│     test/corpus/test_integrity_fold_budget.jl
+│     test/corpus/test_integrity_fold_budget.jl (project/no-internal-codename)
 │     > @test true == true == true == true == true == true == true == true == t…
-│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-│   test/corpus/test_integrity_fold_budget_const.jl
-│     analysis incomplete: constant-fold budget exceeded in
-│     test/corpus/test_integrity_fold_budget_const.jl
-│     > # Const initializer exceeds fold step budget; dependent @test fails clo…
-│       ~
+│                                                                             ~
 │   test/corpus/test_integrity_fold_budget_const.jl:3:1-3:9
 │     analysis incomplete: constant-fold budget exceeded in
-│     test/corpus/test_integrity_fold_budget_const.jl
+│     test/corpus/test_integrity_fold_budget_const.jl (test-integrity)
 │     > @test BIG
 │       ~~~~~~~~~
 └ @ AgentRuleLint (run `agentrulelint explain analysis-incomplete` for details)
@@ -359,5 +349,5 @@ utf8-line-col)
 │                      ~~~~
 └ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
 
-Summary: 74 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED
+Summary: 72 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED
 (exit 1)

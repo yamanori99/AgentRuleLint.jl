@@ -134,6 +134,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
             diff_scope = diff_scope,
         ),
     )
+    all_diags = dedupe_analysis_incomplete!(all_diags)
 
     used_total = Set{Int}()
     for (fc, rel) in zip(contexts, rel_files)

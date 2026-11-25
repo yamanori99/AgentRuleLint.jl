@@ -3,8 +3,8 @@
 
 const ANALYSIS_INCOMPLETE_MSG_PREFIX = "analysis incomplete: constant-fold budget exceeded"
 
-function analysis_incomplete_message(path::AbstractString)
-    return "$ANALYSIS_INCOMPLETE_MSG_PREFIX in $path"
+function analysis_incomplete_message(path::AbstractString, analyzer::AbstractString)
+    return "$ANALYSIS_INCOMPLETE_MSG_PREFIX in $path ($analyzer)"
 end
 
 function is_analysis_incomplete(d::Violation)
@@ -21,7 +21,11 @@ function _analysis_incomplete_docs(policy::PolicyBundle)
     return intent, do_not
 end
 
-"""Push a `:forbid` `analysis-incomplete` finding (constant-fold budget exhaustion)."""
+"""Push a `:forbid` `analysis-incomplete` finding (constant-fold budget exhaustion).
+
+`analyzer` names the folding call site (e.g. `project/<id>`, `test-integrity`,
+`shell-safety/process-pattern`). Skips if `diags` already has a finding for `path`.
+"""
 function push_analysis_incomplete!(
         diags::Vector{Violation},
         policy::PolicyBundle,
@@ -29,7 +33,9 @@ function push_analysis_incomplete!(
         source::AbstractString,
         byte_start::Int,
         byte_end::Int,
+        analyzer::AbstractString,
     )
+    any(d -> is_analysis_incomplete(d) && d.path == path, diags) && return nothing
     intent, do_not = _analysis_incomplete_docs(policy)
     sp = span_from_byte_range(source, byte_start, byte_end)
     push!(
@@ -44,7 +50,7 @@ function push_analysis_incomplete!(
             "",
             :none,
             false,
-            analysis_incomplete_message(path),
+            analysis_incomplete_message(path, analyzer),
             intent,
             do_not,
         ),
@@ -52,11 +58,38 @@ function push_analysis_incomplete!(
     return nothing
 end
 
+"""Keep one `analysis-incomplete` finding per path; prefer the more specific span."""
+function dedupe_analysis_incomplete!(diags::Vector{Violation})
+    best = Dict{String, Int}()
+    drop = Set{Int}()
+    for (i, d) in enumerate(diags)
+        is_analysis_incomplete(d) || continue
+        if haskey(best, d.path)
+            j = best[d.path]
+            prev = diags[j]
+            prefer_new =
+                (d.span.start_line, d.span.start_col, d.span.end_line, d.span.end_col) >
+                (prev.span.start_line, prev.span.start_col, prev.span.end_line, prev.span.end_col)
+            if prefer_new
+                push!(drop, j)
+                best[d.path] = i
+            else
+                push!(drop, i)
+            end
+        else
+            best[d.path] = i
+        end
+    end
+    isempty(drop) && return diags
+    return Violation[d for (i, d) in enumerate(diags) if !(i in drop)]
+end
+
 const _ANALYSIS_INCOMPLETE_EXPLAIN_DETAIL = """
 Emitted when a constant-fold walk hits the shared step budget (`FOLD_MAX_STEPS`)
 before finishing. Call sites include project-rule literal folding, shell-safety Cmd
 folding, and test-integrity `@test` value folding. The finding is integrity
-`forbid` and cannot be suppressed with `# agentrulelint-expect:`. Fix by simplifying
+`forbid` and cannot be suppressed with `# agentrulelint-expect:`. At most one
+finding is reported per file; the message names the analyzer. Fix by simplifying
 the expression (shorter concatenations or `@test` chains) so static folding can finish.
 """
 

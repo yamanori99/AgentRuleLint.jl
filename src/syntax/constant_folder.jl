@@ -8,12 +8,14 @@ const FOLD_MAX_STEPS = 16_000
 mutable struct FoldBudget
     count::Int
     limit::Int
+    at_byte::Int
 end
 
-FoldBudget(limit::Int = FOLD_MAX_STEPS) = FoldBudget(0, limit)
+FoldBudget(limit::Int = FOLD_MAX_STEPS) = FoldBudget(0, limit, 1)
 
-function _fold_budget!(b::FoldBudget)
+function _fold_budget!(b::FoldBudget, byte::Int = 0)
     b.count += 1
+    byte > 0 && (b.at_byte = byte)
     return b.count > b.limit && throw(FoldBudgetExceeded(b.limit))
 end
 
@@ -318,7 +320,7 @@ function _walk_collect_folds(
         budget::FoldBudget,
         out::Vector{FoldedStringExpr},
     )
-    _fold_budget!(budget)
+    _fold_budget!(budget, pos)
     folded = try_fold_expr(node, src, pos, depth, budget)
     if folded !== nothing
         push!(out, folded)
@@ -342,14 +344,14 @@ function collect_folded_string_exprs(
         _walk_collect_folds(tree, src, 1, 0, budget, out)
     catch err
         if _fold_budget_exceeded(err)
-            return FoldCollectResult(out, true)
+            return FoldCollectResult(out, true, budget.at_byte)
         elseif err isa InterruptException
             rethrow()
         else
             throw(err)
         end
     end
-    return FoldCollectResult(out, false)
+    return FoldCollectResult(out, false, budget.at_byte)
 end
 
 function folded_string_literals(tree::GreenNode, source::AbstractString)

@@ -216,11 +216,18 @@ struct FoldedStringExpr
     byte_end::Int
 end
 
-"""Result of a constant-fold collection walk (`budget_exceeded` means analysis was truncated)."""
+"""Result of a constant-fold collection walk (`budget_exceeded` means analysis was truncated).
+
+`at_byte` is the last fold-walk byte offset when the budget was exhausted (1 if not).
+"""
 struct FoldCollectResult
     folds::Vector{FoldedStringExpr}
     budget_exceeded::Bool
+    at_byte::Int
 end
+
+FoldCollectResult(folds::Vector{FoldedStringExpr}, budget_exceeded::Bool) =
+    FoldCollectResult(folds, budget_exceeded, 1)
 
 const KEBAB_ID = r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
 

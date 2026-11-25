@@ -150,12 +150,12 @@ function collect_cmd_string_literals(
         _walk_cmd_strings!(tree, src, 1, budget, out)
     catch err
         if _fold_budget_exceeded(err)
-            return FoldCollectResult(out, true)
+            return FoldCollectResult(out, true, budget.at_byte)
         elseif err isa InterruptException
             rethrow()
         else
             throw(err)
         end
     end
-    return FoldCollectResult(out, false)
+    return FoldCollectResult(out, false, budget.at_byte)
 end
