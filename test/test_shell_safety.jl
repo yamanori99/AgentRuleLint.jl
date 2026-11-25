@@ -19,8 +19,10 @@ const _SHELL_POSITIVE = String[
     "shell_cmd_pkill.jl",
     "shell_cmd_folded_c.jl",
     "shell_bash_lc.jl",
+    "shell_bash_norc_c.jl",
     "shell_killall.jl",
     "shell_ssh_remote.jl",
+    "shell_base_cmd_pkill.jl",
 ]
 
 function _shell_hits(root::AbstractString, relpath::AbstractString)
@@ -129,6 +131,17 @@ end
         try
             write(joinpath(root, ".AgentRuleLintConfig.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
             write(joinpath(root, "ok.jl"), read(joinpath(CORPUS, "shell_clean_ls.jl"), String))
+            @test isempty(_shell_hits(root, "ok.jl"))
+        finally
+            rm(root, recursive = true, force = true)
+        end
+    end
+
+    @testset "long options with c are not -c" begin
+        root = mktempdir()
+        try
+            write(joinpath(root, ".AgentRuleLintConfig.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
+            write(joinpath(root, "ok.jl"), read(joinpath(CORPUS, "shell_bash_rcfile.jl"), String))
             @test isempty(_shell_hits(root, "ok.jl"))
         finally
             rm(root, recursive = true, force = true)

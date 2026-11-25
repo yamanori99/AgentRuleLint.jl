@@ -10,9 +10,14 @@ const _SHELL_HAZARD_PATTERNS = [
     (r"\bsudo\b", "sudo"),
 ]
 
-"""True when a dashed shell option carries `-c` (e.g. `-c`, `-lc`, `-cl`, `-ec`)."""
+"""True when a short dashed shell option carries `-c` (e.g. `-c`, `-lc`, `-cl`, `-ec`).
+
+Long options (`--…`) are excluded so names that merely contain `c` (e.g. `--rcfile`)
+are not treated as `-c`.
+"""
 function _option_includes_dash_c(opt::AbstractString)
     startswith(opt, "-") || return false
+    startswith(opt, "--") && return false
     opt == "-c" && return true
     return length(opt) > 2 && occursin('c', opt[2:end])
 end
@@ -22,8 +27,15 @@ function _shell_dash_c_label(cmd::AbstractString)
     for i in 1:(length(tokens) - 1)
         shell = tokens[i]
         shell in ("sh", "bash") || continue
-        if tokens[i + 1] == "-c" || _option_includes_dash_c(tokens[i + 1])
-            return "$(shell) -c"
+        for j in (i + 1):length(tokens)
+            opt = tokens[j]
+            opt == "--" && break
+            if opt == "-c" || _option_includes_dash_c(opt)
+                return "$(shell) -c"
+            end
+            # Keep scanning through leading options (`bash --norc -c …`); stop at the
+            # first non-option operand (`bash --rcfile /tmp/x`).
+            startswith(opt, "-") || break
         end
     end
     return occursin(r"\bsh\b\s+-c", cmd) ? "sh -c" :
@@ -50,9 +62,10 @@ Opt-in via `presets = ["shell-safety"]` in `.AgentRuleLintConfig.toml`.
 
 const _SHELL_SAFETY_EXPLAIN_DETAIL = """
 Uses the Syntax-layer constant folder and `collect_cmd_string_literals` to find `pkill`,
-`killall`, `sh -c` / `bash -c`, `ssh --`, and `sudo` in folded command text. Dashed options
-containing `c` (`-c`, `-lc`, `-cl`, `-ec`) after `sh`/`bash` count as `-c` (combined
-login/exec flags). Static folding limits: runtime Cmd values, string/cmd interpolation, and
+`killall`, `sh -c` / `bash -c`, `ssh --`, and `sudo` in folded command text. Short dashed
+options containing `c` (`-c`, `-lc`, `-cl`, `-ec`) after `sh`/`bash` count as `-c` (combined
+login/exec flags); long options (`--…`) do not. Qualified `Base.Cmd([...])` is analyzed like
+`Cmd([...])`. Static folding limits: runtime Cmd values, string/cmd interpolation, and
 symbols outside the shared fold budget are not analyzed (see `collect_cmd_string_literals`
 docstring).
 """

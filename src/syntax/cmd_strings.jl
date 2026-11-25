@@ -2,6 +2,11 @@ using JuliaSyntax: GreenNode, head, is_infix_op_call, kind, span
 
 const _CMD_WRAPPER_CALLEES = Set(["run", "open", "read", "pipeline", "Cmd"])
 
+"""True for `Cmd` or a dotted constructor whose leaf is `Cmd` (e.g. `Base.Cmd`)."""
+function _is_cmd_constructor(fname::AbstractString)
+    return fname == "Cmd" || endswith(fname, ".Cmd")
+end
+
 function _cmdstring_text(node::GreenNode, src::AbstractString, pos::Int)
     summary(node) == "cmdstring" || return nothing
     hasinterp = false
@@ -26,7 +31,7 @@ end
 
 function _collect_cmd_from_call(node::GreenNode, src::AbstractString, pos::Int, steps::Ref{Int})
     fname, args, argpos = _shell_call_parts(node, src, pos)
-    fname == "Cmd" || return FoldedStringExpr[]
+    _is_cmd_constructor(fname) || return FoldedStringExpr[]
     out = FoldedStringExpr[]
     for (arg, ap) in zip(args, argpos)
         s = summary(arg)
@@ -95,7 +100,7 @@ function _walk_cmd_strings!(
         cs !== nothing && push!(out, cs)
     elseif s == "call"
         fname, args, argpos = _shell_call_parts(node, src, pos)
-        if fname == "Cmd"
+        if _is_cmd_constructor(fname)
             append!(out, _collect_cmd_from_call(node, src, pos, steps))
         elseif fname in _CMD_WRAPPER_CALLEES
             for (arg, ap) in zip(args, argpos)
@@ -105,7 +110,8 @@ function _walk_cmd_strings!(
                     cs !== nothing && push!(out, cs)
                 elseif as == "call"
                     afname, _, _ = _shell_call_parts(arg, src, ap)
-                    afname == "Cmd" && append!(out, _collect_cmd_from_call(arg, src, ap, steps))
+                    _is_cmd_constructor(afname) &&
+                        append!(out, _collect_cmd_from_call(arg, src, ap, steps))
                 end
             end
         end
@@ -120,9 +126,9 @@ end
 """
     collect_cmd_string_literals(tree, source) -> Vector{FoldedStringExpr}
 
-Statically recover shell/Cmd text from backtick cmdstrings, `Cmd([...])`, and
-`pipeline` argument trees. Reuses `try_fold_expr` for string concatenation and
-`String(UInt8[...])` forms.
+Statically recover shell/Cmd text from backtick cmdstrings, `Cmd([...])` /
+`Base.Cmd([...])`, and `pipeline` argument trees. Reuses `try_fold_expr` for string
+concatenation and `String(UInt8[...])` forms.
 
 **Limits (fail-closed static analysis):**
 - Dynamic `Cmd` sources, non-literal `run`/`open`/`read`/`pipeline` operands, and
