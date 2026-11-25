@@ -66,10 +66,24 @@ function _explain_extra(spec::RuleSpec, key::Symbol)
     return get(spec.extra, key, "")
 end
 
+function _explain_optional_block(label::AbstractString, body::AbstractString)
+    isempty(strip(body)) && return ""
+    return """
+
+    $label:
+    $(strip(body))"""
+end
+
 function format_explain_rule(spec::RuleSpec)
     anchor = _explain_extra(spec, :expect_anchor)
     example = _explain_extra(spec, :example)
-    return """
+    anchor_line = _explain_extra(spec, :anchor_line)
+    syntax = _explain_extra(spec, :syntax)
+    suppression = _explain_extra(spec, :suppression)
+    intent_detail = _explain_extra(spec, :intent_detail)
+    config = _explain_extra(spec, :config)
+    detail = _explain_extra(spec, :detail)
+    body = """
     rule_id: $(spec.id)
     origin: $(origin_label(spec.origin))
     level: $(spec.level)
@@ -78,14 +92,21 @@ function format_explain_rule(spec::RuleSpec)
     $(spec.intent)
 
     do_not:
-    $(spec.do_not)
+    $(spec.do_not)"""
+    body *= _explain_optional_block("anchor_line", anchor_line)
+    body *= _explain_optional_block("syntax", syntax)
+    body *= _explain_optional_block("suppression", suppression)
+    body *= _explain_optional_block("intent_detail", intent_detail)
+    body *= _explain_optional_block("config", config)
+    body *= _explain_optional_block("detail", detail)
+    body *= """
 
     expect_anchor:
     $(isempty(anchor) ? "N/A." : anchor)
 
     example:
-    $(isempty(example) ? "N/A." : example)
-    """
+    $(isempty(example) ? "N/A." : example)"""
+    return body
 end
 
 function format_explain_project_rule(pr::ProjectRule)

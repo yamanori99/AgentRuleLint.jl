@@ -514,3 +514,29 @@ function diagnose_unsafe_boundary(
     end
     return diags
 end
+
+const _UNSAFE_BOUNDARY_EXPLAIN_ANCHOR = """
+the `@eval`, `ccall`, `@ccall`, qualified `Base.Meta.parse` / `Core.Meta.parse`,
+`invokelatest`, `unsafe_*` call, value alias (`const E = Core.eval`), value argument
+(`map(eval, xs)`), indirect `getfield`/`getproperty` escape, or related macro line
+(`@inbounds`, `@generated`, `@assume_effects`).
+"""
+
+const _UNSAFE_BOUNDARY_EXPLAIN_INTENT_DETAIL = """
+keep runtime `eval`, parsing, FFI, and unsafe intrinsics inside configured
+`allow_modules` or `allow_globs`. Top-level `@eval` of static literal / quote sequences only
+is excluded (no runtime interpolation or bare identifiers). Remaining gaps: `Expr` escapes
+and renames that do not match the tracked value-alias pattern.
+"""
+
+const _UNSAFE_BOUNDARY_EXPLAIN_CONFIG = """
+[rules.unsafe-boundary] with optional `allow_modules`, `allow_globs`.
+"""
+
+function unsafe_boundary_explain_extra()
+    return Dict{Symbol, String}(
+        :anchor_line => strip(_UNSAFE_BOUNDARY_EXPLAIN_ANCHOR),
+        :intent_detail => strip(_UNSAFE_BOUNDARY_EXPLAIN_INTENT_DETAIL),
+        :config => strip(_UNSAFE_BOUNDARY_EXPLAIN_CONFIG),
+    )
+end

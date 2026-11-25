@@ -85,3 +85,25 @@ function validate_allow_paths_kw(allow_paths, diff_base)
         throw(ConfigError("--allow-paths requires --diff (trusted scope mode)"))
     return allow_paths
 end
+
+const _SCOPE_PATHS_EXPLAIN_DETAIL = """
+Group: integrity. Level: forbid (no inline expects).
+
+Active only when `check` receives `--allow-paths GLOB,...` together with `--diff <base>`.
+The allowlist is accepted only from the CLI or the `check(...; allow_paths=...)` keyword,
+never from `.AgentRuleLintConfig.toml`, so only a trusted CI workflow input or human wrapper
+can widen scope.
+
+Every changed path in the diff (add, modify, delete, rename on both sides) must match at
+least one glob. Otherwise the rule flags the path.
+
+Without `--diff`, `--allow-paths` is a usage error (exit 2). An empty or whitespace-only
+list is a usage error. Absolute paths, `..` segments, and backslash separators are rejected
+at glob parse time (exit 2).
+
+Integrity level: `scope-paths` must use `level = "forbid"` in config (ConfigError otherwise).
+"""
+
+function scope_paths_explain_extra()
+    return Dict{Symbol, String}(:detail => strip(_SCOPE_PATHS_EXPLAIN_DETAIL))
+end

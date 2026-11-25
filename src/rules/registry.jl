@@ -9,9 +9,23 @@ const EXPECT_AUDIT_EXAMPLE = """
 @eval :ok
 """
 
+const EXPECT_AUDIT_SYNTAX = """
+Syntax: `# agentrulelint-expect: <rule-id> reason="..."` (ASCII, standalone line only; non-empty reason).
+"""
+
+const EXPECT_AUDIT_SUPPRESSION = """
+Suppresses only violations whose anchor_line matches that line.
+Expects are forbidden above `catch`, inside `# runic: off` regions, inside multiline
+call arguments, and with blank lines before the anchor. Forbidden placements do not
+suppress violations. Multiline-call placement uses the same forbid level as other
+expect-audit integrity findings.
+"""
+
 function expect_audit_explain_extra()
     return Dict{Symbol, String}(
         :expect_anchor => strip(EXPECT_AUDIT_EXPECT_ANCHOR),
+        :syntax => strip(EXPECT_AUDIT_SYNTAX),
+        :suppression => strip(EXPECT_AUDIT_SUPPRESSION),
         :example => strip(EXPECT_AUDIT_EXAMPLE),
     )
 end
@@ -36,10 +50,19 @@ function fill_builtin_docs!(spec::RuleSpec)
 end
 
 """Attach built-in explain text that lives with the rule definition (config may override intent/do_not only)."""
+function builtin_explain_extras(id::AbstractString)
+    id == "expect-audit" && return expect_audit_explain_extra()
+    id == "unsafe-boundary" && return unsafe_boundary_explain_extra()
+    id == SCOPE_PATHS_RULE && return scope_paths_explain_extra()
+    id == PROTECTED_PATHS_RULE && return protected_paths_explain_extra()
+    return Dict{Symbol, String}()
+end
+
 function attach_rule_explain_docs(spec::RuleSpec)
-    spec.id == "expect-audit" || return spec
+    extras = builtin_explain_extras(spec.id)
+    isempty(extras) && return spec
     extra = copy(spec.extra)
-    for (k, v) in expect_audit_explain_extra()
+    for (k, v) in extras
         haskey(extra, k) || (extra[k] = v)
     end
     return RuleSpec(spec.id, spec.origin, spec.level, spec.intent, spec.do_not, extra)

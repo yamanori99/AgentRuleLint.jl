@@ -215,4 +215,40 @@ end
         @test occursin("Protect designated policy, lockfiles, and workflow paths", paths)
         @test occursin("Edit protected files, weaken compat, or rename paths", paths)
     end
+
+    @testset "explain preserves main built-in reference text" begin
+        main_anchor_phrases = Dict(
+            "expect-audit" => [
+                "First non-blank code line",
+                "agentrulelint-expect:",
+                "Suppresses only violations whose anchor_line matches",
+            ],
+            "unsafe-boundary" => [
+                "Base.Meta.parse",
+                "getfield",
+                "@assume_effects",
+            ],
+            "scope-paths" => ["--allow-paths", "--diff <base>", "level = \"forbid\""],
+            "protected-paths" => [
+                "project_toml_policy",
+                "Manifest*.toml",
+                "--diff <base>",
+            ],
+        )
+        for (rid, phrases) in main_anchor_phrases
+            text = AgentRuleLint.explain_rule(rid; root = ROOT)
+            for p in phrases
+                @test occursin(p, text)
+            end
+        end
+        ub = AgentRuleLint.explain_rule("unsafe-boundary"; root = ROOT)
+        @test occursin("allow_modules", ub)
+        @test occursin("allow_globs", ub)
+        @test occursin("[rules.unsafe-boundary]", ub)
+        @test occursin("Remaining gaps:", ub)
+        @test occursin("`Expr` escapes", ub)
+        expect = AgentRuleLint.explain_rule("expect-audit"; root = ROOT)
+        @test occursin("Syntax:", expect)
+        @test occursin("runic: off", expect)
+    end
 end
