@@ -158,15 +158,17 @@ end
                 d -> d.rule_id == "project/no-internal-codename" && !d.suppressed,
             )
             @test fp0 == fp1
+            out_abs = joinpath(ROOT, corpus_tmp, "cli_out_fingerprint.txt")
             cd(ROOT) do
-                @test AgentRuleLint.cli_main(["check", uni_rel]) == 1
+                @test AgentRuleLint.cli_main(["check", uni_rel, "--output", out_abs]) == 1
             end
+            @test isfile(out_abs)
         end
 
         @testset "unicode expect-audit comment: no internal error and stable fingerprint" begin
             uni_rel = joinpath(corpus_tmp, "unicode_expect.jl")
             base =
-                "# agentrulelint-expect: project/no-internal-codename reason=\"注🙂意\"\n\nhit = \"INTERNAL_CODENAME\"\n"
+                "# agentrulelint-expect: project/no-internal-codename reason=\"⚠️🙂wide\"\n\nhit = \"INTERNAL_CODENAME\"\n"
             shifted = "\n" * base
             pred = d -> d.rule_id == "expect-audit" && occursin("blank line", d.message)
             res0 = write_and_check(uni_rel, base)
@@ -179,12 +181,14 @@ end
             fp1 = sole_fp(res1, pred)
             @test fp0 == fp1
             alt =
-                "# agentrulelint-expect: project/no-internal-codename reason=\"別の理由\"\n\nhit = \"INTERNAL_CODENAME\"\n"
+                "# agentrulelint-expect: project/no-internal-codename reason=\"other-reason\"\n\nhit = \"INTERNAL_CODENAME\"\n"
             fp_alt = sole_fp(write_and_check(uni_rel, alt), pred)
             @test fp0 != fp_alt
+            out_abs = joinpath(ROOT, corpus_tmp, "cli_out_unicode.txt")
             cd(ROOT) do
-                @test AgentRuleLint.cli_main(["check", uni_rel]) == 1
+                @test AgentRuleLint.cli_main(["check", uni_rel, "--output", out_abs]) == 1
             end
+            @test isfile(out_abs)
         end
 
         @testset "payload has no line-number field" begin

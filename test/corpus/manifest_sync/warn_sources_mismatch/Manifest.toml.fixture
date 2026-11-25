@@ -1,0 +1,8 @@
+manifest_format = "2.0"
+julia_version = "1.13.0"
+project_hash = "6666666666666666666666666666666666666666"
+
+[[deps.Foo]]
+uuid = "22222222-2222-2222-2222-222222222222"
+path = "actual/other"
+version = "0.1.0"

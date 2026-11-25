@@ -1,0 +1,8 @@
+[workspace]
+projects = ["pkg"]
+
+[deps]
+Foo = "22222222-2222-2222-2222-222222222222"
+
+[compat]
+julia = "1.13"

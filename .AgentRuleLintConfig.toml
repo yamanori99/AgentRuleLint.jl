@@ -6,11 +6,28 @@ max_hits_per_rule = 20
 level = "forbid"
 on_allow_rule = "warn"
 
+[rules.manifest-sync]
+level = "deny"
+intent = "Keep git-tracked manifests aligned with Project.toml resolve sections and workspace subprojects."
+do_not = "Change [deps], [compat], [sources], or [workspace] without updating the paired manifest and project_hash."
+
 [rules.silent-catch]
 level = "deny"
 intent = "Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths."
 do_not = "Use empty catch bodies, log-only handlers, or partial branches without rethrow to silence errors."
 warn_counts_as_handling = false
+
+[rules.test-integrity]
+level = "deny"
+intent = "Block hollow or weakened tests that always pass or shrink CI coverage."
+do_not = "Trivially true @test expressions, broad @test_throws Exception/ErrorException, extra @test_skip/@test_broken in a diff, removed test includes or testsets, early exit() in the suite driver, or looser isapprox/≈ tolerances vs base."
+
+[rules.unsafe-boundary]
+level = "warn"
+allow_modules = []
+allow_globs = []
+intent = "Keep runtime evaluation and FFI inside reviewed boundaries in this package."
+do_not = "Add allow_globs or allow_modules rather than hiding eval, ccall, or unsafe_* calls."
 
 [[project_rules]]
 id = "no-internal-codename"

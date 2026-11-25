@@ -1,0 +1,9 @@
+name = "ExtTrig"
+uuid = "55555555-5555-5555-5555-555555555555"
+version = "0.1.0"
+
+[deps]
+BaseDep = "66666666-6666-6666-6666-666666666666"
+
+[extensions]
+MyExt = "TriggerNotDeclared"

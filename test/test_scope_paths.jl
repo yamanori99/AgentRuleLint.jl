@@ -133,6 +133,7 @@ SCOPE_RULE = "scope-paths"
             Dict{String, AgentRuleLint.RuleSpec}(),
             base.project_rules,
             base.on_allow_rule,
+            base.unsafe_boundary,
             base.config_path,
             base.config_source,
             base.project_toml_policy,

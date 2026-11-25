@@ -61,3 +61,26 @@ function run_silent_catch(fc::FileContext, policy::PolicyBundle)
     end
     return diags
 end
+
+const _SILENT_CATCH_EXPLAIN_ANCHOR = """
+The `try` keyword line of the `try`/`catch` (or `try`/`catch`/`finally`) expression.
+"""
+
+const _SILENT_CATCH_EXPLAIN_DETAIL = """
+Flags catch-all handlers whose body does not rethrow or throw on unhandled paths: empty catch,
+assignments or `nothing` only, log-only handlers, and `if` branches without a propagating `else`.
+
+Legitimate patterns include `e isa T || rethrow()`, `if e isa T ... else rethrow() end`,
+unconditional `rethrow()` / `throw(...)`, and `err isa InterruptException && rethrow()`
+followed by a typed `throw`.
+
+Configure whether `@warn ... exception=...` alone counts as handling via
+`[rules.silent-catch]` `warn_counts_as_handling` (default: false).
+"""
+
+function silent_catch_explain_extra()
+    return Dict{Symbol, String}(
+        :anchor_line => strip(_SILENT_CATCH_EXPLAIN_ANCHOR),
+        :detail => strip(_SILENT_CATCH_EXPLAIN_DETAIL),
+    )
+end

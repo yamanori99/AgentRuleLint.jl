@@ -1,18 +1,25 @@
-function _snippet_for_violation(root::AbstractString, d::Violation)
-    path = joinpath(root, d.path)
-    !isfile(path) && return ""
-    source = normalize_source(read(path, String))
-    lines = split(source, '\n')
-    d.anchor_line > length(lines) && return ""
-    line = lines[d.anchor_line]
-    sc = min(d.span.start_col, length(line))
-    ec = min(d.span.end_col, length(line))
-    sc < 1 && (sc = 1)
-    ec < sc && (ec = sc)
-    chars = collect(eachindex(line))
-    sc > length(chars) && return strip(line)
-    ec = min(ec, length(chars))
-    return strip(line[chars[sc]:chars[ec]])
+function _human_console_head_styled(io::IO, level::Symbol)
+    plain = human_console_level(level)
+    color_enabled(io) || return plain
+    if level in HUMAN_LEVEL_RED
+        return emit_plain_or_styled(io, plain; color = :red)
+    elseif level in HUMAN_LEVEL_YELLOW
+        return emit_plain_or_styled(io, plain; color = :yellow)
+    end
+    return plain
+end
+
+function _human_group_header(
+        io::IO,
+        label::AbstractString,
+        rule_id::AbstractString,
+        level::Symbol,
+        total::Int,
+        ceiling_s::AbstractString,
+    )
+    head = _human_console_head_styled(io, level)
+    counts = human_violation_phrase(total)
+    return "┌ $head: $label $rule_id [$level] ($counts, ceiling $ceiling_s)"
 end
 
 function format_human(
@@ -23,48 +30,81 @@ function format_human(
     )
     width = resolve_output_width(io; output_width = output_width)
     buf = IOBuffer()
-    shown = Dict{String, Int}()
-    omitted = Dict{String, Int}()
+    policy = resolve_policy(root)
+    init_registry!(policy)
+    ceilings = load_ceilings(root, policy)
+    groups = violations_by_rule(active_violations(result.violations))
     max_hits = result.max_hits_per_rule
-    banner = "AgentRuleLint v$(pkgversion(AgentRuleLint)) (pos: utf8-codepoint-1based)"
-    for ln in wrap_prose_lines("", "", banner, width)
-        println(buf, ln)
+    cfg_label = result.config_source.path
+
+    banner = human_policy_banner(result)
+    if visible_textwidth(banner) <= width
+        println(buf, banner)
+    else
+        for ln in wrap_prose_lines("", "", banner, width)
+            println(buf, ln)
+        end
     end
     println(buf)
-    for d in result.violations
-        d.suppressed && continue
-        d.expect_status == :fulfilled && continue
-        d.level == :allow && continue
-        key = d.rule_id
-        shown[key] = get(shown, key, 0) + 1
-        if shown[key] > max_hits
-            omitted[key] = get(omitted, key, 0) + 1
-            continue
+
+    for (rule_id, ds) in groups
+        d0 = ds[1]
+        label = origin_label(d0.origin)
+        total = length(ds)
+        ceiling_s = human_ceiling_display(ceilings, rule_id)
+        header = _human_group_header(io, label, rule_id, d0.level, total, ceiling_s)
+        if visible_textwidth(header) <= width
+            println(buf, header)
+        else
+            println(buf, _truncate_chars(header, width, with_ellipsis = true))
         end
-        label = origin_label(d.origin)
-        header = "┌ Error: $label $(d.rule_id) [$(d.level)]"
-        for ln in wrap_prose_lines("", "", header, width)
+        intent = d0.intent
+        do_not = d0.do_not
+        if isempty(intent) && haskey(BUILTIN_RULES, rule_id)
+            spec = BUILTIN_RULES[rule_id]
+            intent = spec.intent
+            do_not = spec.do_not
+        end
+        println_wrapped_labeled(buf, "│   ", "intent: ", intent, width)
+        println_wrapped_labeled(buf, "│   ", "do_not: ", do_not, width)
+        println(buf, "│")
+
+        limit = min(total, max_hits)
+        for i in 1:limit
+            d = ds[i]
+            loc_body = format_span_loc(d)
+            (d.span == Span(1, 1, 1, 1) && d.anchor_line == 1) && (loc_body = d.path)
+            loc_line = "│   $loc_body"
+            if visible_textwidth(loc_line) <= width
+                println(buf, loc_line)
+            else
+                println(buf, _truncate_chars(loc_line, width, with_ellipsis = true))
+            end
+            !isempty(d.message) &&
+                println_wrapped_labeled(buf, "│     ", "", d.message, width)
+            line = source_line_at(root, d)
+            !isempty(line) && println_human_code_gutter(buf, width, line, d.span)
+        end
+
+        if total > limit
+            omit = "│     ... (+$(total - limit) omitted)"
+            for ln in wrap_prose_lines("", "", omit, width)
+                println(buf, ln)
+            end
+        end
+
+        footer = human_rule_footer(rule_id, d0.origin, cfg_label)
+        for ln in wrap_prose_lines("", "", footer, width)
             println(buf, ln)
         end
-        !isempty(d.intent) &&
-            println_wrapped_labeled(buf, "│   ", "intent: ", d.intent, width)
-        !isempty(d.do_not) &&
-            println_wrapped_labeled(buf, "│   ", "do_not: ", d.do_not, width)
-        println(buf, "│")
-        sl = d.span
-        println(buf, "│   $(d.path):$(sl.start_line):$(sl.start_col)-$(sl.end_line):$(sl.end_col)")
-        println_wrapped_labeled(buf, "│     ", "", d.message, width)
-        snip = _snippet_for_violation(root, d)
-        !isempty(snip) && println(buf, truncate_quoted_line("│     > ", snip, width))
-        println(buf, "└")
         println(buf)
     end
-    for (rid, n) in sort(collect(omitted))
-        for ln in wrap_prose_lines("", "", "... (+$n omitted) for rule $rid", width)
-            println(buf, ln)
-        end
-    end
-    summary = "Summary: $(result.violation_count) violations, $(result.suppressed_count) suppressed — $(result.exit_code == 0 ? "PASSED" : "FAILED") (exit $(result.exit_code))"
+
+    rule_hits = length(groups)
+    status = result.exit_code == 0 ? "PASSED" : "FAILED"
+    by_origin = human_summary_by_origin(groups)
+    summary =
+        "Summary: $(result.violation_count) violations across $rule_hits rules ($by_origin) — $status (exit $(result.exit_code))"
     for ln in wrap_prose_lines("", "", summary, width)
         println(buf, ln)
     end
