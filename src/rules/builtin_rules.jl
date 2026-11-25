@@ -1,6 +1,7 @@
 # Explicit sorted registration of one-file-per-rule modules.
 # Sort key: RuleDef.id (ASCII). Do not use glob-based includes.
 
+include("analysis_incomplete.jl")
 include("ceiling_ratchet.jl")
 include("expect_audit.jl")
 include("manifest_sync.jl")
@@ -13,6 +14,7 @@ include("unsafe_boundary.jl")
 
 """Canonical built-in / preset rule definitions, sorted by `id`."""
 const RULE_DEFS = (
+    ANALYSIS_INCOMPLETE_RULE_DEF,
     CEILING_RATCHET_RULE_DEF,
     EXPECT_AUDIT_RULE_DEF,
     MANIFEST_SYNC_RULE_DEF,

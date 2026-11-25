@@ -1,6 +1,34 @@
 AgentRuleLint v0.1.0-DEV (policy bundle base: .AgentRuleLintConfig.toml, pos:
 utf8-line-col)
 
+┌ Error: [AgentRuleLint] analysis-incomplete [forbid] (4 violations, ceiling 0)
+│   intent: Fail closed when static analysis cannot finish (constant-fold
+│           budget).
+│   do_not: Pad files with enough folds to exhaust the budget and hide later
+│           findings, or suppress the incomplete diagnostic.
+│
+│   test/corpus/test_integrity_fold_budget.jl
+│     analysis incomplete: constant-fold budget exceeded in
+│     test/corpus/test_integrity_fold_budget.jl
+│     > # Long == chain exceeds FOLD_MAX_STEPS (16000); trivial if fully folded…
+│       ~
+│   test/corpus/test_integrity_fold_budget.jl:2:1-2:128042
+│     analysis incomplete: constant-fold budget exceeded in
+│     test/corpus/test_integrity_fold_budget.jl
+│     > @test true == true == true == true == true == true == true == true == t…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/test_integrity_fold_budget_const.jl
+│     analysis incomplete: constant-fold budget exceeded in
+│     test/corpus/test_integrity_fold_budget_const.jl
+│     > # Const initializer exceeds fold step budget; dependent @test fails clo…
+│       ~
+│   test/corpus/test_integrity_fold_budget_const.jl:3:1-3:9
+│     analysis incomplete: constant-fold budget exceeded in
+│     test/corpus/test_integrity_fold_budget_const.jl
+│     > @test BIG
+│       ~~~~~~~~~
+└ @ AgentRuleLint (run `agentrulelint explain analysis-incomplete` for details)
+
 ┌ Error: [AgentRuleLint] expect-audit [forbid] (19 violations, ceiling 0)
 │   intent: Keep suppression comments auditable.
 │   do_not: Hide violations with unapproved expects.
@@ -83,7 +111,7 @@ utf8-line-col)
 │       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 └ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
 
-┌ Error: [Project] project/no-internal-codename [deny] (14 violations, ceiling …
+┌ Error: [Project] project/no-internal-codename [deny] (12 violations, ceiling …
 │   intent: Keep internal codenames out of public package files.
 │   do_not: Split or dynamically concatenate forbidden strings to bypass the
 │           check.
@@ -136,16 +164,6 @@ utf8-line-col)
 │     forbidden literal matched (folded)
 │     > secret = "INT" * "ERNAL_CODENAME"
 │                ~~~~~~~~~~~~~~~~~~~~~~~~
-│   test/corpus/test_integrity_fold_budget.jl
-│     analysis incomplete: constant-fold budget exceeded in
-│     test/corpus/test_integrity_fold_budget.jl
-│     > # Long == chain exceeds FOLD_MAX_STEPS (16000); trivial if fully folded…
-│       ~
-│   test/corpus/test_integrity_fold_budget_const.jl
-│     analysis incomplete: constant-fold budget exceeded in
-│     test/corpus/test_integrity_fold_budget_const.jl
-│     > # Const initializer exceeds fold step budget; dependent @test fails clo…
-│       ~
 └ @ Project .AgentRuleLintConfig.toml ([[project_rules]])
 
 ┌ Error: [AgentRuleLint] silent-catch [deny] (14 violations, ceiling 0)
@@ -223,7 +241,7 @@ utf8-line-col)
 │       ~~~~~~~~~~~~~~
 └ @ AgentRuleLint (run `agentrulelint explain silent-catch` for details)
 
-┌ Error: [AgentRuleLint] test-integrity [deny] (7 violations, ceiling 0)
+┌ Error: [AgentRuleLint] test-integrity [deny] (5 violations, ceiling 0)
 │   intent: Block hollow or weakened tests that always pass or shrink CI
 │           coverage.
 │   do_not: Trivially true @test expressions, broad @test_throws
@@ -243,14 +261,6 @@ utf8-line-col)
 │     @test condition is trivially true after constant folding
 │     > @test ALWAYS_OK
 │       ~~~~~~~~~~~~~~~
-│   test/corpus/test_integrity_fold_budget.jl:2:1-2:128042
-│     test expression too complex to verify; simplify it
-│     > @test true == true == true == true == true == true == true == true == t…
-│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-│   test/corpus/test_integrity_fold_budget_const.jl:3:1-3:9
-│     test expression too complex to verify; simplify it
-│     > @test BIG
-│       ~~~~~~~~~
 │   test/corpus/test_integrity_trivial_true.jl:1:1-1:10
 │     @test condition is trivially true after constant folding
 │     > @test true
@@ -349,5 +359,5 @@ utf8-line-col)
 │                      ~~~~
 └ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
 
-Summary: 74 violations across 5 rules (4 [AgentRuleLint], 1 [Project]) — FAILED
+Summary: 74 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED
 (exit 1)

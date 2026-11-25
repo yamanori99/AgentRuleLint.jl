@@ -1,127 +1,11 @@
 AGENTRULELINT FAIL v0.1.0-DEV base=.AgentRuleLintConfig.toml
-pos=utf8-codepoint-1based violations=74 rules=5
+pos=utf8-codepoint-1based violations=74 rules=6
 
-RULE [AgentRuleLint] expect-audit level=forbid count=19 ceiling=-
-HIT test/corpus/block_expect.jl:1:1-1:60 | #= block agentrulelint-expect:
-                                           expect-audit reason="nope" =#
-HIT test/corpus/crlf_expect.jl:1:1-1:50 | # agentrulelint-expect: expect-audit
-                                          reason="crlf"
-HIT test/corpus/crlf_expect.jl:1:1-1:50 | # agentrulelint-expect: expect-audit
-                                          reason="crlf"
-HIT test/corpus/expect_above_catch.jl:3:1-3:69 | # agentrulelint-expect:
-                                                 silent-catch reason="forbidden
-                                                 placement"
-HIT test/corpus/expect_above_catch_suppress.jl:3:1-3:83 | #
-                                                          agentrulelint-expect:
-                                                          project/no-internal-co
-                                                          dename
-                                                          reason="must not
-                                                          suppress"
-HIT test/corpus/expect_anchor_mismatch.jl:1:1-1:73 | # agentrulelint-expect:
-                                                     silent-catch reason="must
-                                                     anchor to try or catch"
-HIT test/corpus/expect_anchor_mismatch_suppress.jl:1:1-1:71 | #
-                                                              agentrulelint-expe
-                                                              ct:
-                                                              no-internal-codena
-                                                              me
-                                                              reason="must not
-                                                              suppress"
-HIT test/corpus/expect_blank_line.jl:1:1-1:79 | # agentrulelint-expect:
-                                                project/no-internal-codename
-                                                reason="should not attach"
-HIT test/corpus/expect_empty_reason.jl:1:1-1:46 | # agentrulelint-expect:
-                                                  expect-audit reason=""
-HIT test/corpus/expect_mixed_group_anchor.jl:2:1-2:73 | # agentrulelint-expect:
-                                                        silent-catch reason="not
-                                                        eligible on same anchor"
-HIT test/corpus/expect_mixed_group_anchor.jl:2:1-2:73 | # agentrulelint-expect:
-                                                        silent-catch reason="not
-                                                        eligible on same anchor"
-HIT test/corpus/expect_multiline_call.jl:2:1-2:82 | # agentrulelint-expect:
-                                                    project/no-internal-codename
-                                                    reason="inside call args"
-HIT test/corpus/expect_multiline_call_outside.jl:1:1-1:74 | #
-                                                            agentrulelint-expect
-                                                            :
-                                                            project/no-internal-
-                                                            codename
-                                                            reason="outside
-                                                            call"
-HIT test/corpus/expect_multiline_call_suppress.jl:2:1-2:83 | #
-                                                             agentrulelint-expec
-                                                             t:
-                                                             project/no-internal
-                                                             -codename
-                                                             reason="must not
-                                                             suppress"
-HIT test/corpus/expect_runic_off.jl:2:1-2:81 | # agentrulelint-expect:
-                                               project/no-internal-codename
-                                               reason="hidden in runic off"
-HIT test/corpus/expect_runic_off.jl:2:1-2:81 | # agentrulelint-expect:
-                                               project/no-internal-codename
-                                               reason="hidden in runic off"
-HIT test/corpus/expect_runic_off_suppress.jl:2:1-2:79 | # agentrulelint-expect:
-                                                        project/no-internal-code
-                                                        name
-                                                        reason="must not
-                                                        suppress"
-HIT test/corpus/expect_whitespace_reason.jl:1:1-1:49 | # agentrulelint-expect:
-                                                       expect-audit reason=" "
-HIT test/corpus/trailing_expect.jl:1:1-1:58 | x = 1 # agentrulelint-expect:
-                                              expect-audit reason="inline"
-
-RULE [Project] project/no-internal-codename level=deny count=14 ceiling=-
-intent: Keep internal codenames out of public package files.
-do_not: Split or dynamically concatenate forbidden strings to bypass the check.
-HIT test/corpus/expect_above_catch_suppress.jl:5:9-5:27 | "INTERNAL_CODENAME"
-HIT test/corpus/expect_anchor_mismatch_suppress.jl:2:7-2:25 | "INTERNAL_CODENAME
-                                                              "
-HIT test/corpus/expect_blank_line.jl:3:5-3:23 | "INTERNAL_CODENAME"
-HIT test/corpus/expect_empty_reason.jl:3:5-3:23 | "INTERNAL_CODENAME"
-HIT test/corpus/expect_multiline_call_suppress.jl:3:5-3:23 | "INTERNAL_CODENAME"
-HIT test/corpus/expect_runic_off_suppress.jl:3:5-3:23 | "INTERNAL_CODENAME"
-HIT test/corpus/expect_whitespace_reason.jl:2:5-2:23 | "INTERNAL_CODENAME"
-HIT test/corpus/join_three.jl:1:10-1:34 | ["INT", "ERNAL_CODENAME"]
-HIT test/corpus/reduce_star.jl:1:7-1:42 | reduce(*, ["INT", "ERNAL_CODENAME"])
-HIT test/corpus/reduce_star.jl:1:17-1:41 | ["INT", "ERNAL_CODENAME"]
-HIT test/corpus/split_star.jl:1:7-1:30 | "INT" * "ERNAL_CODENAME"
-HIT test/corpus/split_string.jl:1:10-1:33 | "INT" * "ERNAL_CODENAME"
+RULE [AgentRuleLint] analysis-incomplete level=forbid count=4 ceiling=-
+intent: Fail closed when static analysis cannot finish (constant-fold budget).
+do_not: Pad files with enough folds to exhaust the budget and hide later
+        findings, or suppress the incomplete diagnostic.
 HIT test/corpus/test_integrity_fold_budget.jl:1:1-1:1 | #
-HIT test/corpus/test_integrity_fold_budget_const.jl:1:1-1:1 | #
-
-RULE [AgentRuleLint] silent-catch level=deny count=14 ceiling=-
-intent: Surface try/catch blocks that hide failures instead of rethrowing or
-        throwing on unhandled paths.
-do_not: Use empty catch bodies, log-only handlers, or partial branches without
-        rethrow to silence errors.
-HIT test/corpus/expect_above_catch.jl:1:1-1:3 | try
-HIT test/corpus/expect_above_catch_suppress.jl:1:1-1:3 | try
-HIT test/corpus/silent_catch_and_only_interrupt.jl:2:1-2:14 | return try
-HIT test/corpus/silent_catch_assign_default.jl:2:1-2:14 | return try
-HIT test/corpus/silent_catch_branch_evasion.jl:2:1-2:14 | return try
-HIT test/corpus/silent_catch_dead_rethrow.jl:2:1-2:14 | return try
-HIT test/corpus/silent_catch_empty.jl:2:1-2:14 | return try
-HIT test/corpus/silent_catch_fake_emit.jl:6:1-6:14 | return try
-HIT test/corpus/silent_catch_info_not_warn.jl:2:1-2:14 | return try
-HIT test/corpus/silent_catch_log_only.jl:2:1-2:14 | return try
-HIT test/corpus/silent_catch_nested.jl:2:1-2:14 | return try
-HIT test/corpus/silent_catch_nested.jl:5:1-5:11 | try
-HIT test/corpus/silent_catch_or_true_evasion.jl:2:1-2:14 | return try
-HIT test/corpus/silent_catch_underscore_nothing.jl:2:1-2:14 | return try
-
-RULE [AgentRuleLint] test-integrity level=deny count=7 ceiling=-
-intent: Block hollow or weakened tests that always pass or shrink CI coverage.
-do_not: Trivially true @test expressions, broad @test_throws
-        Exception/ErrorException, extra @test_skip/@test_broken in a diff,
-        removed test includes or testsets, early exit() in the suite driver, or
-        looser isapprox/≈ tolerances vs base.
-HIT test/corpus/test_integrity_broad_throws.jl:1:1-1:41 | @test_throws
-                                                          ErrorException
-                                                          nonexistent()
-HIT test/corpus/test_integrity_broad_throws.jl:2:1-2:35 | @test_throws
-                                                          Base.Exception other()
-HIT test/corpus/test_integrity_const_fold.jl:2:1-2:15 | @test ALWAYS_OK
 HIT test/corpus/test_integrity_fold_budget.jl:2:1-2:128042 | @test true == true
                                                              == true == true ==
                                                              true == true ==
@@ -8125,7 +8009,128 @@ HIT test/corpus/test_integrity_fold_budget.jl:2:1-2:128042 | @test true == true
                                                              true == true ==
                                                              true == true ==
                                                              true
+HIT test/corpus/test_integrity_fold_budget_const.jl:1:1-1:1 | #
 HIT test/corpus/test_integrity_fold_budget_const.jl:3:1-3:9 | @test BIG
+
+RULE [AgentRuleLint] expect-audit level=forbid count=19 ceiling=-
+HIT test/corpus/block_expect.jl:1:1-1:60 | #= block agentrulelint-expect:
+                                           expect-audit reason="nope" =#
+HIT test/corpus/crlf_expect.jl:1:1-1:50 | # agentrulelint-expect: expect-audit
+                                          reason="crlf"
+HIT test/corpus/crlf_expect.jl:1:1-1:50 | # agentrulelint-expect: expect-audit
+                                          reason="crlf"
+HIT test/corpus/expect_above_catch.jl:3:1-3:69 | # agentrulelint-expect:
+                                                 silent-catch reason="forbidden
+                                                 placement"
+HIT test/corpus/expect_above_catch_suppress.jl:3:1-3:83 | #
+                                                          agentrulelint-expect:
+                                                          project/no-internal-co
+                                                          dename
+                                                          reason="must not
+                                                          suppress"
+HIT test/corpus/expect_anchor_mismatch.jl:1:1-1:73 | # agentrulelint-expect:
+                                                     silent-catch reason="must
+                                                     anchor to try or catch"
+HIT test/corpus/expect_anchor_mismatch_suppress.jl:1:1-1:71 | #
+                                                              agentrulelint-expe
+                                                              ct:
+                                                              no-internal-codena
+                                                              me
+                                                              reason="must not
+                                                              suppress"
+HIT test/corpus/expect_blank_line.jl:1:1-1:79 | # agentrulelint-expect:
+                                                project/no-internal-codename
+                                                reason="should not attach"
+HIT test/corpus/expect_empty_reason.jl:1:1-1:46 | # agentrulelint-expect:
+                                                  expect-audit reason=""
+HIT test/corpus/expect_mixed_group_anchor.jl:2:1-2:73 | # agentrulelint-expect:
+                                                        silent-catch reason="not
+                                                        eligible on same anchor"
+HIT test/corpus/expect_mixed_group_anchor.jl:2:1-2:73 | # agentrulelint-expect:
+                                                        silent-catch reason="not
+                                                        eligible on same anchor"
+HIT test/corpus/expect_multiline_call.jl:2:1-2:82 | # agentrulelint-expect:
+                                                    project/no-internal-codename
+                                                    reason="inside call args"
+HIT test/corpus/expect_multiline_call_outside.jl:1:1-1:74 | #
+                                                            agentrulelint-expect
+                                                            :
+                                                            project/no-internal-
+                                                            codename
+                                                            reason="outside
+                                                            call"
+HIT test/corpus/expect_multiline_call_suppress.jl:2:1-2:83 | #
+                                                             agentrulelint-expec
+                                                             t:
+                                                             project/no-internal
+                                                             -codename
+                                                             reason="must not
+                                                             suppress"
+HIT test/corpus/expect_runic_off.jl:2:1-2:81 | # agentrulelint-expect:
+                                               project/no-internal-codename
+                                               reason="hidden in runic off"
+HIT test/corpus/expect_runic_off.jl:2:1-2:81 | # agentrulelint-expect:
+                                               project/no-internal-codename
+                                               reason="hidden in runic off"
+HIT test/corpus/expect_runic_off_suppress.jl:2:1-2:79 | # agentrulelint-expect:
+                                                        project/no-internal-code
+                                                        name
+                                                        reason="must not
+                                                        suppress"
+HIT test/corpus/expect_whitespace_reason.jl:1:1-1:49 | # agentrulelint-expect:
+                                                       expect-audit reason=" "
+HIT test/corpus/trailing_expect.jl:1:1-1:58 | x = 1 # agentrulelint-expect:
+                                              expect-audit reason="inline"
+
+RULE [Project] project/no-internal-codename level=deny count=12 ceiling=-
+intent: Keep internal codenames out of public package files.
+do_not: Split or dynamically concatenate forbidden strings to bypass the check.
+HIT test/corpus/expect_above_catch_suppress.jl:5:9-5:27 | "INTERNAL_CODENAME"
+HIT test/corpus/expect_anchor_mismatch_suppress.jl:2:7-2:25 | "INTERNAL_CODENAME
+                                                              "
+HIT test/corpus/expect_blank_line.jl:3:5-3:23 | "INTERNAL_CODENAME"
+HIT test/corpus/expect_empty_reason.jl:3:5-3:23 | "INTERNAL_CODENAME"
+HIT test/corpus/expect_multiline_call_suppress.jl:3:5-3:23 | "INTERNAL_CODENAME"
+HIT test/corpus/expect_runic_off_suppress.jl:3:5-3:23 | "INTERNAL_CODENAME"
+HIT test/corpus/expect_whitespace_reason.jl:2:5-2:23 | "INTERNAL_CODENAME"
+HIT test/corpus/join_three.jl:1:10-1:34 | ["INT", "ERNAL_CODENAME"]
+HIT test/corpus/reduce_star.jl:1:7-1:42 | reduce(*, ["INT", "ERNAL_CODENAME"])
+HIT test/corpus/reduce_star.jl:1:17-1:41 | ["INT", "ERNAL_CODENAME"]
+HIT test/corpus/split_star.jl:1:7-1:30 | "INT" * "ERNAL_CODENAME"
+HIT test/corpus/split_string.jl:1:10-1:33 | "INT" * "ERNAL_CODENAME"
+
+RULE [AgentRuleLint] silent-catch level=deny count=14 ceiling=-
+intent: Surface try/catch blocks that hide failures instead of rethrowing or
+        throwing on unhandled paths.
+do_not: Use empty catch bodies, log-only handlers, or partial branches without
+        rethrow to silence errors.
+HIT test/corpus/expect_above_catch.jl:1:1-1:3 | try
+HIT test/corpus/expect_above_catch_suppress.jl:1:1-1:3 | try
+HIT test/corpus/silent_catch_and_only_interrupt.jl:2:1-2:14 | return try
+HIT test/corpus/silent_catch_assign_default.jl:2:1-2:14 | return try
+HIT test/corpus/silent_catch_branch_evasion.jl:2:1-2:14 | return try
+HIT test/corpus/silent_catch_dead_rethrow.jl:2:1-2:14 | return try
+HIT test/corpus/silent_catch_empty.jl:2:1-2:14 | return try
+HIT test/corpus/silent_catch_fake_emit.jl:6:1-6:14 | return try
+HIT test/corpus/silent_catch_info_not_warn.jl:2:1-2:14 | return try
+HIT test/corpus/silent_catch_log_only.jl:2:1-2:14 | return try
+HIT test/corpus/silent_catch_nested.jl:2:1-2:14 | return try
+HIT test/corpus/silent_catch_nested.jl:5:1-5:11 | try
+HIT test/corpus/silent_catch_or_true_evasion.jl:2:1-2:14 | return try
+HIT test/corpus/silent_catch_underscore_nothing.jl:2:1-2:14 | return try
+
+RULE [AgentRuleLint] test-integrity level=deny count=5 ceiling=-
+intent: Block hollow or weakened tests that always pass or shrink CI coverage.
+do_not: Trivially true @test expressions, broad @test_throws
+        Exception/ErrorException, extra @test_skip/@test_broken in a diff,
+        removed test includes or testsets, early exit() in the suite driver, or
+        looser isapprox/≈ tolerances vs base.
+HIT test/corpus/test_integrity_broad_throws.jl:1:1-1:41 | @test_throws
+                                                          ErrorException
+                                                          nonexistent()
+HIT test/corpus/test_integrity_broad_throws.jl:2:1-2:35 | @test_throws
+                                                          Base.Exception other()
+HIT test/corpus/test_integrity_const_fold.jl:2:1-2:15 | @test ALWAYS_OK
 HIT test/corpus/test_integrity_trivial_true.jl:1:1-1:10 | @test true
 HIT test/corpus/test_integrity_trivial_true.jl:2:1-2:12 | @test 1 == 1
 

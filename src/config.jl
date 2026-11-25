@@ -21,8 +21,15 @@ const PROTECTED_PATHS_RULE_KEYS =
 const PROTECTED_PATHS_RULE = "protected-paths"
 const CEILING_RATCHET_RULE = "ceiling-ratchet"
 const SCOPE_PATHS_RULE = "scope-paths"
-const INTEGRITY_FORBID_RULES =
-    Set([PROTECTED_PATHS_RULE, CEILING_RATCHET_RULE, SCOPE_PATHS_RULE])
+const ANALYSIS_INCOMPLETE_RULE = "analysis-incomplete"
+const INTEGRITY_FORBID_RULES = Set(
+    [
+        ANALYSIS_INCOMPLETE_RULE,
+        PROTECTED_PATHS_RULE,
+        CEILING_RATCHET_RULE,
+        SCOPE_PATHS_RULE,
+    ]
+)
 const DEFAULT_PROJECT_TOML_POLICY = "semantic"
 const PROJECT_RULE_KEYS = Set(
     [
@@ -151,7 +158,8 @@ end
 """Read stdout from `cmd`; on failure raise `GitError` including stderr and showerror.
 
 Stderr is drained concurrently so a full stderr pipe cannot deadlock against a
-blocking stdout read (e.g. CRLF / rename-detection warnings from git).
+blocking stdout read (e.g. CRLF / rename-detection warnings from git). The stderr
+task is always awaited in `finally` so a failed stdout read cannot leave it orphaned.
 """
 function _read_git_cmd(cmd::Cmd; error_prefix::AbstractString)
     out = Pipe()
@@ -160,7 +168,13 @@ function _read_git_cmd(cmd::Cmd; error_prefix::AbstractString)
     close(out.in)
     close(err.in)
     err_task = @async read(err)
-    stdout_data = read(out)
+    local stdout_data
+    try
+        stdout_data = read(out)
+    catch
+        fetch(err_task)
+        rethrow()
+    end
     stderr_data = fetch(err_task)
     wait(proc)
     if !success(proc)
@@ -318,6 +332,16 @@ function _load_rules_table(raw::Dict)
 end
 
 function _inject_builtin_rules!(rules::Dict{String, RuleSpec})
+    if get(rules, ANALYSIS_INCOMPLETE_RULE, nothing) === nothing
+        rules[ANALYSIS_INCOMPLETE_RULE] = RuleSpec(
+            ANALYSIS_INCOMPLETE_RULE,
+            :agentrulelint,
+            :forbid,
+            "Fail closed when static analysis cannot finish (constant-fold budget).",
+            "Pad files with enough folds to exhaust the budget and hide later findings, or suppress the incomplete diagnostic.",
+            Dict{Symbol, String}(),
+        )
+    end
     if get(rules, PROTECTED_PATHS_RULE, nothing) === nothing
         rules[PROTECTED_PATHS_RULE] = RuleSpec(
             PROTECTED_PATHS_RULE,
@@ -572,6 +596,14 @@ end
 function default_policy(root::AbstractString)
     ver = AGENTRULELINT_VERSION
     rules = Dict{String, RuleSpec}(
+        ANALYSIS_INCOMPLETE_RULE => RuleSpec(
+            ANALYSIS_INCOMPLETE_RULE,
+            :agentrulelint,
+            :forbid,
+            "Fail closed when static analysis cannot finish (constant-fold budget).",
+            "Pad files with enough folds to exhaust the budget and hide later findings, or suppress the incomplete diagnostic.",
+            Dict{Symbol, String}(),
+        ),
         "expect-audit" => RuleSpec(
             "expect-audit",
             :agentrulelint,

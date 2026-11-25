@@ -2,12 +2,13 @@
 # (see PR #77 / issue #25). They change only for intended output changes, which
 # the PR that updates them must state. Never regenerate goldens to clear a
 # failing neutrality check on a structure-only refactor.
-# Fold-budget incomplete diagnostics (#66 / review on #78) are an intentional
-# output change and update check_{human,agent,json}.txt accordingly.
+# Fold-budget / analysis-incomplete diagnostics (#66 / review on #78) are an
+# intentional output change and update check_{human,agent,json}.txt accordingly.
 
 const OUTPUT_GOLDEN_DIR = joinpath(ROOT, "test", "goldens", "output")
 const OUTPUT_GOLDEN_WIDTH = 80
 const OUTPUT_GOLDEN_EXPLAIN_IDS = (
+    "analysis-incomplete",
     "expect-audit",
     "ceiling-ratchet",
     "manifest-sync",

@@ -16,11 +16,13 @@ Migrate by choosing an explicit level, for example:
 on_allow_rule = "forbid"
 ```
 
-### Fold-budget exhaustion is a diagnostic, not exit 3
+### Fold-budget exhaustion is `analysis-incomplete` (not exit 3)
 
-Constant-fold step-budget exhaustion (`FoldBudgetExceeded`) emits a non-suppressible
-`analysis incomplete: constant-fold budget exceeded in <file>` finding at `:forbid`
-and no longer maps to an internal-error exit code.
+Constant-fold step-budget exhaustion (`FoldBudgetExceeded`) emits the built-in
+integrity rule `analysis-incomplete` (`:forbid`, never expect-suppressible) with
+message `analysis incomplete: constant-fold budget exceeded in <file>`. Project-rule
+literal folding, shell-safety Cmd folding, and test-integrity `@test` folding share
+this rule. It no longer maps to an internal-error exit code.
 
 ### InternalError retains backtrace
 

@@ -52,6 +52,7 @@ end
 function _run_project_rules_julia!(
         diags::Vector{Violation},
         fc::FileContext,
+        policy::PolicyBundle,
         pr::ProjectRule,
         rule_id::String,
         eff_level::Symbol,
@@ -101,19 +102,8 @@ function _run_project_rules_julia!(
             )
         end
     end
-    if collected.budget_exceeded
-        _push_project_violation!(
-            diags,
-            rule_id,
-            :forbid,
-            path,
-            source,
-            1,
-            1,
-            fold_budget_incomplete_message(path),
-            pr.intent,
-            pr.do_not,
-        )
+    if collected.budget_exceeded && !any(is_analysis_incomplete, diags)
+        push_analysis_incomplete!(diags, policy, path, source, 1, 1)
     end
     return nothing
 end
@@ -156,7 +146,7 @@ function run_project_rules(fc::FileContext, policy::PolicyBundle)
         eff_level = _effective_project_level(policy, pr)
         eff_level == :allow && continue
         if julia_source_path(path)
-            _run_project_rules_julia!(diags, fc, pr, rule_id, eff_level)
+            _run_project_rules_julia!(diags, fc, policy, pr, rule_id, eff_level)
         else
             _run_project_rules_text!(diags, fc, pr, rule_id, eff_level)
         end

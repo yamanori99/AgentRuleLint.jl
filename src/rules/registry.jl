@@ -11,6 +11,7 @@ end
 
 """Attach built-in explain text that lives with the rule definition (config may override intent/do_not only)."""
 function builtin_explain_extras(id::AbstractString)
+    id == ANALYSIS_INCOMPLETE_RULE && return analysis_incomplete_explain_extra()
     id == EXPECT_AUDIT_ID && return expect_audit_explain_extra()
     id == "unsafe-boundary" && return unsafe_boundary_explain_extra()
     id == SHELL_SAFETY_PRESET_ID && return shell_safety_explain_extra()
@@ -61,6 +62,9 @@ function init_registry!(policy::PolicyBundle)
     end
     if get(policy.rules, PROTECTED_PATHS_RULE, nothing) === nothing
         register_builtin!(rule_def_to_spec(PROTECTED_PATHS_RULE_DEF))
+    end
+    if get(policy.rules, ANALYSIS_INCOMPLETE_RULE, nothing) === nothing
+        register_builtin!(rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF))
     end
     return nothing
 end

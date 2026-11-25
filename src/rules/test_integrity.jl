@@ -296,14 +296,13 @@ function _walk_test_integrity_node!(
                         "@test condition is trivially true after constant folding",
                     )
                 elseif fold_res == TEST_FOLD_BUDGET
-                    _push_test_integrity!(
+                    push_analysis_incomplete!(
                         diags,
                         policy,
                         path,
                         source,
                         pos,
                         pos + span(node) - 1,
-                        "test expression too complex to verify; simplify it",
                     )
                 end
             end

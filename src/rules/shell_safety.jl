@@ -120,19 +120,7 @@ function diagnose_shell_safety(fc::FileContext, policy::PolicyBundle, eff_level:
         )
     end
     if collected.budget_exceeded
-        _push_builtin_violation!(
-            diags,
-            "shell-safety/process-pattern",
-            :preset,
-            :forbid,
-            fc.parsed.path,
-            source,
-            1,
-            1,
-            fold_budget_incomplete_message(fc.parsed.path),
-            intent,
-            do_not,
-        )
+        push_analysis_incomplete!(diags, policy, fc.parsed.path, source, 1, 1)
     end
     return diags
 end
