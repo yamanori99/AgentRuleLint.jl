@@ -89,7 +89,7 @@ function _explain_optional_block(label::AbstractString, body::AbstractString)
     $(strip(body))"""
 end
 
-function format_explain_rule(spec::RuleSpec)
+function format_explain_rule(spec::RuleSpec; enabled::Bool = true)
     anchor = _explain_extra(spec, :expect_anchor)
     example = _explain_extra(spec, :example)
     anchor_line = _explain_extra(spec, :anchor_line)
@@ -98,10 +98,11 @@ function format_explain_rule(spec::RuleSpec)
     intent_detail = _explain_extra(spec, :intent_detail)
     config = _explain_extra(spec, :config)
     detail = _explain_extra(spec, :detail)
+    status_line = enabled ? "" : "\nstatus: not enabled in this config"
     body = """
     rule_id: $(spec.id)
     origin: $(origin_label(spec.origin))
-    level: $(spec.level)
+    level: $(spec.level)$(status_line)
 
     intent:
     $(spec.intent)
@@ -146,6 +147,7 @@ function format_explain_project_rule(pr::ProjectRule)
     """
 end
 
+"""True when `id` is not a built-in `RuleDef` and not a declared `project/<id>`."""
 function explain_rule_unknown(id::AbstractString; root::AbstractString = pwd())
     needle = String(strip(id))
     policy = resolve_policy(root)
@@ -154,9 +156,18 @@ function explain_rule_unknown(id::AbstractString; root::AbstractString = pwd())
         short = needle[9:end]
         return !any(pr -> pr.id == short, policy.project_rules)
     end
-    return !haskey(BUILTIN_RULES, needle)
+    haskey(BUILTIN_RULES, needle) && return false
+    return !haskey(RULE_DEFS_BY_ID, needle)
 end
 
+"""Explain a built-in or project rule.
+
+Built-in ids resolve from `RULE_DEFS_BY_ID` even when the current config does
+not enable them; inactive built-ins include
+`status: not enabled in this config`. `unknown rule id` is reserved for ids
+that are neither built in nor declared under `project_rules`. Does not affect
+`check`.
+"""
 function explain_rule(id::AbstractString; root::AbstractString = pwd())
     needle = String(strip(id))
     explain_rule_unknown(needle; root = root) &&
@@ -170,6 +181,10 @@ function explain_rule(id::AbstractString; root::AbstractString = pwd())
         end
         throw(ArgumentError("unknown rule id: $needle"))
     end
-    spec = BUILTIN_RULES[needle]
-    return format_explain_rule(spec)
+    if haskey(BUILTIN_RULES, needle)
+        return format_explain_rule(BUILTIN_RULES[needle]; enabled = true)
+    end
+    def = RULE_DEFS_BY_ID[needle]
+    spec = attach_rule_explain_docs(rule_def_to_spec(def))
+    return format_explain_rule(spec; enabled = false)
 end

@@ -1,0 +1,27 @@
+rule_id: unsafe-boundary
+origin: [AgentRuleLint]
+level: warn
+status: not enabled in this config
+
+intent:
+Keep runtime evaluation and FFI inside reviewed boundaries.
+
+do_not:
+Hide eval, ccall, or unsafe_* outside allow_modules / allow_globs.
+anchor_line:
+the `@eval`, `ccall`, `@ccall`, qualified `Base.Meta.parse` / `Core.Meta.parse`,
+`invokelatest`, `unsafe_*` call, value alias (`const E = Core.eval`), value argument
+(`map(eval, xs)`), indirect `getfield`/`getproperty` escape, or related macro line
+(`@inbounds`, `@generated`, `@assume_effects`).
+intent_detail:
+keep runtime `eval`, parsing, FFI, and unsafe intrinsics inside configured
+`allow_modules` or `allow_globs`. Top-level `@eval` of static literal / quote sequences only
+is excluded (no runtime interpolation or bare identifiers). Remaining gaps: `Expr` escapes
+and renames that do not match the tracked value-alias pattern.
+config:
+[rules.unsafe-boundary] with optional `allow_modules`, `allow_globs`.
+expect_anchor:
+N/A.
+
+example:
+N/A.

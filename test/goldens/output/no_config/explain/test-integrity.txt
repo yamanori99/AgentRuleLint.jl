@@ -1,0 +1,15 @@
+rule_id: test-integrity
+origin: [AgentRuleLint]
+level: deny
+status: not enabled in this config
+
+intent:
+Keep tests from being hollowed out or silently disabled.
+
+do_not:
+Replace assertions with trivially true forms, broaden throws, skip without reason, or drop covered tests.
+expect_anchor:
+N/A.
+
+example:
+N/A.
