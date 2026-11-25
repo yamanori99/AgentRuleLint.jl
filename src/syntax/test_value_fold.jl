@@ -6,7 +6,7 @@ FoldedTestValue = Union{Bool, Int, Float64, String}
 
 function _fold_test_budget!(steps::Ref{Int})
     steps[] += 1
-    return steps[] > FOLD_MAX_STEPS && throw(ArgumentError(FOLD_BUDGET_MSG))
+    return steps[] > _ACTIVE_FOLD_LIMIT[] && throw(ArgumentError(FOLD_BUDGET_MSG))
 end
 
 function _node_text_trim(node::GreenNode, src::AbstractString, pos::Int)
@@ -31,11 +31,7 @@ end
 function _parse_float_node(node::GreenNode, src::AbstractString, pos::Int)
     summary(node) == "Float" || return nothing
     txt = _node_text_trim(node, src, pos)
-    try
-        return parse(Float64, txt)
-    catch
-        return nothing
-    end
+    return tryparse(Float64, txt)
 end
 
 function _is_eq_op(node::GreenNode, src::AbstractString, pos::Int)
@@ -51,7 +47,7 @@ function _try_fold_test_value(
         consts::Dict{String, FoldedTestValue},
     )::Union{Nothing, FoldedTestValue}
     _fold_test_budget!(steps)
-    depth > _FOLD_TEST_MAX_DEPTH && return nothing
+    depth > _FOLD_TEST_MAX_DEPTH && throw(ArgumentError(FOLD_BUDGET_MSG))
 
     s = summary(node)
     if s == "Bool" || (is_leaf(node) && kind(node) == JuliaSyntax.K"Bool")
@@ -114,21 +110,33 @@ function _try_fold_test_value(
     return nothing
 end
 
-function test_condition_folds_true(
+const TEST_FOLD_TRIVIAL = :trivial_true
+const TEST_FOLD_NOT_TRIVIAL = :not_trivial
+const TEST_FOLD_BUDGET = :budget_exceeded
+
+function test_condition_fold_result(
         node::GreenNode,
         src::AbstractString,
         pos::Int,
         consts::Dict{String, FoldedTestValue},
-    )::Bool
+    )::Symbol
     steps = Ref(0)
     try
         v = _try_fold_test_value(node, src, pos, 0, steps, consts)
-        return v === true
+        return v === true ? TEST_FOLD_TRIVIAL : TEST_FOLD_NOT_TRIVIAL
     catch err
-        if _fold_budget_exceeded(err)
-            return false
-        end
+        _fold_budget_exceeded(err) && return TEST_FOLD_BUDGET
         rethrow()
+    end
+end
+
+function with_test_fold_budget(f::Function, max_steps::Int)
+    prev = _ACTIVE_FOLD_LIMIT[]
+    _ACTIVE_FOLD_LIMIT[] = max_steps
+    try
+        return f()
+    finally
+        _ACTIVE_FOLD_LIMIT[] = prev
     end
 end
 

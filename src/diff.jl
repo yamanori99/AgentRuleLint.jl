@@ -267,10 +267,9 @@ end
 
 function _test_integrity_deleted_on_diff(d::Violation, scope::DiffScope, path_events::Vector{DiffPathEvent})
     d.rule_id != "test-integrity" && return false
+    d.expect_status != :deleted_test && return false
     p = normalize_path(d.path)
     p != "test/runtests.jl" && !startswith(p, "test/") && return false
-    msg = d.message
-    occursin("deleted test", msg) || occursin("deleted test/runtests", msg) || return false
     st = diff_path_status(scope, d.path)
     st == 'D' && return true
     for ev in path_events

@@ -214,6 +214,72 @@
         end
     end
 
+    @testset "fold budget exhaustion is fail-closed" begin
+        path = joinpath("test", "corpus", "test_integrity_fold_budget.jl")
+        AgentRuleLint.with_test_fold_budget(0) do
+            res = AgentRuleLint.check(root; paths = [path])
+            hits = filter(
+                d -> d.rule_id == "test-integrity" &&
+                    occursin("too complex to verify", d.message) &&
+                    !d.suppressed,
+                res.violations,
+            )
+            @test !isempty(hits)
+        end
+    end
+
+    @testset "diff: test-integrity deleted findings use expect_status :deleted_test" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            mkpath(joinpath(dir, "test"))
+            write(joinpath(dir, "test", "runtests.jl"), "include(\"gone.jl\")\n")
+            write(joinpath(dir, "test", "gone.jl"), "@test 1 == 1\n")
+            git_commit_all!(dir, "base")
+            rm(joinpath(dir, "test", "gone.jl"))
+            git_commit_all!(dir, "delete only")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                hits = filter(
+                    d -> d.rule_id == "test-integrity" && d.expect_status == :deleted_test,
+                    res.violations,
+                )
+                @test any(d -> d.path == "test/gone.jl", hits)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "diff: renamed-away test/runtests.jl is flagged" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            mkpath(joinpath(dir, "test"))
+            write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
+            write(joinpath(dir, "test", "case.jl"), "@test 1 == 1\n")
+            git_commit_all!(dir, "base")
+            run(setenv(Cmd(["git", "-C", dir, "mv", "test/runtests.jl", "test/driver.jl"]); dir = dir))
+            write(joinpath(dir, "test", "driver.jl"), "include(\"case.jl\")\n")
+            git_commit_all!(dir, "rename driver")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                hits = filter(
+                    d ->
+                    d.rule_id == "test-integrity" &&
+                        d.expect_status == :deleted_test &&
+                        d.path == "test/runtests.jl",
+                    res.violations,
+                )
+                @test !isempty(hits)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
     @testset "diff: deleted included test file is flagged" begin
         dir = abspath(mktempdir())
         try
@@ -336,8 +402,8 @@
         @testset "trivial @test folding → corpus test_integrity_trivial_true.jl" begin
             _mutation_expect_fail(
                 "trivial @test folding",
-                "if test_condition_folds_true(cond, source, cp, consts)",
-                "if false && test_condition_folds_true(cond, source, cp, consts)",
+                "if fold_res == TEST_FOLD_TRIVIAL",
+                "if false && fold_res == TEST_FOLD_TRIVIAL",
                 "julia --startup-file=no --project=. -e \"using AgentRuleLint; r=AgentRuleLint.check(\\\".\\\"; paths=[joinpath(\\\"test\\\",\\\"corpus\\\",\\\"test_integrity_trivial_true.jl\\\")]); exit(any(d->d.rule_id==\\\"test-integrity\\\"&&!d.suppressed,r.violations)?0:1)\"",
             )
         end

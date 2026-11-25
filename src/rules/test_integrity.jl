@@ -284,7 +284,8 @@ function _walk_test_integrity_node!(
             if !isempty(args)
                 cond = args[1]
                 cp = argpos[1]
-                if test_condition_folds_true(cond, source, cp, consts)
+                fold_res = test_condition_fold_result(cond, source, cp, consts)
+                if fold_res == TEST_FOLD_TRIVIAL
                     _push_test_integrity!(
                         diags,
                         policy,
@@ -293,6 +294,16 @@ function _walk_test_integrity_node!(
                         pos,
                         pos + span(node) - 1,
                         "@test condition is trivially true after constant folding",
+                    )
+                elseif fold_res == TEST_FOLD_BUDGET
+                    _push_test_integrity!(
+                        diags,
+                        policy,
+                        path,
+                        source,
+                        pos,
+                        pos + span(node) - 1,
+                        "test expression too complex to verify; simplify it",
                     )
                 end
             end
@@ -689,7 +700,7 @@ function _push_deleted_test_file!(
                 sp,
                 sp.start_line,
                 "",
-                :none,
+                :deleted_test,
                 false,
                 msg,
                 intent,
@@ -708,7 +719,7 @@ function _push_deleted_test_file!(
             Span(),
             0,
             "",
-            :none,
+            :deleted_test,
             false,
             msg,
             intent,
@@ -757,6 +768,19 @@ function _diff_deleted_test_files!(
                 "deleted test/runtests.jl in diff",
             )
         end
+    end
+    for ev in path_events
+        ev.status == 'R' || continue
+        normalize_path(ev.old_path) != RUNTESTS_REL && continue
+        _push_deleted_test_file!(
+            diags,
+            policy,
+            anchor_path,
+            anchor_src,
+            diff_scope,
+            RUNTESTS_REL,
+            "deleted test/runtests.jl in diff",
+        )
     end
 
     deleted_paths = Set{String}()
