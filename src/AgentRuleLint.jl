@@ -23,6 +23,7 @@ include("rules/registry.jl")
 include("rules/project_rules.jl")
 include("rules/builtin_rules.jl")
 include("rules/unsafe_boundary.jl")
+include("rules/silent_catch.jl")
 include("rules/protected_paths.jl")
 include("rules/test_integrity.jl")
 include("rules/manifest_sync.jl")
@@ -319,6 +320,7 @@ end
 
 function cli_main(args::AbstractVector{<:AbstractString})::Int
     argvec = String[string(a) for a in args]
+    # agentrulelint-expect: silent-catch reason="CLI maps caught errors to fail-closed exit codes after Interrupt pass-through"
     try
         cmd = isempty(argvec) ? "check" : argvec[1]
         if cmd == "help" || cmd == "-h" || cmd == "--help"

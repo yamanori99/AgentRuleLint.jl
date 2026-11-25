@@ -11,6 +11,12 @@ level = "deny"
 intent = "Keep git-tracked manifests aligned with Project.toml resolve sections and workspace subprojects."
 do_not = "Change [deps], [compat], [sources], or [workspace] without updating the paired manifest and project_hash."
 
+[rules.silent-catch]
+level = "deny"
+intent = "Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths."
+do_not = "Use empty catch bodies, log-only handlers, or partial branches without rethrow to silence errors."
+warn_counts_as_handling = false
+
 [rules.test-integrity]
 level = "deny"
 intent = "Block hollow or weakened tests that always pass or shrink CI coverage."

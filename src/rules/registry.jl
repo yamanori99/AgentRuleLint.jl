@@ -53,6 +53,7 @@ end
 function builtin_explain_extras(id::AbstractString)
     id == "expect-audit" && return expect_audit_explain_extra()
     id == "unsafe-boundary" && return unsafe_boundary_explain_extra()
+    id == SILENT_CATCH_ID && return silent_catch_explain_extra()
     id == MANIFEST_SYNC_RULE && return manifest_sync_explain_extra()
     id == SCOPE_PATHS_RULE && return scope_paths_explain_extra()
     id == PROTECTED_PATHS_RULE && return protected_paths_explain_extra()
@@ -99,6 +100,18 @@ function init_registry!(policy::PolicyBundle)
                 "Keep suppression comments auditable.",
                 "Hide violations with unapproved expects.",
                 Dict{Symbol, String}(),
+            ),
+        )
+    end
+    if get(policy.rules, "silent-catch", nothing) === nothing
+        register_builtin!(
+            RuleSpec(
+                "silent-catch",
+                :agentrulelint,
+                :deny,
+                "Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths.",
+                "Use empty catch bodies, log-only handlers, or partial branches without rethrow to silence errors.",
+                Dict{Symbol, String}(:warn_counts_as_handling => "false"),
             ),
         )
     end

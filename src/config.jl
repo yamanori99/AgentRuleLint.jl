@@ -14,6 +14,7 @@ const TOP_LEVEL_CONFIG_KEYS = Set(
 )
 const RULE_TABLE_KEYS = Set(["level", "intent", "do_not"])
 const EXPECT_AUDIT_RULE_KEYS = Set(["level", "intent", "do_not", "on_allow_rule"])
+const SILENT_CATCH_RULE_KEYS = Set(["level", "intent", "do_not", "warn_counts_as_handling"])
 const UNSAFE_BOUNDARY_RULE_KEYS = Set(["level", "intent", "do_not", "allow_modules", "allow_globs"])
 const PROTECTED_PATHS_RULE_KEYS =
     Set(["level", "intent", "do_not", "project_toml_policy", "paths"])
@@ -52,6 +53,12 @@ function _parse_rule_level(raw, label::String)
     sym in VALID_RULE_LEVELS ||
         throw(ConfigError("unknown rule level '$raw' in $label (expected forbid|deny|allow|warn)"))
     return sym
+end
+
+function _parse_warn_counts_as_handling(raw, label::String)
+    raw isa Bool ||
+        throw(ConfigError("expected boolean for $label (got $(typeof(raw)))"))
+    return raw ? "true" : "false"
 end
 
 function _parse_on_allow_rule(raw, label::String)
@@ -229,6 +236,8 @@ function _load_rules_table(raw::Dict)
         validate_kebab_rule_id(id, "rules.$id")
         allowed = if id == "expect-audit"
             EXPECT_AUDIT_RULE_KEYS
+        elseif id == "silent-catch"
+            SILENT_CATCH_RULE_KEYS
         elseif id == "unsafe-boundary"
             UNSAFE_BOUNDARY_RULE_KEYS
         elseif id == PROTECTED_PATHS_RULE
@@ -248,8 +257,15 @@ function _load_rules_table(raw::Dict)
         end
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
+        extra = Dict{Symbol, String}()
+        if id == "silent-catch" && haskey(content, "warn_counts_as_handling")
+            extra[:warn_counts_as_handling] = _parse_warn_counts_as_handling(
+                content["warn_counts_as_handling"],
+                "rules.silent-catch.warn_counts_as_handling",
+            )
+        end
         eff_level = id in INTEGRITY_FORBID_RULES ? :forbid : level
-        rules[id] = RuleSpec(id, :agentrulelint, eff_level, intent, do_not, Dict{Symbol, String}())
+        rules[id] = RuleSpec(id, :agentrulelint, eff_level, intent, do_not, extra)
     end
     return rules
 end
@@ -526,6 +542,14 @@ function default_policy(root::AbstractString)
             "Keep suppression comments auditable and fail-closed.",
             "Use inline or block comment expects to hide violations.",
             Dict{Symbol, String}(),
+        ),
+        "silent-catch" => RuleSpec(
+            "silent-catch",
+            :agentrulelint,
+            :deny,
+            "Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths.",
+            "Use empty catch bodies, log-only handlers, or partial branches without rethrow to silence errors.",
+            Dict{Symbol, String}(:warn_counts_as_handling => "false"),
         ),
         "ceiling-ratchet" => RuleSpec(
             "ceiling-ratchet",
