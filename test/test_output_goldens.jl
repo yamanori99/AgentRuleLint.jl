@@ -34,10 +34,8 @@ const OUTPUT_GOLDEN_EXPLAIN_IDS = (
 
 # Under `default_policy` (no config file), explain covers every built-in id.
 # Ids not registered / not activated include `status: not enabled in this config`
-# (#82); check is unchanged.
-# Under `default_policy` (no config file), inactive presets / undeclared rules
-# are not registered, so explain is only exercised for these ids (same as main
-# for the shared set; `analysis-incomplete` is injected as an integrity rule).
+# (#82); check is unchanged. `analysis-incomplete` is always injected as an
+# integrity rule, so it is active under `default_policy`.
 const OUTPUT_GOLDEN_NO_CONFIG_EXPLAIN_IDS = (
     "analysis-incomplete",
     "expect-audit",
