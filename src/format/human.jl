@@ -1,5 +1,5 @@
-function _human_level_styled(io::IO, level::Symbol)
-    plain = string(level)
+function _human_console_head_styled(io::IO, level::Symbol)
+    plain = human_console_level(level)
     color_enabled(io) || return plain
     if level in HUMAN_LEVEL_RED
         return emit_plain_or_styled(io, plain; color = :red)
@@ -7,11 +7,6 @@ function _human_level_styled(io::IO, level::Symbol)
         return emit_plain_or_styled(io, plain; color = :yellow)
     end
     return plain
-end
-
-function _human_rule_id_styled(io::IO, rule_id::AbstractString)
-    color_enabled(io) || return String(rule_id)
-    return emit_plain_or_styled(io, String(rule_id); color = :cyan)
 end
 
 function _human_group_header(
@@ -22,11 +17,9 @@ function _human_group_header(
         total::Int,
         ceiling_s::AbstractString,
     )
-    rid = _human_rule_id_styled(io, rule_id)
-    lvl = _human_level_styled(io, level)
-    head = human_console_level(level)
+    head = _human_console_head_styled(io, level)
     counts = human_violation_phrase(total)
-    return "┌ $head: $label $rid [$lvl] ($counts, ceiling $ceiling_s)"
+    return "┌ $head: $label $rule_id [$level] ($counts, ceiling $ceiling_s)"
 end
 
 function format_human(
@@ -90,7 +83,7 @@ function format_human(
             !isempty(d.message) &&
                 println_wrapped_labeled(buf, "│     ", "", d.message, width)
             line = source_line_at(root, d)
-            !isempty(line) && println_human_code_gutter(buf, width, d.anchor_line, line, d.span)
+            !isempty(line) && println_human_code_gutter(buf, width, line, d.span)
         end
 
         if total > limit

@@ -6,8 +6,8 @@ AgentRuleLint v0.1.0-DEV (policy bundle base: origin/main @ 9f2c1a4e, pos: utf8-
 │
 │   test/corpus/block_expect.jl:1:1-1:60
 │     block comment expect forbidden
-│     1 │ #= block agentrulelint-expect: expect-audit reason="nope" =#
-│       │ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│     > #= block agentrulelint-expect: expect-audit reason="nope" =#
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 └ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
 
 ┌ Error: [Project] project/no-internal-codename [deny] (1 violation, ceiling 0)
@@ -16,8 +16,8 @@ AgentRuleLint v0.1.0-DEV (policy bundle base: origin/main @ 9f2c1a4e, pos: utf8-
 │
 │   test/corpus/split_string.jl:1:10-1:33
 │     forbidden literal matched (folded)
-│     1 │ secret = "INT" * "ERNAL_CODENAME"
-│       │          ~~~~~~~~~~~~~~~~~~~~~~~~
+│     > secret = "INT" * "ERNAL_CODENAME"
+│                ~~~~~~~~~~~~~~~~~~~~~~~~
 └ @ Project .AgentRuleLintConfig.toml ([[project_rules]])
 
 Summary: 2 violations across 2 rules (1 [AgentRuleLint], 1 [Project]) — FAILED (exit 1)

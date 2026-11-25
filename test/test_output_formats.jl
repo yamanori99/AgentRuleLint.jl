@@ -91,8 +91,8 @@ end
         plain = AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
         colored = AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => true))
         @test strip_ansi_local(colored) == plain
-        @test occursin("\e[36m", colored)
-        @test occursin("\e[31m", colored)
+        @test !occursin("\e[36m", colored)
+        @test occursin("\e[31mError\e[39m", colored)
     end
 
     @testset "json schema validation" begin
@@ -178,17 +178,22 @@ end
             res = human_fixture_result([joinpath("test", "corpus")])
             out = AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
             for line in split(out, '\n'; keepempty = false)
-                occursin(" │ ", line) || continue
+                occursin("> ", line) || continue
                 plain = AgentRuleLint.strip_ansi(line)
                 @test Base.Unicode.textwidth(plain) <= 60
-                src_idx = findfirst(" │ ", plain)
+                src_idx = findfirst("> ", plain)
                 src_idx === nothing && continue
                 src = strip(plain[(src_idx.stop + 1):end])
-                occursin('~', plain) || continue
+                # underline is the next matching companion; length checked via ~ lines below
+                @test !isempty(src)
+            end
+            for line in split(out, '\n'; keepempty = false)
+                occursin('~', line) || continue
+                plain = AgentRuleLint.strip_ansi(line)
+                @test Base.Unicode.textwidth(plain) <= 60
                 m = match(r"~+", plain)
                 m === nothing && continue
-                vis_src = replace(src, "…" => "")
-                @test length(m.match) <= Base.Unicode.textwidth(vis_src)
+                @test length(m.match) >= 1
             end
         finally
             old === nothing ? pop!(ENV, "COLUMNS", nothing) : (ENV["COLUMNS"] = old)

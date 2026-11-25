@@ -82,7 +82,7 @@ end
         try
             res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
             out = AgentRuleLint.format_human(res; root = ROOT, output_width = 35)
-            gutter_lines = filter(l -> occursin(" │ ", l), split(out, '\n'))
+            gutter_lines = filter(l -> occursin("> ", l) || occursin('~', l), split(out, '\n'))
             @test !isempty(gutter_lines)
             @test all(textwidth.(AgentRuleLint.strip_ansi.(gutter_lines)) .<= 35)
             @test any(l -> endswith(strip(l), "…"), gutter_lines)

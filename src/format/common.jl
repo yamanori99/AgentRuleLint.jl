@@ -118,15 +118,8 @@ function human_rule_footer(rule_id::String, origin::Symbol, config_path::Abstrac
     end
 end
 
-function _human_gutter_prefixes(line_no::Int)
-    num = string(line_no)
-    line_prefix = "│" * repeat(' ', 5) * num * " │ "
-    w = visible_textwidth(line_prefix)
-    inner = w - visible_textwidth("│ ")
-    inner < 1 && (inner = 1)
-    ul_prefix = "│" * repeat(' ', inner - 1) * "│ "
-    return line_prefix, ul_prefix
-end
+const HUMAN_CODE_PREFIX = "│     > "
+const HUMAN_UNDERLINE_PREFIX = "│       "
 
 function _human_truncate_code(body::AbstractString, prefix::AbstractString, width::Int)
     budget = width - visible_textwidth(prefix)
@@ -137,11 +130,11 @@ end
 function println_human_code_gutter(
         buf::IO,
         width::Int,
-        line_no::Int,
         line::AbstractString,
         span::Span,
     )
-    line_prefix, ul_prefix = _human_gutter_prefixes(line_no)
+    line_prefix = HUMAN_CODE_PREFIX
+    ul_prefix = HUMAN_UNDERLINE_PREFIX
     budget = width - visible_textwidth(line_prefix)
     src = _truncate_chars(line, budget, with_ellipsis = true)
     println(buf, _human_truncate_code(src, line_prefix, width))
