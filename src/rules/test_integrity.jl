@@ -877,18 +877,6 @@ function run_test_integrity(
     return diags
 end
 
-const _TEST_INTEGRITY_EXPLAIN_DETAIL = """
-Group: integrity. Opt-in via `[rules.test-integrity]` in `.AgentRuleLintConfig.toml`.
-
-Flags hollow tests: trivially true assertions, broad `@test_throws Exception`,
-`@test_skip` / `@test_broken` introduced in a diff without a stated reason, and
-deleted test files that remain referenced from `test/runtests.jl`.
-"""
-
-function test_integrity_explain_extra()
-    return Dict{Symbol, String}(:detail => strip(_TEST_INTEGRITY_EXPLAIN_DETAIL))
-end
-
 const TEST_INTEGRITY_RULE_DEF = RuleDef(
     TEST_INTEGRITY_RULE,
     :agentrulelint,

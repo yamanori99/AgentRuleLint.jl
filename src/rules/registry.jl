@@ -1,39 +1,23 @@
 const BUILTIN_RULES = Dict{String, RuleSpec}()
 
-const BUILTIN_DOC_DEFAULTS = Dict(
-    "expect-audit" => (
-        "Keep suppression comments auditable.",
-        "Hide violations with unapproved expects.",
-    ),
-    "protected-paths" => (
-        "Protect designated policy, lockfiles, and workflow paths from silent edits.",
-        "Edit protected files, weaken compat, or rename paths to evade review.",
-    ),
-    "shell-safety/process-pattern" => (
-        "Reject hazardous shell patterns in statically known Cmd literals.",
-        "Split or dynamically assemble command strings to bypass constant folding.",
-    ),
-)
-
+"""Fill empty intent/do_not from the rule's `RuleDef` (config values win when present)."""
 function fill_builtin_docs!(spec::RuleSpec)
-    d = get(BUILTIN_DOC_DEFAULTS, spec.id, nothing)
-    d === nothing && return spec
-    intent = isempty(spec.intent) ? d[1] : spec.intent
-    do_not = isempty(spec.do_not) ? d[2] : spec.do_not
+    def = get(RULE_DEFS_BY_ID, spec.id, nothing)
+    def === nothing && return spec
+    intent = isempty(spec.intent) ? def.intent : spec.intent
+    do_not = isempty(spec.do_not) ? def.do_not : spec.do_not
     return RuleSpec(spec.id, spec.origin, spec.level, intent, do_not, spec.extra)
 end
 
 """Attach built-in explain text that lives with the rule definition (config may override intent/do_not only)."""
 function builtin_explain_extras(id::AbstractString)
     id == EXPECT_AUDIT_ID && return expect_audit_explain_extra()
-    id == CEILING_RATCHET_RULE && return ceiling_ratchet_explain_extra()
     id == "unsafe-boundary" && return unsafe_boundary_explain_extra()
     id == SHELL_SAFETY_PRESET_ID && return shell_safety_explain_extra()
     id == SILENT_CATCH_ID && return silent_catch_explain_extra()
     id == MANIFEST_SYNC_RULE && return manifest_sync_explain_extra()
     id == SCOPE_PATHS_RULE && return scope_paths_explain_extra()
     id == PROTECTED_PATHS_RULE && return protected_paths_explain_extra()
-    id == TEST_INTEGRITY_RULE && return test_integrity_explain_extra()
     return Dict{Symbol, String}()
 end
 
