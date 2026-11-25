@@ -1,49 +1,40 @@
-function _effective_rule_level(policy::PolicyBundle, level::Symbol)
-    if level == :allow
-        return if policy.on_allow_rule == :error
-            :forbid
-        elseif policy.on_allow_rule == :warn
-            :warn
-        else
-            :allow
-        end
-    end
-    return level
-end
+# Explicit sorted registration of one-file-per-rule modules.
+# Sort key: RuleDef.id (ASCII). Do not use glob-based includes.
 
-function _push_builtin_violation!(
-        diags::Vector{Violation},
-        rule_id::String,
-        origin::Symbol,
-        eff_level::Symbol,
-        path::String,
-        source::AbstractString,
-        byte_start::Int,
-        byte_end::Int,
-        msg::String,
-        intent::String,
-        do_not::String,
-    )
-    sp = span_from_byte_range(source, byte_start, byte_end)
-    push!(
-        diags,
-        Violation(
-            rule_id,
-            origin,
-            eff_level,
-            path,
-            sp,
-            sp.start_line,
-            "",
-            :none,
-            false,
-            msg,
-            intent,
-            do_not,
-        ),
-    )
+include("ceiling_ratchet.jl")
+include("expect_audit.jl")
+include("manifest_sync.jl")
+include("protected_paths.jl")
+include("scope_paths.jl")
+include("shell_safety.jl")
+include("silent_catch.jl")
+include("test_integrity.jl")
+include("unsafe_boundary.jl")
+
+"""Canonical built-in / preset rule definitions, sorted by `id`."""
+const RULE_DEFS = (
+    CEILING_RATCHET_RULE_DEF,
+    EXPECT_AUDIT_RULE_DEF,
+    MANIFEST_SYNC_RULE_DEF,
+    PROTECTED_PATHS_RULE_DEF,
+    SCOPE_PATHS_RULE_DEF,
+    SHELL_SAFETY_RULE_DEF,
+    SILENT_CATCH_RULE_DEF,
+    TEST_INTEGRITY_RULE_DEF,
+    UNSAFE_BOUNDARY_RULE_DEF,
+)
+
+function _assert_rule_defs_sorted!()
+    ids = [d.id for d in RULE_DEFS]
+    sorted = sort(ids)
+    ids == sorted ||
+        throw(InternalError("RULE_DEFS must be sorted by id; got $(ids), want $(sorted)"))
     return nothing
 end
+
+_assert_rule_defs_sorted!()
+
+const RULE_DEFS_BY_ID = Dict{String, RuleDef}(d.id => d for d in RULE_DEFS)
 
 function _run_unsafe_boundary_rule(fc::FileContext, policy::PolicyBundle)
     diags = Violation[]

@@ -84,3 +84,15 @@ function silent_catch_explain_extra()
         :detail => strip(_SILENT_CATCH_EXPLAIN_DETAIL),
     )
 end
+
+const SILENT_CATCH_RULE_DEF = RuleDef(
+    SILENT_CATCH_ID,
+    :agentrulelint,
+    :deny,
+    "Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths.",
+    "Use empty catch bodies, log-only handlers, or partial branches without rethrow to silence errors.",
+    Dict{Symbol, String}(:warn_counts_as_handling => "false"),
+    "silent_catch.jl",
+    "test_silent_catch.jl",
+    ("test/corpus/silent_catch_empty.jl",),
+)

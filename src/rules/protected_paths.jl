@@ -279,3 +279,15 @@ of a protected path is never semantically exempt (including Project.toml and cei
 function protected_paths_explain_extra()
     return Dict{Symbol, String}(:detail => strip(_PROTECTED_PATHS_EXPLAIN_DETAIL))
 end
+
+const PROTECTED_PATHS_RULE_DEF = RuleDef(
+    PROTECTED_PATHS_RULE,
+    :agentrulelint,
+    :forbid,
+    "Protect designated policy, lockfiles, and workflow paths from silent edits.",
+    "Edit protected files, weaken compat, or rename paths to evade review.",
+    Dict{Symbol, String}(),
+    "protected_paths.jl",
+    "test_protected_paths.jl",
+    ("test/corpus/protected_paths_dep_add.toml",),
+)

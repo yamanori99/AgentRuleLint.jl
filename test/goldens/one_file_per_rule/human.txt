@@ -1,0 +1,43 @@
+AgentRuleLint v0.1.0-DEV (policy bundle base: .AgentRuleLintConfig.toml, pos:
+utf8-line-col)
+
+┌ Error: [AgentRuleLint] expect-audit [forbid] (1 violation, ceiling 0)
+│   intent: Keep suppression comments auditable.
+│   do_not: Hide violations with unapproved expects.
+│
+│   test/corpus/expect_blank_line.jl:1:1-1:79
+│     blank line breaking expect attachment (unused)
+│     > # agentrulelint-expect: project/no-internal-codename reason="should not…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+└ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
+
+┌ Error: [Project] project/no-internal-codename [deny] (2 violations, ceiling 0)
+│   intent: Keep internal codenames out of public package files.
+│   do_not: Split or dynamically concatenate forbidden strings to bypass the
+│           check.
+│
+│   test/corpus/expect_blank_line.jl:3:5-3:23
+│     forbidden literal matched (folded)
+│     > x = "INTERNAL_CODENAME"
+│           ~~~~~~~~~~~~~~~~~~~
+│   test/corpus/split_string.jl:1:10-1:33
+│     forbidden literal matched (folded)
+│     > secret = "INT" * "ERNAL_CODENAME"
+│                ~~~~~~~~~~~~~~~~~~~~~~~~
+└ @ Project .AgentRuleLintConfig.toml ([[project_rules]])
+
+┌ Error: [AgentRuleLint] silent-catch [deny] (1 violation, ceiling 0)
+│   intent: Surface try/catch blocks that hide failures instead of rethrowing or
+│           throwing on unhandled paths.
+│   do_not: Use empty catch bodies, log-only handlers, or partial branches
+│           without rethrow to silence errors.
+│
+│   test/corpus/silent_catch_empty.jl:2:1-2:14
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     >     return try
+│       ~~~~~~~~~~~~~~
+└ @ AgentRuleLint (run `agentrulelint explain silent-catch` for details)
+
+Summary: 4 violations across 3 rules (2 [AgentRuleLint], 1 [Project]) — FAILED
+(exit 1)

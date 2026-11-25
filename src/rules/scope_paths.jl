@@ -107,3 +107,15 @@ Integrity level: `scope-paths` must use `level = "forbid"` in config (ConfigErro
 function scope_paths_explain_extra()
     return Dict{Symbol, String}(:detail => strip(_SCOPE_PATHS_EXPLAIN_DETAIL))
 end
+
+const SCOPE_PATHS_RULE_DEF = RuleDef(
+    SCOPE_PATHS_RULE,
+    :agentrulelint,
+    :forbid,
+    "Reject diff changes outside a trusted path allowlist.",
+    "Edit files outside --allow-paths scope passed from CI or a human wrapper.",
+    Dict{Symbol, String}(),
+    "scope_paths.jl",
+    "test_scope_paths.jl",
+    ("test/corpus/scope_paths_outside_allow.jl",),
+)
