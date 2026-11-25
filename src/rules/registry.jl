@@ -53,6 +53,7 @@ end
 function builtin_explain_extras(id::AbstractString)
     id == "expect-audit" && return expect_audit_explain_extra()
     id == "unsafe-boundary" && return unsafe_boundary_explain_extra()
+    id == MANIFEST_SYNC_RULE && return manifest_sync_explain_extra()
     id == SCOPE_PATHS_RULE && return scope_paths_explain_extra()
     id == PROTECTED_PATHS_RULE && return protected_paths_explain_extra()
     return Dict{Symbol, String}()
@@ -98,6 +99,18 @@ function init_registry!(policy::PolicyBundle)
                 "Keep suppression comments auditable.",
                 "Hide violations with unapproved expects.",
                 Dict{Symbol, String}(),
+            ),
+        )
+    end
+    if get(policy.rules, "manifest-sync", nothing) === nothing
+        register_builtin!(
+            RuleSpec(
+                "manifest-sync",
+                :agentrulelint,
+                :deny,
+                "Tracked manifests must match Project.toml.",
+                "Drift project resolve sections away from the manifest.",
+                Dict{Symbol, String}(:group => "integrity"),
             ),
         )
     end

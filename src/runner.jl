@@ -158,6 +158,8 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         append!(all_diags, unused_expect_diagnostics(fc.expects, used_total, fc, policy, all_diags))
     end
 
+    append!(all_diags, run_manifest_sync(root, policy; diff_base = diff_base, paths = paths_kw))
+
     if diff_scope !== nothing
         path_events = git_diff_path_events(root, diff_scope.base_ref)
         all_diags = filter_diff_violations!(all_diags, diff_scope, path_events)
@@ -218,6 +220,13 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     end
 
     sources = Dict{String, String}(fc.parsed.path => fc.parsed.normalized for fc in contexts)
+    for d in all_diags
+        d.rule_id == MANIFEST_SYNC_RULE || continue
+        d.path in keys(sources) && continue
+        ap = joinpath(root, d.path)
+        isfile(ap) || continue
+        sources[d.path] = normalize_source(read(ap, String))
+    end
     assign_diagnostic_fingerprints!(all_diags, sources)
 
     all_diags = _unique_violations(all_diags)

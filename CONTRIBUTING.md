@@ -104,6 +104,8 @@ reused.
 
 ## Golden corpus
 
+`manifest-sync` golden fixtures under `test/corpus/manifest_sync/` are stored as `*.toml.fixture` (not tracked as `Project.toml` / `Manifest*.toml`); tests materialize them in a temp git repo.
+
 Under `test/corpus/`:
 
 - **Existing fixtures** exercise constant folding, UTF-8, and expect anchors.
