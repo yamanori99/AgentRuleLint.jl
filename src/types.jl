@@ -40,7 +40,7 @@ struct Violation
     span::Span
     anchor_line::Int
     fingerprint::String
-    expect_status::Symbol
+    expect_status::Symbol # :none; expect-audit states; :deleted_test for test-integrity diff path findings
     suppressed::Bool
     message::String
     intent::String
@@ -102,11 +102,21 @@ struct ProjectRule
     do_not::String
 end
 
+struct UnsafeBoundaryConfig
+    active::Bool
+    level::Symbol
+    allow_modules::Vector{String}
+    allow_globs::Vector{Regex}
+    intent::String
+    do_not::String
+end
+
+UnsafeBoundaryConfig() = UnsafeBoundaryConfig(false, :warn, String[], Regex[], "", "")
+
 struct ProtectedGlobEntry
     regex::Regex
     reason::String
 end
-
 struct PolicyBundle
     agentrulelint_version::VersionNumber
     default_format::Symbol
@@ -116,6 +126,7 @@ struct PolicyBundle
     project_rules::Vector{ProjectRule}
     on_allow_rule::Symbol
     shell_safety::ShellSafetyConfig
+    unsafe_boundary::UnsafeBoundaryConfig
     config_path::String
     config_source::ConfigSource
     project_toml_policy::String

@@ -18,14 +18,14 @@ function format_json(result::CheckResult)
     lines = String[]
     header = Dict{String, Any}(
         "type" => "header",
-        "agentrulelint_version" => string(pkgversion(AgentRuleLint)),
+        "version" => string(pkgversion(AgentRuleLint)),
         "julia_version" => string(VERSION),
         "parser" => parser_rev_string(),
         "config_source" => config_source_dict(result.config_source),
         "position_encoding" => "utf8-codepoint-1based",
     )
     push!(lines, _json_val(header))
-    for d in sort(result.violations; by = x -> (x.path, x.span, x.rule_id))
+    for d in sort(result.violations; by = diag_sort_key)
         rec = Dict{String, Any}(
             "type" => "diagnostic",
             "rule_id" => d.rule_id,
@@ -51,7 +51,7 @@ function format_json(result::CheckResult)
         "complete" => result.complete,
         "violations" => result.violation_count,
         "suppressed" => result.suppressed_count,
-        "rules" => length(unique(d.rule_id for d in result.violations)),
+        "rules" => length(unique(d.rule_id for d in active_violations(result.violations))),
         "exit_code" => result.exit_code,
     )
     push!(lines, _json_val(summary))

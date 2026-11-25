@@ -33,7 +33,7 @@ body:
     attributes:
       label: JSON header line
       description: Required first JSONL record from `agentrulelint check --format=json` or `agentrulelint report` (`{"type":"header",...}`).
-      placeholder: '{"type":"header","agentrulelint_version":"0.1.0",...}'
+      placeholder: '{"type":"header","version":"0.1.0",...}'
     validations:
       required: true
 

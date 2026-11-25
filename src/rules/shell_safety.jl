@@ -39,6 +39,32 @@ function _cmd_argv_hazard(cmd::AbstractString)
     return nothing
 end
 
+const _SHELL_SAFETY_EXPLAIN_ANCHOR = """
+`run(`, `open(`, `read(`, `pipeline(`, backtick Cmd, or `Cmd(`.
+"""
+
+const _SHELL_SAFETY_EXPLAIN_CONFIG = """
+Opt-in via `presets = ["shell-safety"]` in `.AgentRuleLintConfig.toml`.
+`[rules."shell-safety/process-pattern"]` without `presets = ["shell-safety"]` is ConfigError.
+"""
+
+const _SHELL_SAFETY_EXPLAIN_DETAIL = """
+Uses the Syntax-layer constant folder and `collect_cmd_string_literals` to find `pkill`,
+`killall`, `sh -c` / `bash -c`, `ssh --`, and `sudo` in folded command text. Dashed options
+containing `c` (`-c`, `-lc`, `-cl`, `-ec`) after `sh`/`bash` count as `-c` (combined
+login/exec flags). Static folding limits: runtime Cmd values, string/cmd interpolation, and
+symbols outside the shared fold budget are not analyzed (see `collect_cmd_string_literals`
+docstring).
+"""
+
+function shell_safety_explain_extra()
+    return Dict{Symbol, String}(
+        :anchor_line => strip(_SHELL_SAFETY_EXPLAIN_ANCHOR),
+        :config => strip(_SHELL_SAFETY_EXPLAIN_CONFIG),
+        :detail => strip(_SHELL_SAFETY_EXPLAIN_DETAIL),
+    )
+end
+
 function diagnose_shell_safety(fc::FileContext, policy::PolicyBundle, eff_level::Symbol)
     source = fc.parsed.normalized
     tree = parse_source(source; filename = fc.parsed.path)

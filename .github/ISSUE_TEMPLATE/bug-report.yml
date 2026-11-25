@@ -44,7 +44,7 @@ body:
     id: json_header
     attributes:
       label: JSON header line
-      description: From `agentrulelint check --format=json` if check ran; else minimal `{"type":"header","agentrulelint_version":"..."}` you can construct.
+      description: From `agentrulelint check --format=json` if check ran; else minimal `{"type":"header","version":"..."}` you can construct.
     validations:
       required: true
 

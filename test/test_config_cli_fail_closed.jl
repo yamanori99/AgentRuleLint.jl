@@ -238,10 +238,33 @@
                 @test AgentRuleLint.cli_main(["check", "sample.jl", "--format", "human", "--output", out]) == 0
                 body = read(out, String)
                 @test !occursin("\"type\":\"header\"", replace(body, " " => ""))
-                @test occursin("AgentRuleLint", body) || occursin("complete", body)
+                @test occursin("Summary:", body)
             end
         finally
             rm(root, recursive = true, force = true)
+        end
+    end
+
+    @testset "silent-catch warn_counts_as_handling requires boolean" begin
+        for raw in ("warn_counts_as_handling = \"true\"", "warn_counts_as_handling = 1")
+            root = mktempdir()
+            try
+                cfg = minimal_config(
+                    """
+                    [rules.silent-catch]
+                    level = \"deny\"
+                    $raw
+                    """,
+                )
+                write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+                write(joinpath(root, "sample.jl"), "x = 1\n")
+                @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
+                cd(root) do
+                    @test AgentRuleLint.cli_main(["check", "sample.jl"]) == 2
+                end
+            finally
+                rm(root, recursive = true, force = true)
+            end
         end
     end
 

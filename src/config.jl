@@ -14,6 +14,8 @@ const TOP_LEVEL_CONFIG_KEYS = Set(
 )
 const RULE_TABLE_KEYS = Set(["level", "intent", "do_not"])
 const EXPECT_AUDIT_RULE_KEYS = Set(["level", "intent", "do_not", "on_allow_rule"])
+const SILENT_CATCH_RULE_KEYS = Set(["level", "intent", "do_not", "warn_counts_as_handling"])
+const UNSAFE_BOUNDARY_RULE_KEYS = Set(["level", "intent", "do_not", "allow_modules", "allow_globs"])
 const PROTECTED_PATHS_RULE_KEYS =
     Set(["level", "intent", "do_not", "project_toml_policy", "paths"])
 const PROTECTED_PATHS_RULE = "protected-paths"
@@ -52,6 +54,12 @@ function _parse_rule_level(raw, label::String)
     sym in VALID_RULE_LEVELS ||
         throw(ConfigError("unknown rule level '$raw' in $label (expected forbid|deny|allow|warn)"))
     return sym
+end
+
+function _parse_warn_counts_as_handling(raw, label::String)
+    raw isa Bool ||
+        throw(ConfigError("expected boolean for $label (got $(typeof(raw)))"))
+    return raw ? "true" : "false"
 end
 
 function _parse_on_allow_rule(raw, label::String)
@@ -183,6 +191,16 @@ function _load_shell_safety_config(presets::Vector{String}, rules::Dict{String, 
     return ShellSafetyConfig(true, level, intent, do_not)
 end
 
+function _parse_string_array(raw, label::AbstractString)
+    raw isa AbstractVector || throw(ConfigError("$label must be an array"))
+    out = String[]
+    for (i, v) in enumerate(raw)
+        v isa AbstractString || throw(ConfigError("$label[$i] must be a string"))
+        push!(out, String(v))
+    end
+    return out
+end
+
 function _parse_protected_paths_globs(content::Dict, label::String)
     raw = get(content, "paths", [])
     raw isa AbstractVector || throw(ConfigError("$label.paths must be an array"))
@@ -199,6 +217,34 @@ function _parse_protected_paths_globs(content::Dict, label::String)
     return out
 end
 
+function _load_unsafe_boundary_config(raw::Dict, rules::Dict{String, RuleSpec})
+    spec = get(rules, "unsafe-boundary", nothing)
+    spec === nothing && return UnsafeBoundaryConfig()
+    allow_modules = String[]
+    allow_globs = Regex[]
+    for (id, content) in _collect_rule_tables(raw)
+        id == "unsafe-boundary" || continue
+        if haskey(content, "allow_modules")
+            allow_modules = _parse_string_array(content["allow_modules"], "rules.unsafe-boundary.allow_modules")
+        end
+        if haskey(content, "allow_globs")
+            globs = _parse_string_array(content["allow_globs"], "rules.unsafe-boundary.allow_globs")
+            for (j, g) in enumerate(globs)
+                push!(allow_globs, compile_path_glob(g, "rules.unsafe-boundary.allow_globs[$j]"))
+            end
+        end
+        break
+    end
+    return UnsafeBoundaryConfig(
+        true,
+        spec.level,
+        allow_modules,
+        allow_globs,
+        spec.intent,
+        spec.do_not,
+    )
+end
+
 function _parse_project_toml_policy(raw, label::String)
     s = strip(raw isa AbstractString ? String(raw) : "")
     s == DEFAULT_PROJECT_TOML_POLICY && return DEFAULT_PROJECT_TOML_POLICY
@@ -211,6 +257,10 @@ function _load_rules_table(raw::Dict)
         id == SHELL_SAFETY_PRESET_ID || validate_kebab_rule_id(id, "rules.$id")
         allowed = if id == "expect-audit"
             EXPECT_AUDIT_RULE_KEYS
+        elseif id == "silent-catch"
+            SILENT_CATCH_RULE_KEYS
+        elseif id == "unsafe-boundary"
+            UNSAFE_BOUNDARY_RULE_KEYS
         elseif id == PROTECTED_PATHS_RULE
             PROTECTED_PATHS_RULE_KEYS
         else
@@ -229,8 +279,15 @@ function _load_rules_table(raw::Dict)
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
         origin = id == SHELL_SAFETY_PRESET_ID ? :preset : :agentrulelint
+        extra = Dict{Symbol, String}()
+        if id == "silent-catch" && haskey(content, "warn_counts_as_handling")
+            extra[:warn_counts_as_handling] = _parse_warn_counts_as_handling(
+                content["warn_counts_as_handling"],
+                "rules.silent-catch.warn_counts_as_handling",
+            )
+        end
         eff_level = id in INTEGRITY_FORBID_RULES ? :forbid : level
-        rules[id] = RuleSpec(id, origin, eff_level, intent, do_not, Dict{Symbol, String}())
+        rules[id] = RuleSpec(id, origin, eff_level, intent, do_not, extra)
     end
     return rules
 end
@@ -380,6 +437,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
         on_allow = _parse_on_allow_rule(es["on_allow_rule"], "rules.expect-audit.on_allow_rule")
     end
     shell = _load_shell_safety_config(presets, rules)
+    unsafe = _load_unsafe_boundary_config(raw, rules)
     ptp, pglobs = _protected_paths_config(raw, rules)
     return PolicyBundle(
         ver,
@@ -390,6 +448,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
         project,
         on_allow,
         shell,
+        unsafe,
         config_path,
         config_source,
         ptp,
@@ -509,6 +568,14 @@ function default_policy(root::AbstractString)
             "Use inline or block comment expects to hide violations.",
             Dict{Symbol, String}(),
         ),
+        "silent-catch" => RuleSpec(
+            "silent-catch",
+            :agentrulelint,
+            :deny,
+            "Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths.",
+            "Use empty catch bodies, log-only handlers, or partial branches without rethrow to silence errors.",
+            Dict{Symbol, String}(:warn_counts_as_handling => "false"),
+        ),
         "ceiling-ratchet" => RuleSpec(
             "ceiling-ratchet",
             :agentrulelint,
@@ -516,6 +583,17 @@ function default_policy(root::AbstractString)
             "Keep violation and expect ceilings monotonic (down only).",
             "Raise ceilings or leave stale slack after counts decrease.",
             Dict{Symbol, String}(),
+        ),
+        "manifest-sync" => RuleSpec(
+            "manifest-sync",
+            :agentrulelint,
+            :deny,
+            "Tracked Manifest.toml files must stay consistent with Project.toml (integrity).",
+            "Edit [deps] or other resolve sections without updating the tracked manifest.",
+            Dict{Symbol, String}(
+                :group => "integrity",
+                :fix => "Run Pkg.resolve and commit Manifest.toml with project_hash updates.",
+            ),
         ),
         PROTECTED_PATHS_RULE => RuleSpec(
             PROTECTED_PATHS_RULE,
@@ -537,6 +615,7 @@ function default_policy(root::AbstractString)
         ProjectRule[],
         :warn,
         ShellSafetyConfig(),
+        UnsafeBoundaryConfig(),
         cfg,
         cs,
         DEFAULT_PROJECT_TOML_POLICY,

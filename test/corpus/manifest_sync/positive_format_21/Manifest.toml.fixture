@@ -1,0 +1,11 @@
+manifest_format = "2.1"
+julia_version = "1.13.0"
+project_hash = "1111111111111111111111111111111111111111"
+
+[registries.General]
+url = "https://github.com/JuliaRegistries/General.git"
+uuid = "23338594-aafe-5451-b93e-139f81909106"
+
+[[deps.Foo]]
+uuid = "22222222-2222-2222-2222-222222222222"
+version = "1.0.0"

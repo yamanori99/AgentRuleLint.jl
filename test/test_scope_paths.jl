@@ -134,6 +134,7 @@ SCOPE_RULE = "scope-paths"
             base.project_rules,
             base.on_allow_rule,
             base.shell_safety,
+            base.unsafe_boundary,
             base.config_path,
             base.config_source,
             base.project_toml_policy,
