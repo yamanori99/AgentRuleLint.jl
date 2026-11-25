@@ -45,14 +45,31 @@ function _push_builtin_violation!(
     return nothing
 end
 
-function run_builtin_rules(fc::FileContext, policy::PolicyBundle)
+function _run_unsafe_boundary_rule(fc::FileContext, policy::PolicyBundle)
     diags = Violation[]
     cfg = policy.unsafe_boundary
     cfg.active || return diags
-    julia_source_path(fc.parsed.path) || return diags
     path_matches_glob(fc.parsed.path, cfg.allow_globs) && return diags
     eff = _effective_rule_level(policy, cfg.level)
     eff == :allow && return diags
     append!(diags, diagnose_unsafe_boundary(fc, policy, eff))
+    return diags
+end
+
+function _run_shell_safety_rule(fc::FileContext, policy::PolicyBundle)
+    diags = Violation[]
+    cfg = policy.shell_safety
+    cfg.active || return diags
+    eff = _effective_rule_level(policy, cfg.level)
+    eff == :allow && return diags
+    append!(diags, diagnose_shell_safety(fc, policy, eff))
+    return diags
+end
+
+function run_builtin_rules(fc::FileContext, policy::PolicyBundle)
+    diags = Violation[]
+    julia_source_path(fc.parsed.path) || return diags
+    append!(diags, _run_unsafe_boundary_rule(fc, policy))
+    append!(diags, _run_shell_safety_rule(fc, policy))
     return diags
 end

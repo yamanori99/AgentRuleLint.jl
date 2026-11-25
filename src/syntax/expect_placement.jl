@@ -20,7 +20,7 @@ const _RULE_ANCHOR_RX = Dict(
     "unsafe-boundary" =>
         r"^(@eval\b|@inbounds\b|@generated\b|ccall\b|@ccall\b|Meta\.parse|invokelatest|getfield\(|getproperty\(|unsafe_\w+)",
     "test-integrity" => r"^@test",
-    "shell-safety/process-pattern" => r"^(run\(|`|\bCmd\()",
+    "shell-safety/process-pattern" => r"^(run\(|open\(|read\(|pipeline\(|\bCmd\(|`)",
 )
 
 """

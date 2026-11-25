@@ -37,7 +37,8 @@ const PROJECT_RULE_KEYS = Set(
 const VALID_RULE_LEVELS = Set([:forbid, :deny, :allow, :warn])
 const VALID_ON_ALLOW_RULE = Set([:error, :warn, :allow])
 const VALID_OUTPUT_FORMATS = Set([:human, :json, :agent])
-const KNOWN_PRESET_NAMES = Set(["shell-safety/process-pattern"])
+const KNOWN_PRESET_NAMES = Set(["shell-safety"])
+const SHELL_SAFETY_PRESET_ID = "shell-safety/process-pattern"
 
 function _reject_unknown_keys!(dict::Dict, allowed::Set{String}, label::String)
     for k in keys(dict)
@@ -170,6 +171,26 @@ function _collect_rule_tables(raw::Dict)
     return out
 end
 
+function _validate_shell_safety_preset!(presets::Vector{String}, rules::Dict{String, RuleSpec})
+    haskey(rules, SHELL_SAFETY_PRESET_ID) || return
+    "shell-safety" in presets && return
+    throw(
+        ConfigError(
+            "rules.$SHELL_SAFETY_PRESET_ID requires presets = [\"shell-safety\"] (preset table without active preset)",
+        ),
+    )
+end
+
+function _load_shell_safety_config(presets::Vector{String}, rules::Dict{String, RuleSpec})
+    active = "shell-safety" in presets
+    !active && return ShellSafetyConfig()
+    spec = get(rules, SHELL_SAFETY_PRESET_ID, nothing)
+    level = spec === nothing ? :deny : spec.level
+    intent = spec === nothing ? "" : spec.intent
+    do_not = spec === nothing ? "" : spec.do_not
+    return ShellSafetyConfig(true, level, intent, do_not)
+end
+
 function _parse_string_array(raw, label::AbstractString)
     raw isa AbstractVector || throw(ConfigError("$label must be an array"))
     out = String[]
@@ -233,7 +254,7 @@ end
 function _load_rules_table(raw::Dict)
     rules = Dict{String, RuleSpec}()
     for (id, content) in _collect_rule_tables(raw)
-        validate_kebab_rule_id(id, "rules.$id")
+        id == SHELL_SAFETY_PRESET_ID || validate_kebab_rule_id(id, "rules.$id")
         allowed = if id == "expect-audit"
             EXPECT_AUDIT_RULE_KEYS
         elseif id == "silent-catch"
@@ -257,6 +278,7 @@ function _load_rules_table(raw::Dict)
         end
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
+        origin = id == SHELL_SAFETY_PRESET_ID ? :preset : :agentrulelint
         extra = Dict{Symbol, String}()
         if id == "silent-catch" && haskey(content, "warn_counts_as_handling")
             extra[:warn_counts_as_handling] = _parse_warn_counts_as_handling(
@@ -265,7 +287,7 @@ function _load_rules_table(raw::Dict)
             )
         end
         eff_level = id in INTEGRITY_FORBID_RULES ? :forbid : level
-        rules[id] = RuleSpec(id, :agentrulelint, eff_level, intent, do_not, extra)
+        rules[id] = RuleSpec(id, origin, eff_level, intent, do_not, extra)
     end
     return rules
 end
@@ -405,6 +427,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     end
     rules = _load_rules_table(raw)
     _inject_builtin_rules!(rules)
+    _validate_shell_safety_preset!(presets, rules)
     pr_raw = get(raw, "project_rules", [])
     pr_raw isa AbstractVector || throw(ConfigError("project_rules must be an array"))
     project = _load_project_rules(pr_raw)
@@ -413,6 +436,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     if es !== nothing && haskey(es, "on_allow_rule")
         on_allow = _parse_on_allow_rule(es["on_allow_rule"], "rules.expect-audit.on_allow_rule")
     end
+    shell = _load_shell_safety_config(presets, rules)
     unsafe = _load_unsafe_boundary_config(raw, rules)
     ptp, pglobs = _protected_paths_config(raw, rules)
     return PolicyBundle(
@@ -423,6 +447,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
         rules,
         project,
         on_allow,
+        shell,
         unsafe,
         config_path,
         config_source,
@@ -589,6 +614,7 @@ function default_policy(root::AbstractString)
         rules,
         ProjectRule[],
         :warn,
+        ShellSafetyConfig(),
         UnsafeBoundaryConfig(),
         cfg,
         cs,

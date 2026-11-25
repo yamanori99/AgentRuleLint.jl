@@ -39,6 +39,10 @@ const BUILTIN_DOC_DEFAULTS = Dict(
         "Protect designated policy, lockfiles, and workflow paths from silent edits.",
         "Edit protected files, weaken compat, or rename paths to evade review.",
     ),
+    "shell-safety/process-pattern" => (
+        "Reject hazardous shell patterns in statically known Cmd literals.",
+        "Split or dynamically assemble command strings to bypass constant folding.",
+    ),
 )
 
 function fill_builtin_docs!(spec::RuleSpec)
@@ -53,6 +57,7 @@ end
 function builtin_explain_extras(id::AbstractString)
     id == "expect-audit" && return expect_audit_explain_extra()
     id == "unsafe-boundary" && return unsafe_boundary_explain_extra()
+    id == "shell-safety/process-pattern" && return shell_safety_explain_extra()
     id == SILENT_CATCH_ID && return silent_catch_explain_extra()
     id == MANIFEST_SYNC_RULE && return manifest_sync_explain_extra()
     id == SCOPE_PATHS_RULE && return scope_paths_explain_extra()
@@ -83,10 +88,23 @@ const _DEFAULT_UNSAFE_BOUNDARY_SPEC = RuleSpec(
     Dict{Symbol, String}(),
 )
 
+const _DEFAULT_SHELL_SAFETY_SPEC = RuleSpec(
+    "shell-safety/process-pattern",
+    :preset,
+    :deny,
+    "Reject hazardous shell patterns in statically known Cmd literals.",
+    "Split or dynamically assemble command strings to bypass constant folding.",
+    Dict{Symbol, String}(),
+)
+
 function init_registry!(policy::PolicyBundle)
     empty!(BUILTIN_RULES)
     for (_, r) in policy.rules
         register_builtin!(r)
+    end
+    if policy.shell_safety.active
+        spec = get(policy.rules, "shell-safety/process-pattern", _DEFAULT_SHELL_SAFETY_SPEC)
+        register_builtin!(spec)
     end
     if policy.unsafe_boundary.active && get(policy.rules, "unsafe-boundary", nothing) === nothing
         register_builtin!(_DEFAULT_UNSAFE_BOUNDARY_SPEC)
