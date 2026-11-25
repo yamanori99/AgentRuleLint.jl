@@ -7,6 +7,6 @@ run_source_mutation(;
     replacement = "elseif false && track_exit && s == \"call\" && _is_exit_call(node, source, pos)",
     verify = root -> begin
         cmd = `julia --compiled-modules=no --startup-file=no --project=$(root) test/test_integrity_mutation_exit.jl`
-        return !success(run(ignorestatus(setenv(cmd; dir = root))))
+        return detector_disabled(cmd; dir = root)
     end,
 )

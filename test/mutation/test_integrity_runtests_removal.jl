@@ -7,6 +7,6 @@ run_source_mutation(;
     replacement = "for ek in ()",
     verify = root -> begin
         cmd = `julia --compiled-modules=no --startup-file=no --project=$(root) test/test_integrity_mutation_runtests.jl`
-        return !success(run(ignorestatus(setenv(cmd; dir = root))))
+        return detector_disabled(cmd; dir = root)
     end,
 )
