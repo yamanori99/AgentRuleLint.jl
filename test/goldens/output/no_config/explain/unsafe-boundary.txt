@@ -1,6 +1,6 @@
 rule_id: unsafe-boundary
 origin: [AgentRuleLint]
-level: warn
+level: warn (default when enabled)
 status: not enabled in this config
 
 intent:

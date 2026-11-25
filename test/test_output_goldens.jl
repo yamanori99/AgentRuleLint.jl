@@ -10,7 +10,8 @@
 #    test/goldens/output/minimal_config/ (fixture TOML:
 #    minimal_config/AgentRuleLintConfig.toml)
 #
-# #82: inactive built-in `explain` succeeds with `status: not enabled in this
+# #82 / #83: inactive built-in `explain` succeeds with
+# `level: <level> (default when enabled)` and `status: not enabled in this
 # config` (no_config inactive ids; repo `shell-safety/process-pattern`).
 
 const OUTPUT_GOLDEN_DIR = joinpath(ROOT, "test", "goldens", "output")
@@ -226,6 +227,45 @@ end
                     @test read(out_path, String) == ""
                     @test read(err_path, String) ==
                         "AgentRuleLint: unknown rule id: $id\n"
+                end
+            end
+        finally
+            rm(tmp; recursive = true, force = true)
+        end
+    end
+
+    @testset "preset name stays unknown with did-you-mean hint (library + CLI)" begin
+        # Preset names are not rule ids; hint points at the canonical slug (#83 review).
+        id = "shell-safety"
+        hint_msg =
+            "unknown rule id: shell-safety (did you mean shell-safety/process-pattern?)"
+        tmp = _temp_corpus_root()
+        try
+            err = try
+                AgentRuleLint.explain_rule(id; root = tmp)
+                nothing
+            catch e
+                e
+            end
+            @test err isa ArgumentError
+            @test err.msg == hint_msg
+
+            mktemp() do out_path, _
+                mktemp() do err_path, _
+                    code = cd(tmp) do
+                        open(out_path, "w") do out_io
+                            open(err_path, "w") do err_io
+                                redirect_stdout(out_io) do
+                                    redirect_stderr(err_io) do
+                                        AgentRuleLint.cli_main(["explain", id])
+                                    end
+                                end
+                            end
+                        end
+                    end
+                    @test code == 2
+                    @test read(out_path, String) == ""
+                    @test read(err_path, String) == "AgentRuleLint: $hint_msg\n"
                 end
             end
         finally
