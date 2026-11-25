@@ -217,26 +217,26 @@
         end
     end
 
-    @testset "fold budget exhaustion is fail-closed" begin
+    @testset "fold budget exhaustion is analysis-incomplete" begin
         path = rel("test_integrity_fold_budget.jl")
         res = check_rel(path)
         hits = filter(
-            d -> d.rule_id == "test-integrity" &&
-                occursin("too complex to verify", d.message) &&
-                !d.suppressed,
+            d -> d.rule_id == AgentRuleLint.ANALYSIS_INCOMPLETE_RULE && !d.suppressed,
             res.violations,
         )
         @test !isempty(hits)
+        @test all(d -> d.level == :forbid, hits)
 
         path_const = rel("test_integrity_fold_budget_const.jl")
         res2 = check_rel(path_const)
         hits2 = filter(
-            d -> d.rule_id == "test-integrity" &&
-                occursin("too complex to verify", d.message) &&
+            d -> d.rule_id == AgentRuleLint.ANALYSIS_INCOMPLETE_RULE &&
+                endswith(string(d.path), "test_integrity_fold_budget_const.jl") &&
                 !d.suppressed,
             res2.violations,
         )
-        @test any(d -> endswith(string(d.path), "test_integrity_fold_budget_const.jl"), hits2)
+        @test !isempty(hits2)
+        @test all(d -> d.level == :forbid, hits2)
     end
 
     @testset "diff: test-integrity deleted findings use expect_status :deleted_test" begin

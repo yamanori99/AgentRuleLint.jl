@@ -1,0 +1,22 @@
+rule_id: analysis-incomplete
+origin: [AgentRuleLint]
+level: forbid
+
+intent:
+Fail closed when static analysis cannot finish (constant-fold budget).
+
+do_not:
+Pad files with enough folds to exhaust the budget and hide later findings, or suppress the incomplete diagnostic.
+detail:
+Emitted when a constant-fold walk hits the shared step budget (`FOLD_MAX_STEPS`)
+before finishing. Call sites include project-rule literal folding, shell-safety Cmd
+folding, and test-integrity `@test` value folding. The finding is integrity
+`forbid` and cannot be suppressed with `# agentrulelint-expect:`. At most one
+finding is reported per file (wider syntactic span preferred over a fold-walk
+point cursor); the message names the analyzer. Fix by simplifying the expression
+(shorter concatenations or `@test` chains) so static folding can finish.
+expect_anchor:
+N/A.
+
+example:
+N/A.

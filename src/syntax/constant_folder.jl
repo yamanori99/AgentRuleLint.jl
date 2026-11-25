@@ -4,16 +4,23 @@ const KChar = JuliaSyntax.K"Char"
 
 const FOLD_MAX_DEPTH = 48
 const FOLD_MAX_STEPS = 16_000
-const FOLD_BUDGET_MSG = "constant fold step budget exceeded"
-const _ACTIVE_FOLD_LIMIT = Ref(FOLD_MAX_STEPS)
 
-function _fold_budget!(n::Ref{Int})
-    n[] += 1
-    return n[] > _ACTIVE_FOLD_LIMIT[] && throw(ArgumentError(FOLD_BUDGET_MSG))
+mutable struct FoldBudget
+    count::Int
+    limit::Int
+    at_byte::Int
+end
+
+FoldBudget(limit::Int = FOLD_MAX_STEPS) = FoldBudget(0, limit, 1)
+
+function _fold_budget!(b::FoldBudget, byte::Int = 0)
+    b.count += 1
+    byte > 0 && (b.at_byte = byte)
+    return b.count > b.limit && throw(FoldBudgetExceeded(b.limit))
 end
 
 function _fold_budget_exceeded(err)::Bool
-    return err isa ArgumentError && err.msg == FOLD_BUDGET_MSG
+    return err isa FoldBudgetExceeded
 end
 
 function _align_byte_index(src::AbstractString, i::Int)
@@ -81,9 +88,9 @@ function _fold_atom(
         src::AbstractString,
         pos::Int,
         depth::Int,
-        steps::Ref{Int},
+        budget::FoldBudget,
     )::Union{Nothing, String}
-    _fold_budget!(steps)
+    _fold_budget!(budget)
     depth > FOLD_MAX_DEPTH && return nothing
     if summary(node) == "string"
         _string_node_interpolated(node, pos) && return nothing
@@ -111,7 +118,7 @@ function _fold_children_strings(
         src::AbstractString,
         pos::Int,
         depth::Int,
-        steps::Ref{Int},
+        budget::FoldBudget,
     )::Union{Nothing, Vector{String}}
     ch = children(node)
     ch === nothing && return String[]
@@ -124,7 +131,7 @@ function _fold_children_strings(
             p += span(c)
             continue
         end
-        v = try_fold_expr(c, src, p, depth + 1, steps)
+        v = try_fold_expr(c, src, p, depth + 1, budget)
         v === nothing && return nothing
         push!(vals, v.value)
         p += span(c)
@@ -132,16 +139,16 @@ function _fold_children_strings(
     return vals
 end
 
-function _fold_vect_strings(node::GreenNode, src::AbstractString, pos::Int, depth::Int, steps::Ref{Int})
+function _fold_vect_strings(node::GreenNode, src::AbstractString, pos::Int, depth::Int, budget::FoldBudget)
     vals = String[]
     for (c, p) in _child_positions(node, pos)[1]
         JuliaSyntax.is_trivia(head(c)) && continue
         sk = string(kind(c))
         sk in ("()", ",") && continue
         v = if summary(c) == "string"
-            _fold_atom(c, src, p, depth + 1, steps)
+            _fold_atom(c, src, p, depth + 1, budget)
         else
-            folded = try_fold_expr(c, src, p, depth, steps)
+            folded = try_fold_expr(c, src, p, depth, budget)
             folded === nothing ? nothing : folded.value
         end
         v === nothing && return nothing
@@ -176,9 +183,9 @@ function try_fold_expr(
         src::AbstractString,
         pos::Int,
         depth::Int,
-        steps::Ref{Int},
+        budget::FoldBudget,
     )::Union{Nothing, FoldedStringExpr}
-    _fold_budget!(steps)
+    _fold_budget!(budget)
     depth > FOLD_MAX_DEPTH && return nothing
     sp = span(node)
     byte_end = pos + sp - 1
@@ -199,15 +206,15 @@ function try_fold_expr(
         (left, lp), (op, oppos), (right, rp) = pos_args
         opname = _identifier_name(op, src, oppos)
         opname == "*" || return nothing
-        l = try_fold_expr(left, src, lp, depth + 1, steps)
-        r = try_fold_expr(right, src, rp, depth + 1, steps)
+        l = try_fold_expr(left, src, lp, depth + 1, budget)
+        r = try_fold_expr(right, src, rp, depth + 1, budget)
         (l === nothing || r === nothing) && return nothing
         val = l.value * r.value
         return FoldedStringExpr(val, pos, byte_end)
     end
 
     if summary(node) == "string" || summary(node) == "char"
-        v = _fold_atom(node, src, pos, depth, steps)
+        v = _fold_atom(node, src, pos, depth, budget)
         v === nothing && return nothing
         return FoldedStringExpr(v, pos, byte_end)
     end
@@ -215,7 +222,7 @@ function try_fold_expr(
     if summary(node) == "call"
         fname = _call_callee_name(node, src, pos)
         if fname == "string"
-            parts = _fold_children_strings(node, src, pos, depth, steps)
+            parts = _fold_children_strings(node, src, pos, depth, budget)
             parts === nothing && return nothing
             return FoldedStringExpr(join(parts), pos, byte_end)
         elseif fname == "join"
@@ -239,14 +246,14 @@ function try_fold_expr(
             length(args) < 2 && return nothing
             arr = args[1]
             summary(arr) == "vect" || return nothing
-            strings = _fold_vect_strings(arr, src, argpos[1], depth, steps)
+            strings = _fold_vect_strings(arr, src, argpos[1], depth, budget)
             strings === nothing && return nothing
-            delim = try_fold_expr(args[2], src, argpos[2], depth + 1, steps)
+            delim = try_fold_expr(args[2], src, argpos[2], depth + 1, budget)
             delim === nothing && return nothing
             if length(args) == 2
                 val = join(strings, delim.value)
             else
-                last_d = try_fold_expr(args[3], src, argpos[3], depth + 1, steps)
+                last_d = try_fold_expr(args[3], src, argpos[3], depth + 1, budget)
                 last_d === nothing && return nothing
                 length(strings) >= 1 || return nothing
                 val = join(strings[1:(end - 1)], delim.value) * last_d.value * strings[end]
@@ -272,7 +279,7 @@ function try_fold_expr(
             opname == "*" || return nothing
             coll = args[2]
             summary(coll) == "vect" || return nothing
-            strings = _fold_vect_strings(coll, src, argpos[2], depth, steps)
+            strings = _fold_vect_strings(coll, src, argpos[2], depth, budget)
             strings === nothing && return nothing
             val = join(strings)
             return FoldedStringExpr(val, pos, byte_end)
@@ -297,7 +304,7 @@ function try_fold_expr(
     end
 
     if summary(node) == "vect"
-        strings = _fold_vect_strings(node, src, pos, depth, steps)
+        strings = _fold_vect_strings(node, src, pos, depth, budget)
         strings === nothing && return nothing
         return FoldedStringExpr(join(strings), pos, byte_end)
     end
@@ -310,17 +317,17 @@ function _walk_collect_folds(
         src::AbstractString,
         pos::Int,
         depth::Int,
-        steps::Ref{Int},
+        budget::FoldBudget,
         out::Vector{FoldedStringExpr},
     )
-    _fold_budget!(steps)
-    folded = try_fold_expr(node, src, pos, depth, steps)
+    _fold_budget!(budget, pos)
+    folded = try_fold_expr(node, src, pos, depth, budget)
     if folded !== nothing
         push!(out, folded)
     end
     for (c, p) in _child_positions(node, pos)[1]
         JuliaSyntax.is_trivia(head(c)) && continue
-        _walk_collect_folds(c, src, p, depth + 1, steps, out)
+        _walk_collect_folds(c, src, p, depth + 1, budget, out)
     end
     return
 end
@@ -329,33 +336,29 @@ function collect_folded_string_exprs(
         tree::GreenNode,
         source::AbstractString;
         max_steps::Int = FOLD_MAX_STEPS,
-    )::Vector{FoldedStringExpr}
+    )::FoldCollectResult
     src = normalize_source(source)
-    steps = Ref(0)
+    budget = FoldBudget(max_steps)
     out = FoldedStringExpr[]
-    prev_limit = _ACTIVE_FOLD_LIMIT[]
-    _ACTIVE_FOLD_LIMIT[] = max_steps
     try
-        _walk_collect_folds(tree, src, 1, 0, steps, out)
+        _walk_collect_folds(tree, src, 1, 0, budget, out)
     catch err
         if _fold_budget_exceeded(err)
-            return out
+            return FoldCollectResult(out, true, budget.at_byte)
         elseif err isa InterruptException
             rethrow()
         else
             throw(err)
         end
-    finally
-        _ACTIVE_FOLD_LIMIT[] = prev_limit
     end
-    return out
+    return FoldCollectResult(out, false, budget.at_byte)
 end
 
 function folded_string_literals(tree::GreenNode, source::AbstractString)
-    return [f.value for f in collect_folded_string_exprs(tree, source)]
+    return [f.value for f in collect_folded_string_exprs(tree, source).folds]
 end
 
 function fold_expr(node::GreenNode, source::AbstractString; byte_offset::Int = 1, depth::Int = 0)
-    steps = Ref(0)
-    return try_fold_expr(node, normalize_source(source), byte_offset, depth, steps)
+    budget = FoldBudget()
+    return try_fold_expr(node, normalize_source(source), byte_offset, depth, budget)
 end

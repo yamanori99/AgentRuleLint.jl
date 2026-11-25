@@ -23,25 +23,25 @@ function _cmdstring_text(node::GreenNode, src::AbstractString, pos::Int)
     return FoldedStringExpr(text, pos, pos + span(node) - 1)
 end
 
-function _collect_cmd_from_vect(node::GreenNode, src::AbstractString, pos::Int, depth::Int, steps::Ref{Int})
+function _collect_cmd_from_vect(node::GreenNode, src::AbstractString, pos::Int, depth::Int, budget::FoldBudget)
     summary(node) == "vect" || return String[]
-    strings = _fold_vect_strings(node, src, pos, depth, steps)
+    strings = _fold_vect_strings(node, src, pos, depth, budget)
     return strings === nothing ? String[] : strings
 end
 
-function _collect_cmd_from_call(node::GreenNode, src::AbstractString, pos::Int, steps::Ref{Int})
+function _collect_cmd_from_call(node::GreenNode, src::AbstractString, pos::Int, budget::FoldBudget)
     fname, args, argpos = _shell_call_parts(node, src, pos)
     _is_cmd_constructor(fname) || return FoldedStringExpr[]
     out = FoldedStringExpr[]
     for (arg, ap) in zip(args, argpos)
         s = summary(arg)
         if s == "vect"
-            strings = _collect_cmd_from_vect(arg, src, ap, 0, steps)
+            strings = _collect_cmd_from_vect(arg, src, ap, 0, budget)
             isempty(strings) && continue
             val = join(strings, " ")
             push!(out, FoldedStringExpr(val, ap, ap + span(arg) - 1))
         elseif s == "string" || s == "cmdstring"
-            folded = try_fold_expr(arg, src, ap, 0, steps)
+            folded = try_fold_expr(arg, src, ap, 0, budget)
             folded !== nothing && push!(out, folded)
         end
     end
@@ -91,7 +91,7 @@ function _walk_cmd_strings!(
         node::GreenNode,
         src::AbstractString,
         pos::Int,
-        steps::Ref{Int},
+        budget::FoldBudget,
         out::Vector{FoldedStringExpr},
     )
     s = summary(node)
@@ -101,7 +101,7 @@ function _walk_cmd_strings!(
     elseif s == "call"
         fname, args, argpos = _shell_call_parts(node, src, pos)
         if _is_cmd_constructor(fname)
-            append!(out, _collect_cmd_from_call(node, src, pos, steps))
+            append!(out, _collect_cmd_from_call(node, src, pos, budget))
         elseif fname in _CMD_WRAPPER_CALLEES
             for (arg, ap) in zip(args, argpos)
                 as = summary(arg)
@@ -111,20 +111,20 @@ function _walk_cmd_strings!(
                 elseif as == "call"
                     afname, _, _ = _shell_call_parts(arg, src, ap)
                     _is_cmd_constructor(afname) &&
-                        append!(out, _collect_cmd_from_call(arg, src, ap, steps))
+                        append!(out, _collect_cmd_from_call(arg, src, ap, budget))
                 end
             end
         end
     end
     for (c, p) in _child_positions(node, pos)[1]
         JuliaSyntax.is_trivia(head(c)) && continue
-        _walk_cmd_strings!(c, src, p, steps, out)
+        _walk_cmd_strings!(c, src, p, budget, out)
     end
     return nothing
 end
 
 """
-    collect_cmd_string_literals(tree, source) -> Vector{FoldedStringExpr}
+    collect_cmd_string_literals(tree, source) -> FoldCollectResult
 
 Statically recover shell/Cmd text from backtick cmdstrings, `Cmd([...])` /
 `Base.Cmd([...])`, and `pipeline` argument trees. Reuses `try_fold_expr` for string
@@ -135,12 +135,27 @@ concatenation and `String(UInt8[...])` forms.
   commands built from runtime variables are invisible.
 - Cmd interpolation (`\$(...)`) and string interpolation cancel folding for that
   fragment.
-- Step budget matches `collect_folded_string_exprs` (`FOLD_MAX_STEPS`).
+- Step budget matches `collect_folded_string_exprs` (`FOLD_MAX_STEPS`). Budget
+  exhaustion sets `budget_exceeded` rather than throwing (callers emit a diagnostic).
 """
-function collect_cmd_string_literals(tree::GreenNode, source::AbstractString)
+function collect_cmd_string_literals(
+        tree::GreenNode,
+        source::AbstractString;
+        max_steps::Int = FOLD_MAX_STEPS,
+    )::FoldCollectResult
     src = normalize_source(source)
-    steps = Ref(0)
+    budget = FoldBudget(max_steps)
     out = FoldedStringExpr[]
-    _walk_cmd_strings!(tree, src, 1, steps, out)
-    return out
+    try
+        _walk_cmd_strings!(tree, src, 1, budget, out)
+    catch err
+        if _fold_budget_exceeded(err)
+            return FoldCollectResult(out, true, budget.at_byte)
+        elseif err isa InterruptException
+            rethrow()
+        else
+            throw(err)
+        end
+    end
+    return FoldCollectResult(out, false, budget.at_byte)
 end

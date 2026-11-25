@@ -11,9 +11,10 @@ function parse_source(text::AbstractString; syntax_version = VERSION, filename =
             ignore_warnings = true,
         )
     catch err
+        err isa InterruptException && rethrow()
         if err isa JuliaSyntax.ParseError
             label = filename === nothing ? "source" : string(filename)
-            throw(ParseError("syntax error in $label: $(err)"))
+            throw(ParseError("syntax error in $label: $(format_error(err))"))
         end
         rethrow()
     end

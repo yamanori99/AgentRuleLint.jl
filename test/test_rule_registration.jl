@@ -6,7 +6,7 @@
         ids = [d.id for d in AgentRuleLint.RULE_DEFS]
         @test ids == sort(ids)
         @test length(ids) == length(unique(ids))
-        @test length(AgentRuleLint.RULE_DEFS) == 9
+        @test length(AgentRuleLint.RULE_DEFS) == 10
     end
 
     @testset "every RuleDef has source, test, and coverage" begin
@@ -56,12 +56,20 @@
     @testset "init_registry covers RuleDef ids when active" begin
         pol = AgentRuleLint.default_policy(ROOT)
         AgentRuleLint.init_registry!(pol)
-        for id in ("expect-audit", "silent-catch", "manifest-sync", "protected-paths", "ceiling-ratchet")
+        for id in (
+                "analysis-incomplete",
+                "expect-audit",
+                "silent-catch",
+                "manifest-sync",
+                "protected-paths",
+                "ceiling-ratchet",
+            )
             @test haskey(AgentRuleLint.BUILTIN_RULES, id)
         end
         @test haskey(AgentRuleLint.RULE_DEFS_BY_ID, "shell-safety/process-pattern")
         @test haskey(AgentRuleLint.RULE_DEFS_BY_ID, "unsafe-boundary")
         @test haskey(AgentRuleLint.RULE_DEFS_BY_ID, "test-integrity")
         @test haskey(AgentRuleLint.RULE_DEFS_BY_ID, "scope-paths")
+        @test haskey(AgentRuleLint.RULE_DEFS_BY_ID, "analysis-incomplete")
     end
 end

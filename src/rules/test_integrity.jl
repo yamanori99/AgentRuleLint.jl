@@ -149,7 +149,7 @@ function _is_exit_call(node::GreenNode, src::AbstractString, pos::Int)
 end
 
 function _folded_string_arg(node::GreenNode, src::AbstractString, pos::Int)
-    v = _fold_atom(node, src, pos, 0, Ref(0))
+    v = _fold_atom(node, src, pos, 0, FoldBudget())
     return v
 end
 
@@ -296,14 +296,14 @@ function _walk_test_integrity_node!(
                         "@test condition is trivially true after constant folding",
                     )
                 elseif fold_res == TEST_FOLD_BUDGET
-                    _push_test_integrity!(
+                    push_analysis_incomplete!(
                         diags,
                         policy,
                         path,
                         source,
                         pos,
                         pos + span(node) - 1,
-                        "test expression too complex to verify; simplify it",
+                        TEST_INTEGRITY_RULE,
                     )
                 end
             end

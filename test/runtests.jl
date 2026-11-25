@@ -9,7 +9,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     @testset "constant folding" begin
         src = "s = \"a\" * \"b\"\n"
         tree = AgentRuleLint.parse_source(src)
-        folds = AgentRuleLint.collect_folded_string_exprs(tree, src)
+        folds = AgentRuleLint.collect_folded_string_exprs(tree, src).folds
         vals = [f.value for f in folds]
         @test "ab" in vals
         full = only(filter(f -> f.value == "ab", folds))
@@ -20,14 +20,14 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     @testset "reduce(*, strings) folding" begin
         hit = "x = reduce(*, [\"INT\", \"ERNAL_CODENAME\"])\n"
         tree = AgentRuleLint.parse_source(hit)
-        folds = AgentRuleLint.collect_folded_string_exprs(tree, hit)
+        folds = AgentRuleLint.collect_folded_string_exprs(tree, hit).folds
         vals = [f.value for f in folds]
         @test "INTERNAL_CODENAME" in vals
         @test "INTINT" ∉ vals
 
         miss = "x = reduce(*, [\"INT\", \"FOO\"])\n"
         tree2 = AgentRuleLint.parse_source(miss)
-        vals2 = [f.value for f in AgentRuleLint.collect_folded_string_exprs(tree2, miss)]
+        vals2 = [f.value for f in AgentRuleLint.collect_folded_string_exprs(tree2, miss).folds]
         @test "INTFOO" in vals2
         @test "INTINTFOO" ∉ vals2
     end
@@ -36,11 +36,13 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
         src = "a = \"x\" * \"y\"\nb = \"p\" * \"q\"\nc = \"r\" * \"s\"\n"
         tree = AgentRuleLint.parse_source(src)
         full = AgentRuleLint.collect_folded_string_exprs(tree, src)
-        @test length(full) >= 3
+        @test length(full.folds) >= 3
+        @test !full.budget_exceeded
         # Budget exhaustion returns folds collected so far (not an empty vector).
         partial = AgentRuleLint.collect_folded_string_exprs(tree, src; max_steps = 15)
-        @test !isempty(partial)
-        @test length(partial) < length(full)
+        @test !isempty(partial.folds)
+        @test partial.budget_exceeded
+        @test length(partial.folds) < length(full.folds)
     end
 
     @testset "parse fail-closed" begin
@@ -189,6 +191,8 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     include("test_fingerprint_stability.jl")
     include("test_rule_registration.jl")
     include("test_output_goldens.jl")
+    include("test_exit_codes.jl")
+    include("test_analysis_incomplete.jl")
     include("test_project_rules_paths.jl")
     include("test_expect_audit.jl")
     include("test_silent_catch.jl")

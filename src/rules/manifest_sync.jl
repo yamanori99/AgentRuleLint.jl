@@ -42,11 +42,13 @@ end
 function git_ls_tracked_files(root::AbstractString)
     root = abspath(String(root))
     cmd = Cmd(["git", "-C", root, "ls-files", "-z", "--end-of-options"])
+    prefix = "git ls-files failed for $(root)"
     bytes = try
-        read(cmd)
+        _read_git_cmd(cmd; error_prefix = prefix)
     catch err
         err isa InterruptException && rethrow()
-        throw(GitError("git ls-files failed for $(root)"))
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
     end
     isempty(bytes) && return String[]
     parts = split(String(bytes), '\0'; keepempty = false)
@@ -70,7 +72,8 @@ function _parse_toml_or_throw(text::AbstractString, label::AbstractString)
     try
         return TOML.parse(String(text))
     catch err
-        throw(ParseError("TOML parse error in $label: $(err)"))
+        err isa InterruptException && rethrow()
+        throw(ParseError("TOML parse error in $label: $(format_error(err))"))
     end
 end
 
