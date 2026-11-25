@@ -5,8 +5,15 @@ const RUNIC_ENV = joinpath(@__DIR__, "runic_env")
 const ROOT = dirname(@__DIR__)
 
 function runic_format_str(code::String)
-    cmd = `julia --project=$RUNIC_ENV --startup-file=no -e 'using Runic; print(Runic.format_string(ARGS[1]))' $(code)`
-    return String(read(cmd))
+    path, io = mktemp()
+    try
+        write(io, code)
+        close(io)
+        cmd = `julia --project=$RUNIC_ENV --startup-file=no -e 'using Runic; print(Runic.format_string(read(ARGS[1], String)))' $path`
+        return String(read(cmd))
+    finally
+        rm(path, force = true)
+    end
 end
 
 function diagnostic_signatures(result::CheckResult)
@@ -24,9 +31,6 @@ end
     root = ROOT
     corpus_dir = joinpath(@__DIR__, "corpus")
     files = filter(f -> endswith(f, ".jl"), readdir(corpus_dir))
-    # Fold-budget adversarial fixtures exceed the runic_format_str argv size limit.
-    skip_runic = ("test_integrity_fold_budget.jl", "test_integrity_fold_budget_const.jl")
-    files = filter(f -> !(f in skip_runic), files)
     @test !isempty(files)
     for f in files
         # syntax_error lives outside corpus (parse fail-closed fixture).
