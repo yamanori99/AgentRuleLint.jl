@@ -106,9 +106,8 @@ end
                     joinpath(OUTPUT_GOLDEN_DIR, "explain", _explain_golden_filename(id)),
                     String,
                 )
-                # Trailing newline is file hygiene on the golden; explain_rule
-                # itself does not end with `\n`.
-                @test rstrip(got) == rstrip(want)
+                # Golden file = explain body + one trailing newline (tracked-file rule).
+                @test got * "\n" == want
             finally
                 cleanup !== nothing && rm(cleanup; recursive = true, force = true)
             end
