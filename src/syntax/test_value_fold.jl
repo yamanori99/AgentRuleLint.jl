@@ -4,6 +4,11 @@ const _FOLD_TEST_MAX_DEPTH = 32
 
 FoldedTestValue = Union{Bool, Int, Float64, String}
 
+const TEST_FOLD_TRIVIAL = :trivial_true
+const TEST_FOLD_NOT_TRIVIAL = :not_trivial
+const TEST_FOLD_BUDGET = :budget_exceeded
+const TestFoldConst = Union{FoldedTestValue, typeof(TEST_FOLD_BUDGET)}
+
 function _fold_test_budget!(steps::Ref{Int})
     steps[] += 1
     return steps[] > _ACTIVE_FOLD_LIMIT[] && throw(ArgumentError(FOLD_BUDGET_MSG))
@@ -44,7 +49,7 @@ function _try_fold_test_value(
         pos::Int,
         depth::Int,
         steps::Ref{Int},
-        consts::Dict{String, FoldedTestValue},
+        consts::Dict{String, TestFoldConst},
     )::Union{Nothing, FoldedTestValue}
     _fold_test_budget!(steps)
     depth > _FOLD_TEST_MAX_DEPTH && throw(ArgumentError(FOLD_BUDGET_MSG))
@@ -62,7 +67,10 @@ function _try_fold_test_value(
         return v
     elseif s == "Identifier"
         name = _node_text_trim(node, src, pos)
-        return get(consts, name, nothing)
+        entry = get(consts, name, nothing)
+        entry === nothing && return nothing
+        entry === TEST_FOLD_BUDGET && throw(ArgumentError(FOLD_BUDGET_MSG))
+        return entry::FoldedTestValue
     end
 
     if s == "call"
@@ -91,6 +99,33 @@ function _try_fold_test_value(
         return false
     end
 
+    if s == "comparison"
+        parts = Tuple{GreenNode, Int}[]
+        for (c, cp) in _child_positions(node, pos)[1]
+            JuliaSyntax.is_trivia(head(c)) && continue
+            push!(parts, (c, cp))
+        end
+        length(parts) ≥ 3 || return nothing
+        isodd(length(parts)) || return nothing
+        nvals = (length(parts) + 1) ÷ 2
+        vals = Vector{FoldedTestValue}(undef, nvals)
+        for i in 1:nvals
+            c, cp = parts[2 * i - 1]
+            v = _try_fold_test_value(c, src, cp, depth + 1, steps, consts)
+            v === nothing && return nothing
+            vals[i] = v
+        end
+        for i in 1:(nvals - 1)
+            op, oppos = parts[2 * i]
+            _is_eq_op(op, src, oppos) || return nothing
+        end
+        acc = vals[1]
+        for i in 2:nvals
+            acc = acc == vals[i]
+        end
+        return acc
+    end
+
     if is_infix_op_call(head(node))
         kids, _ = _child_positions(node, pos)
         args = Tuple{GreenNode, Int}[]
@@ -110,15 +145,11 @@ function _try_fold_test_value(
     return nothing
 end
 
-const TEST_FOLD_TRIVIAL = :trivial_true
-const TEST_FOLD_NOT_TRIVIAL = :not_trivial
-const TEST_FOLD_BUDGET = :budget_exceeded
-
 function test_condition_fold_result(
         node::GreenNode,
         src::AbstractString,
         pos::Int,
-        consts::Dict{String, FoldedTestValue},
+        consts::Dict{String, TestFoldConst},
     )::Symbol
     steps = Ref(0)
     try
@@ -130,38 +161,28 @@ function test_condition_fold_result(
     end
 end
 
-function with_test_fold_budget(f::Function, max_steps::Int)
-    prev = _ACTIVE_FOLD_LIMIT[]
-    _ACTIVE_FOLD_LIMIT[] = max_steps
-    try
-        return f()
-    finally
-        _ACTIVE_FOLD_LIMIT[] = prev
-    end
-end
-
 function collect_toplevel_const_bindings(
         tree::GreenNode,
         src::AbstractString,
-    )::Dict{String, FoldedTestValue}
-    consts = Dict{String, FoldedTestValue}()
+    )::Dict{String, TestFoldConst}
+    consts = Dict{String, TestFoldConst}()
     steps = Ref(0)
     for (node, pos) in _toplevel_stmt_nodes(tree)
         summary(node) == "const" || continue
         bind = _const_binding_pair(node, src, pos)
         bind === nothing && continue
         name, val_node, val_pos = bind
-        v = try
-            _try_fold_test_value(val_node, src, val_pos, 0, steps, consts)
+        try
+            v = _try_fold_test_value(val_node, src, val_pos, 0, steps, consts)
+            v === nothing && continue
+            consts[name] = v
         catch err
             if _fold_budget_exceeded(err)
-                nothing
+                consts[name] = TEST_FOLD_BUDGET
             else
                 rethrow()
             end
         end
-        v === nothing && continue
-        consts[name] = v
     end
     return consts
 end

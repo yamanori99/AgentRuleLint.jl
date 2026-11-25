@@ -215,17 +215,25 @@
     end
 
     @testset "fold budget exhaustion is fail-closed" begin
-        path = joinpath("test", "corpus", "test_integrity_fold_budget.jl")
-        AgentRuleLint.with_test_fold_budget(0) do
-            res = AgentRuleLint.check(root; paths = [path])
-            hits = filter(
-                d -> d.rule_id == "test-integrity" &&
-                    occursin("too complex to verify", d.message) &&
-                    !d.suppressed,
-                res.violations,
-            )
-            @test !isempty(hits)
-        end
+        path = rel("test_integrity_fold_budget.jl")
+        res = check_rel(path)
+        hits = filter(
+            d -> d.rule_id == "test-integrity" &&
+                occursin("too complex to verify", d.message) &&
+                !d.suppressed,
+            res.violations,
+        )
+        @test !isempty(hits)
+
+        path_const = rel("test_integrity_fold_budget_const.jl")
+        res2 = check_rel(path_const)
+        hits2 = filter(
+            d -> d.rule_id == "test-integrity" &&
+                occursin("too complex to verify", d.message) &&
+                !d.suppressed,
+            res2.violations,
+        )
+        @test any(d -> endswith(string(d.path), "test_integrity_fold_budget_const.jl"), hits2)
     end
 
     @testset "diff: test-integrity deleted findings use expect_status :deleted_test" begin

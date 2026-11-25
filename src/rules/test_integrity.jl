@@ -271,7 +271,7 @@ function _walk_test_integrity_node!(
         policy::PolicyBundle,
         path::String,
         source::AbstractString,
-        consts::Dict{String, FoldedTestValue},
+        consts::Dict{String, TestFoldConst},
         node::GreenNode,
         pos::Int,
         track_exit::Bool,
@@ -345,7 +345,7 @@ function _walk_test_integrity_syntax!(
         path::String,
         source::AbstractString,
         tree::GreenNode,
-        consts::Dict{String, FoldedTestValue},
+        consts::Dict{String, TestFoldConst},
         exit_scope::Bool,
     )
     _walk_test_integrity_node!(diags, policy, path, source, consts, tree, 1, exit_scope)
