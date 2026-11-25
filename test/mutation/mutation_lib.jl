@@ -2,6 +2,23 @@
 
 const MUTATION_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 
+"""
+Run a detector helper with a strict exit contract:
+
+- 0 → finding still present (detector alive) → return false
+- 2 → finding absent (detector disabled) → return true
+- anything else (including Julia's usual 1 on uncaught errors) → harness failure
+
+Do not use exit 1 for "disabled": that collides with ProcessExited(1) from crashes.
+"""
+function detector_disabled(cmd::Cmd; dir::AbstractString = MUTATION_ROOT)
+    proc = run(ignorestatus(setenv(cmd; dir = dir)))
+    code = proc.exitcode
+    code == 2 && return true
+    code == 0 && return false
+    error("detector helper crashed with exit $code (expected 0=alive or 2=disabled): $cmd")
+end
+
 function run_source_mutation(;
         name::String,
         rel_path::AbstractString,

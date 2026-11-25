@@ -179,10 +179,13 @@
             cd(dir) do
                 res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
                 hits = filter(
-                    d -> d.rule_id == "test-integrity" && occursin("deleted test file", d.message),
+                    d ->
+                    d.rule_id == "test-integrity" &&
+                        d.expect_status == :deleted_test &&
+                        d.path == "test/case.jl",
                     res.violations,
                 )
-                @test any(d -> occursin("case.jl", d.message), hits)
+                @test !isempty(hits)
             end
         finally
             rm(dir, recursive = true, force = true)
@@ -204,7 +207,7 @@
             cd(dir) do
                 res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
                 deleted_hits = filter(
-                    d -> d.rule_id == "test-integrity" && occursin("deleted test file", d.message),
+                    d -> d.rule_id == "test-integrity" && d.expect_status == :deleted_test,
                     res.violations,
                 )
                 @test isempty(deleted_hits)
@@ -303,10 +306,13 @@
             cd(dir) do
                 res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
                 hits = filter(
-                    d -> d.rule_id == "test-integrity" && occursin("deleted test file", d.message),
+                    d ->
+                    d.rule_id == "test-integrity" &&
+                        d.expect_status == :deleted_test &&
+                        d.path == "test/gone.jl",
                     res.violations,
                 )
-                @test any(d -> occursin("gone.jl", d.message), hits)
+                @test !isempty(hits)
             end
         finally
             rm(dir, recursive = true, force = true)
@@ -388,72 +394,4 @@
         end
     end
 
-    function _mutation_expect_fail(desc::String, needle::String, replacement::String, check_cmd::String)
-        src_path = joinpath(root, "src", "rules", "test_integrity.jl")
-        orig = read(src_path, String)
-        occursin(needle, orig) || error("mutation needle missing for $desc")
-        write(src_path, replace(orig, needle => replacement, count = 1))
-        try
-            parts = split(check_cmd)
-            cmd = Cmd(parts)
-            ok = cd(root) do
-                success(setenv(cmd; dir = root))
-            end
-            ok && error("mutation for $desc: detector disabled but check still passed")
-            return desc
-        finally
-            write(src_path, orig)
-        end
-    end
-
-    @testset "mutation per detector (subprocess recompile)" begin
-        @testset "trivial @test folding → corpus test_integrity_trivial_true.jl" begin
-            _mutation_expect_fail(
-                "trivial @test folding",
-                "if fold_res == TEST_FOLD_TRIVIAL",
-                "if false && fold_res == TEST_FOLD_TRIVIAL",
-                "julia --startup-file=no --project=. -e \"using AgentRuleLint; r=AgentRuleLint.check(\\\".\\\"; paths=[joinpath(\\\"test\\\",\\\"corpus\\\",\\\"test_integrity_trivial_true.jl\\\")]); exit(any(d->d.rule_id==\\\"test-integrity\\\"&&!d.suppressed,r.violations)?0:1)\"",
-            )
-        end
-        @testset "broad @test_throws → corpus test_integrity_broad_throws.jl" begin
-            _mutation_expect_fail(
-                "broad @test_throws",
-                "if !isempty(args) && _exception_type_too_broad(args[1], source, argpos[1])",
-                "if false && !isempty(args) && _exception_type_too_broad(args[1], source, argpos[1])",
-                "julia --startup-file=no --project=. -e \"using AgentRuleLint; r=AgentRuleLint.check(\\\".\\\"; paths=[joinpath(\\\"test\\\",\\\"corpus\\\",\\\"test_integrity_broad_throws.jl\\\")]); exit(any(d->d.rule_id==\\\"test-integrity\\\"&&!d.suppressed,r.violations)?0:1)\"",
-            )
-        end
-        @testset "exit in driver → temp repo with early exit" begin
-            _mutation_expect_fail(
-                "exit in driver",
-                "elseif track_exit && s == \"call\" && _is_exit_call(node, source, pos)",
-                "elseif false && track_exit && s == \"call\" && _is_exit_call(node, source, pos)",
-                "julia --startup-file=no --project=. -e \"using AgentRuleLint; d=mktempdir(); mkpath(joinpath(d,\\\"test\\\")); write(joinpath(d,\\\".AgentRuleLintConfig.toml\\\"), read(\\\".AgentRuleLintConfig.toml\\\")); write(joinpath(d,\\\"test\\\",\\\"runtests.jl\\\"),\\\"include(\\\\\\\"early.jl\\\\\\\")\\\\n\\\"); write(joinpath(d,\\\"test\\\",\\\"early.jl\\\"),\\\"exit(0)\\\\n\\\"); r=AgentRuleLint.check(d; paths=[\\\"test\\\"]); exit(any(x->occursin(\\\"exit\\\",x.message),filter(d->d.rule_id==\\\"test-integrity\\\",r.violations))?0:1)\"",
-            )
-        end
-        @testset "skip/broken count increase → test_integrity_mutation_skip.jl" begin
-            _mutation_expect_fail(
-                "skip/broken count increase",
-                "for m in _SKIP_BROKEN_MACROS\n        get(counts, m, 0) <= get(base_counts, m, 0) && continue",
-                "for m in ()\n        get(counts, m, 0) <= get(base_counts, m, 0) && continue",
-                "julia --startup-file=no --project=. test/test_integrity_mutation_skip.jl",
-            )
-        end
-        @testset "runtests include removal → test_integrity_mutation_runtests.jl" begin
-            _mutation_expect_fail(
-                "runtests include removal",
-                "for ek in base_entries",
-                "for ek in ()",
-                "julia --startup-file=no --project=. test/test_integrity_mutation_runtests.jl",
-            )
-        end
-        @testset "tolerance loosening → test_integrity_mutation_tol.jl" begin
-            _mutation_expect_fail(
-                "tolerance loosening",
-                "loosen = _tol_grew(base.atol, snap.atol) || _tol_grew(base.rtol, snap.rtol)",
-                "loosen = false",
-                "julia --startup-file=no --project=. test/test_integrity_mutation_tol.jl",
-            )
-        end
-    end
 end

@@ -26,7 +26,7 @@ try
         d -> d.rule_id == "test-integrity" && occursin("test_broken count increased", d.message),
         res.violations,
     )
-    exit(ok ? 0 : 1)
+    exit(ok ? 0 : 2)
 finally
     rm(dir, recursive = true, force = true)
 end
