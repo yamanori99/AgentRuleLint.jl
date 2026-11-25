@@ -59,10 +59,10 @@ function _run_project_rules_julia!(
     path = fc.parsed.path
     source = fc.parsed.normalized
     tree = parse_source(source; filename = path)
-    folds = collect_folded_string_exprs(tree, source)
+    collected = collect_folded_string_exprs(tree, source)
     for lit in pr.forbid_literals
         seen_spans = Set{Tuple{Int, Int}}()
-        for fold in folds
+        for fold in collected.folds
             occursin(lit, fold.value) || continue
             keyspan = (fold.byte_start, fold.byte_end)
             keyspan in seen_spans && continue
@@ -100,6 +100,20 @@ function _run_project_rules_julia!(
                 pr.do_not,
             )
         end
+    end
+    if collected.budget_exceeded
+        _push_project_violation!(
+            diags,
+            rule_id,
+            :forbid,
+            path,
+            source,
+            1,
+            1,
+            fold_budget_incomplete_message(path),
+            pr.intent,
+            pr.do_not,
+        )
     end
     return nothing
 end

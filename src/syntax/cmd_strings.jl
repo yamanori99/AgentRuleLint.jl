@@ -124,7 +124,7 @@ function _walk_cmd_strings!(
 end
 
 """
-    collect_cmd_string_literals(tree, source) -> Vector{FoldedStringExpr}
+    collect_cmd_string_literals(tree, source) -> FoldCollectResult
 
 Statically recover shell/Cmd text from backtick cmdstrings, `Cmd([...])` /
 `Base.Cmd([...])`, and `pipeline` argument trees. Reuses `try_fold_expr` for string
@@ -135,12 +135,27 @@ concatenation and `String(UInt8[...])` forms.
   commands built from runtime variables are invisible.
 - Cmd interpolation (`\$(...)`) and string interpolation cancel folding for that
   fragment.
-- Step budget matches `collect_folded_string_exprs` (`FOLD_MAX_STEPS`).
+- Step budget matches `collect_folded_string_exprs` (`FOLD_MAX_STEPS`). Budget
+  exhaustion sets `budget_exceeded` rather than throwing (callers emit a diagnostic).
 """
-function collect_cmd_string_literals(tree::GreenNode, source::AbstractString)
+function collect_cmd_string_literals(
+        tree::GreenNode,
+        source::AbstractString;
+        max_steps::Int = FOLD_MAX_STEPS,
+    )::FoldCollectResult
     src = normalize_source(source)
-    budget = FoldBudget()
+    budget = FoldBudget(max_steps)
     out = FoldedStringExpr[]
-    _walk_cmd_strings!(tree, src, 1, budget, out)
-    return out
+    try
+        _walk_cmd_strings!(tree, src, 1, budget, out)
+    catch err
+        if _fold_budget_exceeded(err)
+            return FoldCollectResult(out, true)
+        elseif err isa InterruptException
+            rethrow()
+        else
+            throw(err)
+        end
+    end
+    return FoldCollectResult(out, false)
 end

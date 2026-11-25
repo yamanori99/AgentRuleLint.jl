@@ -148,15 +148,20 @@ function load_toml_file(path::String)
     end
 end
 
-"""Read stdout from `cmd`; on failure raise `GitError` including stderr and showerror."""
+"""Read stdout from `cmd`; on failure raise `GitError` including stderr and showerror.
+
+Stderr is drained concurrently so a full stderr pipe cannot deadlock against a
+blocking stdout read (e.g. CRLF / rename-detection warnings from git).
+"""
 function _read_git_cmd(cmd::Cmd; error_prefix::AbstractString)
     out = Pipe()
     err = Pipe()
     proc = run(pipeline(cmd, stdout = out, stderr = err), wait = false)
     close(out.in)
     close(err.in)
+    err_task = @async read(err)
     stdout_data = read(out)
-    stderr_data = read(err)
+    stderr_data = fetch(err_task)
     wait(proc)
     if !success(proc)
         stderr_s = strip(String(stderr_data))

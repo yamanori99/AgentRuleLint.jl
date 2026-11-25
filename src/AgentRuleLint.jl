@@ -50,7 +50,8 @@ function check(root::AbstractString; kwargs...)
             rethrow()
         end
         is_fail_closed(err) && rethrow()
-        throw(InternalError(format_error(err)))
+        bt = catch_backtrace()
+        throw(InternalError(format_error(err), err, bt))
     end
 end
 
@@ -132,6 +133,10 @@ end
 function _emit_fail_closed(err, io = stderr)
     if err isa InternalError
         println(io, "AgentRuleLint internal error: ", err.msg)
+        if err.bt !== nothing
+            Base.show_backtrace(io, err.bt)
+            println(io)
+        end
         return 3
     elseif is_fail_closed(err)
         println(io, "AgentRuleLint fail-closed: ", format_error(err))

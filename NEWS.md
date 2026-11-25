@@ -1,0 +1,29 @@
+# AgentRuleLint.jl NEWS
+
+CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://github.com/yamanori99/AgentRuleLint.jl/issues/65).
+
+## Unreleased (0.1.0-DEV)
+
+### **[CI-breaking]** `on_allow_rule = "error"` is a ConfigError
+
+`on_allow_rule` now accepts only the rule-level vocabulary `forbid|deny|warn|allow`.
+The former sentinel `"error"` is rejected with exit code 2 (`ConfigError`).
+
+Migrate by choosing an explicit level, for example:
+
+```toml
+[rules.expect-audit]
+on_allow_rule = "forbid"
+```
+
+### Fold-budget exhaustion is a diagnostic, not exit 3
+
+Constant-fold step-budget exhaustion (`FoldBudgetExceeded`) emits a non-suppressible
+`analysis incomplete: constant-fold budget exceeded in <file>` finding at `:forbid`
+and no longer maps to an internal-error exit code.
+
+### InternalError retains cause and backtrace
+
+Unexpected errors wrapped by `check` keep the original exception and
+`catch_backtrace()` on `InternalError`; the CLI prints that backtrace (Phase 3 /
+[#66](https://github.com/yamanori99/AgentRuleLint.jl/issues/66) / [#28](https://github.com/yamanori99/AgentRuleLint.jl/issues/28)).

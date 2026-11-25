@@ -83,7 +83,7 @@ utf8-line-col)
 │       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 └ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
 
-┌ Error: [Project] project/no-internal-codename [deny] (12 violations, ceiling …
+┌ Error: [Project] project/no-internal-codename [deny] (14 violations, ceiling …
 │   intent: Keep internal codenames out of public package files.
 │   do_not: Split or dynamically concatenate forbidden strings to bypass the
 │           check.
@@ -136,6 +136,16 @@ utf8-line-col)
 │     forbidden literal matched (folded)
 │     > secret = "INT" * "ERNAL_CODENAME"
 │                ~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/test_integrity_fold_budget.jl
+│     analysis incomplete: constant-fold budget exceeded in
+│     test/corpus/test_integrity_fold_budget.jl
+│     > # Long == chain exceeds FOLD_MAX_STEPS (16000); trivial if fully folded…
+│       ~
+│   test/corpus/test_integrity_fold_budget_const.jl
+│     analysis incomplete: constant-fold budget exceeded in
+│     test/corpus/test_integrity_fold_budget_const.jl
+│     > # Const initializer exceeds fold step budget; dependent @test fails clo…
+│       ~
 └ @ Project .AgentRuleLintConfig.toml ([[project_rules]])
 
 ┌ Error: [AgentRuleLint] silent-catch [deny] (14 violations, ceiling 0)
@@ -339,5 +349,5 @@ utf8-line-col)
 │                      ~~~~
 └ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
 
-Summary: 72 violations across 5 rules (4 [AgentRuleLint], 1 [Project]) — FAILED
+Summary: 74 violations across 5 rules (4 [AgentRuleLint], 1 [Project]) — FAILED
 (exit 1)

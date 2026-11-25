@@ -4,7 +4,7 @@ const KChar = JuliaSyntax.K"Char"
 
 const FOLD_MAX_DEPTH = 48
 const FOLD_MAX_STEPS = 16_000
-const FOLD_BUDGET_MSG = "constant fold step budget exceeded"
+const FOLD_BUDGET_INCOMPLETE_PREFIX = "analysis incomplete: constant-fold budget exceeded"
 
 mutable struct FoldBudget
     count::Int
@@ -20,6 +20,14 @@ end
 
 function _fold_budget_exceeded(err)::Bool
     return err isa FoldBudgetExceeded
+end
+
+function fold_budget_incomplete_message(path::AbstractString)
+    return "$FOLD_BUDGET_INCOMPLETE_PREFIX in $path"
+end
+
+function is_fold_budget_incomplete(d::Violation)
+    return startswith(d.message, FOLD_BUDGET_INCOMPLETE_PREFIX)
 end
 
 function _align_byte_index(src::AbstractString, i::Int)
@@ -335,7 +343,7 @@ function collect_folded_string_exprs(
         tree::GreenNode,
         source::AbstractString;
         max_steps::Int = FOLD_MAX_STEPS,
-    )::Vector{FoldedStringExpr}
+    )::FoldCollectResult
     src = normalize_source(source)
     budget = FoldBudget(max_steps)
     out = FoldedStringExpr[]
@@ -343,18 +351,18 @@ function collect_folded_string_exprs(
         _walk_collect_folds(tree, src, 1, 0, budget, out)
     catch err
         if _fold_budget_exceeded(err)
-            return out
+            return FoldCollectResult(out, true)
         elseif err isa InterruptException
             rethrow()
         else
             throw(err)
         end
     end
-    return out
+    return FoldCollectResult(out, false)
 end
 
 function folded_string_literals(tree::GreenNode, source::AbstractString)
-    return [f.value for f in collect_folded_string_exprs(tree, source)]
+    return [f.value for f in collect_folded_string_exprs(tree, source).folds]
 end
 
 function fold_expr(node::GreenNode, source::AbstractString; byte_offset::Int = 1, depth::Int = 0)

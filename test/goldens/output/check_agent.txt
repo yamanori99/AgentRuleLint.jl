@@ -1,5 +1,5 @@
 AGENTRULELINT FAIL v0.1.0-DEV base=.AgentRuleLintConfig.toml
-pos=utf8-codepoint-1based violations=72 rules=5
+pos=utf8-codepoint-1based violations=74 rules=5
 
 RULE [AgentRuleLint] expect-audit level=forbid count=19 ceiling=-
 HIT test/corpus/block_expect.jl:1:1-1:60 | #= block agentrulelint-expect:
@@ -71,7 +71,7 @@ HIT test/corpus/expect_whitespace_reason.jl:1:1-1:49 | # agentrulelint-expect:
 HIT test/corpus/trailing_expect.jl:1:1-1:58 | x = 1 # agentrulelint-expect:
                                               expect-audit reason="inline"
 
-RULE [Project] project/no-internal-codename level=deny count=12 ceiling=-
+RULE [Project] project/no-internal-codename level=deny count=14 ceiling=-
 intent: Keep internal codenames out of public package files.
 do_not: Split or dynamically concatenate forbidden strings to bypass the check.
 HIT test/corpus/expect_above_catch_suppress.jl:5:9-5:27 | "INTERNAL_CODENAME"
@@ -87,6 +87,8 @@ HIT test/corpus/reduce_star.jl:1:7-1:42 | reduce(*, ["INT", "ERNAL_CODENAME"])
 HIT test/corpus/reduce_star.jl:1:17-1:41 | ["INT", "ERNAL_CODENAME"]
 HIT test/corpus/split_star.jl:1:7-1:30 | "INT" * "ERNAL_CODENAME"
 HIT test/corpus/split_string.jl:1:10-1:33 | "INT" * "ERNAL_CODENAME"
+HIT test/corpus/test_integrity_fold_budget.jl:1:1-1:1 | #
+HIT test/corpus/test_integrity_fold_budget_const.jl:1:1-1:1 | #
 
 RULE [AgentRuleLint] silent-catch level=deny count=14 ceiling=-
 intent: Surface try/catch blocks that hide failures instead of rethrowing or

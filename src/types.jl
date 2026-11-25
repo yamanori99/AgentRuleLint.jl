@@ -70,8 +70,22 @@ struct ParseError <: Exception
     msg::String
 end
 
+"""Unexpected internal failure; optionally retains the original cause and catch backtrace."""
 struct InternalError <: Exception
     msg::String
+    cause::Any
+    bt::Any
+end
+
+InternalError(msg::AbstractString) = InternalError(String(msg), nothing, nothing)
+
+function Base.showerror(io::IO, e::InternalError)
+    print(io, e.msg)
+    if e.cause !== nothing
+        print(io, "\nCaused by: ")
+        showerror(io, e.cause)
+    end
+    return nothing
 end
 
 """Dedicated constant-fold step-budget overflow (not an `ArgumentError`)."""
@@ -202,6 +216,12 @@ struct FoldedStringExpr
     value::String
     byte_start::Int
     byte_end::Int
+end
+
+"""Result of a constant-fold collection walk (`budget_exceeded` means analysis was truncated)."""
+struct FoldCollectResult
+    folds::Vector{FoldedStringExpr}
+    budget_exceeded::Bool
 end
 
 const KEBAB_ID = r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
