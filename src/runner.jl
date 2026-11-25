@@ -122,6 +122,17 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         append!(all_diags, run_builtin_rules(fc, policy))
     end
 
+    append!(
+        all_diags,
+        run_test_integrity(
+            root,
+            contexts,
+            policy;
+            diff_base = diff_base,
+            diff_scope = diff_scope,
+        ),
+    )
+
     used_total = Set{Int}()
     for (fc, rel) in zip(contexts, rel_files)
         path_diags = Violation[]
@@ -148,7 +159,8 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     end
 
     if diff_scope !== nothing
-        all_diags = filter_diff_violations!(all_diags, diff_scope)
+        path_events = git_diff_path_events(root, diff_scope.base_ref)
+        all_diags = filter_diff_violations!(all_diags, diff_scope, path_events)
     end
 
     if diff_base !== nothing

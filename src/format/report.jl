@@ -77,6 +77,20 @@ function format_report(fingerprint::AbstractString, diagnostic::Violation, sourc
     return String(take!(buf))
 end
 
+function _explain_from_policy_rule(id::AbstractString)
+    root = pwd()
+    policy = resolve_policy(root)
+    rule = get(policy.rules, String(id), nothing)
+    rule === nothing && return nothing
+    return """
+    $(id)
+
+    intent: $(rule.intent)
+
+    do_not: $(rule.do_not)
+    """
+end
+
 function explain_rule(id::AbstractString)
     id = String(id)
     if id == "expect-audit"
@@ -160,13 +174,15 @@ function explain_rule(id::AbstractString)
     elseif startswith(id, "project/")
         return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
     else
+        policy_line = _explain_from_policy_rule(id)
+        policy_line !== nothing && return policy_line
         specs = (
-            "protected-paths" => "forbid edits to protected policy and workflow paths.",
             "scope-paths" => "enforce trusted path allowlists.",
             "ceiling-ratchet" => "keep violation/expect ceilings monotonic.",
             "manifest-sync" => "tracked Manifest must match Project.toml.",
             "shell-safety/process-pattern" => "preset: hazardous shell / Cmd patterns.",
             "silent-catch" => "detect swallowed exceptions.",
+            "unsafe-boundary" => "flag eval, ccall, and unsafe_* at boundaries.",
             "test-integrity" => "detect hollow or weakened tests.",
         )
         for (slug, blurb) in specs
