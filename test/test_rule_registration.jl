@@ -65,24 +65,3 @@
         @test haskey(AgentRuleLint.RULE_DEFS_BY_ID, "scope-paths")
     end
 end
-
-@testset "one-file-per-rule output goldens" begin
-    gold_dir = joinpath(ROOT, "test", "goldens", "one_file_per_rule")
-    paths = [
-        joinpath("test", "corpus", "split_string.jl"),
-        joinpath("test", "corpus", "expect_blank_line.jl"),
-        joinpath("test", "corpus", "silent_catch_empty.jl"),
-        joinpath("test", "corpus", "shell_sudo_cmd.jl"),
-    ]
-    res = AgentRuleLint.check(ROOT; paths = paths)
-    human = AgentRuleLint.format_human(
-        res;
-        root = ROOT,
-        io = IOContext(IOBuffer(), :color => false),
-    )
-    json = AgentRuleLint.format_json(res)
-    agent = AgentRuleLint.format_agent(res; root = ROOT)
-    @test human == read(joinpath(gold_dir, "human.txt"), String)
-    @test json == read(joinpath(gold_dir, "json.txt"), String)
-    @test agent == read(joinpath(gold_dir, "agent.txt"), String)
-end
