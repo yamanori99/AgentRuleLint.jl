@@ -77,117 +77,99 @@ function format_report(fingerprint::AbstractString, diagnostic::Violation, sourc
     return String(take!(buf))
 end
 
-function _explain_from_policy_rule(id::AbstractString)
-    root = pwd()
-    policy = resolve_policy(root)
-    rule = get(policy.rules, String(id), nothing)
-    rule === nothing && return nothing
+function _explain_extra(spec::RuleSpec, key::Symbol)
+    return get(spec.extra, key, "")
+end
+
+function _explain_optional_block(label::AbstractString, body::AbstractString)
+    isempty(strip(body)) && return ""
     return """
-    $(id)
 
-    intent: $(rule.intent)
+    $label:
+    $(strip(body))"""
+end
 
-    do_not: $(rule.do_not)
+function format_explain_rule(spec::RuleSpec)
+    anchor = _explain_extra(spec, :expect_anchor)
+    example = _explain_extra(spec, :example)
+    anchor_line = _explain_extra(spec, :anchor_line)
+    syntax = _explain_extra(spec, :syntax)
+    suppression = _explain_extra(spec, :suppression)
+    intent_detail = _explain_extra(spec, :intent_detail)
+    config = _explain_extra(spec, :config)
+    detail = _explain_extra(spec, :detail)
+    body = """
+    rule_id: $(spec.id)
+    origin: $(origin_label(spec.origin))
+    level: $(spec.level)
+
+    intent:
+    $(spec.intent)
+
+    do_not:
+    $(spec.do_not)"""
+    body *= _explain_optional_block("anchor_line", anchor_line)
+    body *= _explain_optional_block("syntax", syntax)
+    body *= _explain_optional_block("suppression", suppression)
+    body *= _explain_optional_block("intent_detail", intent_detail)
+    body *= _explain_optional_block("config", config)
+    body *= _explain_optional_block("detail", detail)
+    body *= """
+
+    expect_anchor:
+    $(isempty(anchor) ? "N/A." : anchor)
+
+    example:
+    $(isempty(example) ? "N/A." : example)"""
+    return body
+end
+
+function format_explain_project_rule(pr::ProjectRule)
+    rid = project_rule_id(pr)
+    return """
+    rule_id: $rid
+    origin: [Project]
+    level: $(pr.level)
+
+    intent:
+    $(pr.intent)
+
+    do_not:
+    $(pr.do_not)
+
+    expect_anchor:
+    When using expect-audit suppression, reference `$rid` in `# agentrulelint-expect:` (same placement rules as expect-audit).
+
+    example:
+    # agentrulelint-expect: $rid reason="documented"
+    x = "forbidden_literal"
     """
 end
 
-function explain_rule(id::AbstractString)
-    id = String(id)
-    if id == "expect-audit"
-        return """
-        expect-audit
-
-        Anchor line: first non-blank code line after contiguous `# agentrulelint-expect:` lines
-        that matches the target syntax kind for the referenced rule (e.g. `try`, `@eval`, `@test*`).
-
-        Syntax: `# agentrulelint-expect: <rule-id> reason="..."` (ASCII, standalone line only; non-empty reason).
-
-        Suppresses only violations whose anchor_line matches that line.
-        Expects are forbidden above `catch`, inside `# runic: off` regions, inside multiline
-        call arguments, and with blank lines before the anchor. Forbidden placements do not
-        suppress violations. Multiline-call placement uses the same forbid level as other
-        expect-audit integrity findings.
-        """
-    elseif id == "unsafe-boundary"
-        return """
-        unsafe-boundary
-
-        Anchor line: the `@eval`, `ccall`, `@ccall`, qualified `Base.Meta.parse` / `Core.Meta.parse`,
-        `invokelatest`, `unsafe_*` call, value alias (`const E = Core.eval`), value argument
-        (`map(eval, xs)`), indirect `getfield`/`getproperty` escape, or related macro line
-        (`@inbounds`, `@generated`, `@assume_effects`).
-
-        Intent: keep runtime `eval`, parsing, FFI, and unsafe intrinsics inside configured
-        `allow_modules` or `allow_globs`. Top-level `@eval` of static literal / quote sequences only
-        is excluded (no runtime interpolation or bare identifiers). Remaining gaps: `Expr` escapes
-        and renames that do not match the tracked value-alias pattern.
-
-        Config: `[rules.unsafe-boundary]` with optional `allow_modules`, `allow_globs`.
-        """
-    elseif id == "scope-paths"
-        return """
-        scope-paths
-
-        Group: integrity. Level: forbid (no inline expects).
-
-        Active only when `check` receives `--allow-paths GLOB,...` together with `--diff <base>`.
-        The allowlist is accepted only from the CLI or the `check(...; allow_paths=...)` keyword,
-        never from `.AgentRuleLintConfig.toml`, so only a trusted CI workflow input or human wrapper
-        can widen scope.
-
-        Every changed path in the diff (add, modify, delete, rename on both sides) must match at
-        least one glob. Otherwise the rule flags the path.
-
-        Without `--diff`, `--allow-paths` is a usage error (exit 2). An empty or whitespace-only
-        list is a usage error. Absolute paths, `..` segments, and backslash separators are rejected
-        at glob parse time (exit 2).
-
-        Integrity level: `scope-paths` must use `level = "forbid"` in config (ConfigError otherwise).
-        """
-    elseif id == "protected-paths"
-        return """
-        protected-paths
-
-        Group: integrity. Level: forbid (no inline expects).
-
-        Runs only with `--diff <base>`. Reports nothing on a full-tree `check` without `--diff`.
-
-        Auto-protected paths include `.AgentRuleLintConfig.toml`, `.agentrulelint/**`
-        (except `.agentrulelint/ceilings.toml` when the diff is monotonic non-increasing),
-        `.JETLSConfig.toml`, `Manifest*.toml`, `JuliaManifest.toml`, `LocalPreferences.toml`,
-        and every repo-relative `Project.toml`.
-
-        `project_toml_policy = "semantic"` (default) allows adding `[deps]` entries and `[compat]`
-        for newly added deps. Any change to `[sources]` or `[workspace]`, compat removal, or any
-        compat string change (loosening is any non-identical string; no semver reasoning in 0.1.0),
-        or any other top-level key change is a violation.
-
-        Declared `paths = [{ glob = "...", reason = "..." }]` under `[rules.protected-paths]` use
-        project-rule path-glob syntax; the reason appears in the message.
-
-        Missing or unparsable TOML on either side of a compared change fails closed (exit 2).
-
-        Integrity level: `protected-paths`, `ceiling-ratchet`, and `scope-paths` must always use
-        `level = "forbid"` in config. Any other level is a ConfigError (exit 2). Rename or copy
-        of a protected path is never semantically exempt (including Project.toml and ceilings.toml).
-        """
-    elseif startswith(id, "project/")
-        return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
-    else
-        policy_line = _explain_from_policy_rule(id)
-        policy_line !== nothing && return policy_line
-        specs = (
-            "scope-paths" => "enforce trusted path allowlists.",
-            "ceiling-ratchet" => "keep violation/expect ceilings monotonic.",
-            "manifest-sync" => "tracked Manifest must match Project.toml.",
-            "shell-safety/process-pattern" => "preset: hazardous shell / Cmd patterns.",
-            "silent-catch" => "detect swallowed exceptions.",
-            "unsafe-boundary" => "flag eval, ccall, and unsafe_* at boundaries.",
-            "test-integrity" => "detect hollow or weakened tests.",
-        )
-        for (slug, blurb) in specs
-            id == slug && return "$slug — $blurb (planned built-in / preset)."
-        end
-        return "Unknown rule id: $(id)"
+function explain_rule_unknown(id::AbstractString; root::AbstractString = pwd())
+    needle = String(strip(id))
+    policy = resolve_policy(root)
+    init_registry!(policy)
+    if startswith(needle, "project/")
+        short = needle[9:end]
+        return !any(pr -> pr.id == short, policy.project_rules)
     end
+    return !haskey(BUILTIN_RULES, needle)
+end
+
+function explain_rule(id::AbstractString; root::AbstractString = pwd())
+    needle = String(strip(id))
+    explain_rule_unknown(needle; root = root) &&
+        throw(ArgumentError("unknown rule id: $needle"))
+    policy = resolve_policy(root)
+    init_registry!(policy)
+    if startswith(needle, "project/")
+        short = needle[9:end]
+        for pr in policy.project_rules
+            pr.id == short && return format_explain_project_rule(pr)
+        end
+        throw(ArgumentError("unknown rule id: $needle"))
+    end
+    spec = BUILTIN_RULES[needle]
+    return format_explain_rule(spec)
 end

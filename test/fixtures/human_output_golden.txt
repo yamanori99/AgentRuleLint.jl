@@ -1,0 +1,23 @@
+AgentRuleLint v0.1.0-DEV (policy bundle base: origin/main @ 9f2c1a4e, pos: utf8-line-col)
+
+┌ Error: [AgentRuleLint] expect-audit [forbid] (1 violation, ceiling 0)
+│   intent: Keep suppression comments auditable.
+│   do_not: Hide violations with unapproved expects.
+│
+│   test/corpus/block_expect.jl:1:1-1:60
+│     block comment expect forbidden
+│     > #= block agentrulelint-expect: expect-audit reason="nope" =#
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+└ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
+
+┌ Error: [Project] project/no-internal-codename [deny] (1 violation, ceiling 0)
+│   intent: Keep internal codenames out of public package files.
+│   do_not: Split or dynamically concatenate forbidden strings to bypass the check.
+│
+│   test/corpus/split_string.jl:1:10-1:33
+│     forbidden literal matched (folded)
+│     > secret = "INT" * "ERNAL_CODENAME"
+│                ~~~~~~~~~~~~~~~~~~~~~~~~
+└ @ Project .AgentRuleLintConfig.toml ([[project_rules]])
+
+Summary: 2 violations across 2 rules (1 [AgentRuleLint], 1 [Project]) — FAILED (exit 1)

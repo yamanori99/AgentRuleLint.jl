@@ -1,48 +1,54 @@
 function format_agent(
         result::CheckResult;
-        max_hits::Int = 20,
+        root::AbstractString = pwd(),
+        max_hits::Union{Nothing, Int} = nothing,
         io::IO = stdout,
         output_width::Union{Nothing, Int} = nothing,
     )
     width = resolve_output_width(io; output_width = output_width)
+    hit_cap = something(max_hits, result.max_hits_per_rule)
     buf = IOBuffer()
-    headline = "AGENTRULELINT $(result.exit_code == 0 ? "OK" : "FAIL") v$(pkgversion(AgentRuleLint)) pos=utf8-codepoint-1based violations=$(result.violation_count)"
+    policy = resolve_policy(root)
+    ceilings = load_ceilings(root, policy)
+    base = config_source_base_label(result.config_source)
+    active = active_violations(result.violations)
+    groups = violations_by_rule(active)
+    rule_hits = length(groups)
+    status = result.exit_code == 0 ? "OK" : "FAIL"
+    headline =
+        "AGENTRULELINT $status v$(pkgversion(AgentRuleLint)) base=$base pos=utf8-codepoint-1based violations=$(result.violation_count) rules=$rule_hits"
     for ln in wrap_prose_lines("", "", headline, width)
         println(buf, ln)
     end
     println(buf)
-    by_rule = Dict{String, Vector{Violation}}()
-    for d in result.violations
-        d.suppressed && continue
-        d.expect_status == :fulfilled && continue
-        push!(get!(by_rule, d.rule_id, Violation[]), d)
-    end
-    diag_order(v) = (v.path, v.span, v.rule_id)
-    for (rid, ds) in sort(collect(by_rule); by = first)
-        ds = sort(ds; by = diag_order)
-        lvl = ds[1].level
-        orig = origin_label(ds[1].origin)
-        rule_line = "RULE $orig $rid level=$lvl count=$(length(ds))"
+    for (rid, all_ds) in groups
+        lvl = all_ds[1].level
+        orig = origin_label(all_ds[1].origin)
+        total = length(all_ds)
+        ceiling = rule_violation_total(ceilings, rid)
+        ceiling_s = ceiling > 0 ? string(ceiling) : "-"
+        rule_line = "RULE $orig $rid level=$lvl count=$total ceiling=$ceiling_s"
         for ln in wrap_prose_lines("", "", rule_line, width)
             println(buf, ln)
         end
-        !isempty(ds[1].intent) &&
-            println_wrapped_labeled(buf, "", "intent: ", ds[1].intent, width)
-        !isempty(ds[1].do_not) &&
-            println_wrapped_labeled(buf, "", "do_not: ", ds[1].do_not, width)
-        limit = min(length(ds), max_hits)
+        !isempty(all_ds[1].intent) &&
+            println_wrapped_labeled(buf, "", "intent: ", all_ds[1].intent, width)
+        !isempty(all_ds[1].do_not) &&
+            println_wrapped_labeled(buf, "", "do_not: ", all_ds[1].do_not, width)
+        limit = min(total, hit_cap)
         for i in 1:limit
-            d = ds[i]
-            sl = d.span
-            loc = "$(d.path):$(sl.start_line):$(sl.start_col)-$(sl.end_line):$(sl.end_col)"
+            d = all_ds[i]
+            snip = snippet_for_violation(root, d)
+            loc = format_span_loc(d)
             hit_prefix = "HIT $loc | "
             cont_prefix = repeat(' ', visible_textwidth(hit_prefix))
-            for ln in wrap_prose_lines(hit_prefix, cont_prefix, d.message, width)
+            body = isempty(snip) ? d.message : snip
+            for ln in wrap_prose_lines(hit_prefix, cont_prefix, body, width)
                 println(buf, ln)
             end
         end
-        length(ds) > limit && begin
-            for ln in wrap_prose_lines("", "", "... (+$(length(ds) - limit) omitted)", width)
+        total > limit && begin
+            for ln in wrap_prose_lines("", "", "... (+$(total - limit) omitted)", width)
                 println(buf, ln)
             end
         end

@@ -155,7 +155,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     end
 
     for fc in contexts
-        append!(all_diags, unused_expect_diagnostics(fc.expects, used_total, fc, policy))
+        append!(all_diags, unused_expect_diagnostics(fc.expects, used_total, fc, policy, all_diags))
     end
 
     if diff_scope !== nothing
