@@ -1,0 +1,28 @@
+rule_id: shell-safety/process-pattern
+origin: [Preset]
+level: deny (default when enabled)
+status: not enabled in this config
+
+intent:
+Reject hazardous shell patterns in statically known Cmd literals.
+
+do_not:
+Split or dynamically assemble command strings to bypass constant folding.
+anchor_line:
+`run(`, `open(`, `read(`, `pipeline(`, backtick Cmd, or `Cmd(`.
+config:
+Opt-in via `presets = ["shell-safety"]` in `.AgentRuleLintConfig.toml`.
+`[rules."shell-safety/process-pattern"]` without `presets = ["shell-safety"]` is ConfigError.
+detail:
+Uses the Syntax-layer constant folder and `collect_cmd_string_literals` to find `pkill`,
+`killall`, `sh -c` / `bash -c`, `ssh --`, and `sudo` in folded command text. Short dashed
+options containing `c` (`-c`, `-lc`, `-cl`, `-ec`) after `sh`/`bash` count as `-c` (combined
+login/exec flags); long options (`--…`) do not. Qualified `Base.Cmd([...])` is analyzed like
+`Cmd([...])`. Static folding limits: runtime Cmd values, string/cmd interpolation, and
+symbols outside the shared fold budget are not analyzed (see `collect_cmd_string_literals`
+docstring).
+expect_anchor:
+N/A.
+
+example:
+N/A.

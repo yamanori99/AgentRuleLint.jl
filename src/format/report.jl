@@ -89,7 +89,7 @@ function _explain_optional_block(label::AbstractString, body::AbstractString)
     $(strip(body))"""
 end
 
-function format_explain_rule(spec::RuleSpec)
+function format_explain_rule(spec::RuleSpec; enabled::Bool = true)
     anchor = _explain_extra(spec, :expect_anchor)
     example = _explain_extra(spec, :example)
     anchor_line = _explain_extra(spec, :anchor_line)
@@ -98,10 +98,16 @@ function format_explain_rule(spec::RuleSpec)
     intent_detail = _explain_extra(spec, :intent_detail)
     config = _explain_extra(spec, :config)
     detail = _explain_extra(spec, :detail)
+    level_line = if enabled
+        "level: $(spec.level)"
+    else
+        "level: $(spec.level) (default when enabled)"
+    end
+    status_line = enabled ? "" : "\nstatus: not enabled in this config"
     body = """
     rule_id: $(spec.id)
     origin: $(origin_label(spec.origin))
-    level: $(spec.level)
+    $(level_line)$(status_line)
 
     intent:
     $(spec.intent)
@@ -146,6 +152,7 @@ function format_explain_project_rule(pr::ProjectRule)
     """
 end
 
+"""True when `id` is not a built-in `RuleDef` and not a declared `project/<id>`."""
 function explain_rule_unknown(id::AbstractString; root::AbstractString = pwd())
     needle = String(strip(id))
     policy = resolve_policy(root)
@@ -154,13 +161,40 @@ function explain_rule_unknown(id::AbstractString; root::AbstractString = pwd())
         short = needle[9:end]
         return !any(pr -> pr.id == short, policy.project_rules)
     end
-    return !haskey(BUILTIN_RULES, needle)
+    haskey(BUILTIN_RULES, needle) && return false
+    return !haskey(RULE_DEFS_BY_ID, needle)
 end
 
+"""First built-in rule id under a known preset name, or `nothing`."""
+function _preset_rule_id_hint(needle::AbstractString)
+    needle in KNOWN_PRESET_NAMES || return nothing
+    prefix = needle * "/"
+    for def in RULE_DEFS
+        startswith(def.id, prefix) && return def.id
+    end
+    return nothing
+end
+
+"""Message for an unknown explain id; append a preset hint when applicable."""
+function _explain_unknown_rule_message(needle::AbstractString)
+    hint = _preset_rule_id_hint(needle)
+    hint === nothing && return "unknown rule id: $needle"
+    return "unknown rule id: $needle (did you mean $hint?)"
+end
+
+"""Explain a built-in or project rule.
+
+Built-in ids resolve from `RULE_DEFS_BY_ID` even when the current config does
+not enable them; inactive built-ins include
+`status: not enabled in this config` and mark `level` as the default when
+enabled. `unknown rule id` is reserved for ids that are neither built in nor
+declared under `project_rules` (known preset names get a `did you mean` hint).
+Does not affect `check`.
+"""
 function explain_rule(id::AbstractString; root::AbstractString = pwd())
     needle = String(strip(id))
     explain_rule_unknown(needle; root = root) &&
-        throw(ArgumentError("unknown rule id: $needle"))
+        throw(ArgumentError(_explain_unknown_rule_message(needle)))
     policy = resolve_policy(root)
     init_registry!(policy)
     if startswith(needle, "project/")
@@ -168,8 +202,12 @@ function explain_rule(id::AbstractString; root::AbstractString = pwd())
         for pr in policy.project_rules
             pr.id == short && return format_explain_project_rule(pr)
         end
-        throw(ArgumentError("unknown rule id: $needle"))
+        throw(ArgumentError(_explain_unknown_rule_message(needle)))
     end
-    spec = BUILTIN_RULES[needle]
-    return format_explain_rule(spec)
+    if haskey(BUILTIN_RULES, needle)
+        return format_explain_rule(BUILTIN_RULES[needle]; enabled = true)
+    end
+    def = RULE_DEFS_BY_ID[needle]
+    spec = attach_rule_explain_docs(rule_def_to_spec(def))
+    return format_explain_rule(spec; enabled = false)
 end
