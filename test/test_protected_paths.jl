@@ -175,7 +175,14 @@ RULE = "protected-paths"
             write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
             write(joinpath(dir, ".JETLSConfig.toml"), "1\n")
             git_commit_all!(dir, "base")
-            mv(joinpath(dir, ".JETLSConfig.toml"), joinpath(dir, ".jetlsconfig.toml"))
+            # Use git mv so case-only renames work on case-insensitive filesystems
+            # (default macOS APFS, many Windows volumes). Julia's mv fails there.
+            run(
+                setenv(
+                    Cmd(["git", "-C", dir, "mv", ".JETLSConfig.toml", ".jetlsconfig.toml"]);
+                    dir = dir,
+                ),
+            )
             git_commit_all!(dir, "rename case")
             cd(dir) do
                 events = AgentRuleLint.git_diff_path_events(dir, "HEAD^1")

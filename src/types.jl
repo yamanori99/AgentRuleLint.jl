@@ -40,7 +40,7 @@ struct Violation
     span::Span
     anchor_line::Int
     fingerprint::String
-    expect_status::Symbol
+    expect_status::Symbol # :none; expect-audit states; :deleted_test for test-integrity diff path findings
     suppressed::Bool
     message::String
     intent::String
