@@ -35,6 +35,13 @@ const OUTPUT_GOLDEN_NO_CONFIG_EXPLAIN_IDS = (
     "silent-catch",
 )
 
+# Not registered under `default_policy` / inactive presets (pinned vs merge-base main).
+const OUTPUT_GOLDEN_NO_CONFIG_INACTIVE_EXPLAIN_IDS = (
+    "shell-safety/process-pattern",
+    "test-integrity",
+    "unsafe-boundary",
+)
+
 """Drop the JSONL header object (`"type":"header"`).
 
 The header embeds `julia_version` and `parser`, which differ across Julia 1.13
@@ -175,6 +182,49 @@ end
             gdir = joinpath(OUTPUT_GOLDEN_DIR, "no_config")
             _assert_check_goldens(gdir, tmp)
             _assert_explain_goldens(gdir, OUTPUT_GOLDEN_NO_CONFIG_EXPLAIN_IDS; root = tmp)
+        finally
+            rm(tmp; recursive = true, force = true)
+        end
+    end
+
+    @testset "no config: inactive rules stay unknown (library + CLI)" begin
+        # Merge-base main (`3305407`): under a tree with no config file,
+        # `explain_rule` throws `ArgumentError("unknown rule id: <id>")` and
+        # `cli_main(["explain", id])` exits 2 with empty stdout and
+        # `AgentRuleLint: unknown rule id: <id>\n` on stderr.
+        tmp = _temp_corpus_root()
+        try
+            @assert !isfile(joinpath(tmp, ".AgentRuleLintConfig.toml"))
+            for id in OUTPUT_GOLDEN_NO_CONFIG_INACTIVE_EXPLAIN_IDS
+                err = try
+                    AgentRuleLint.explain_rule(id; root = tmp)
+                    nothing
+                catch e
+                    e
+                end
+                @test err isa ArgumentError
+                @test err.msg == "unknown rule id: $id"
+
+                mktemp() do out_path, _
+                    mktemp() do err_path, _
+                        code = cd(tmp) do
+                            open(out_path, "w") do out_io
+                                open(err_path, "w") do err_io
+                                    redirect_stdout(out_io) do
+                                        redirect_stderr(err_io) do
+                                            AgentRuleLint.cli_main(["explain", id])
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                        @test code == 2
+                        @test read(out_path, String) == ""
+                        @test read(err_path, String) ==
+                            "AgentRuleLint: unknown rule id: $id\n"
+                    end
+                end
+            end
         finally
             rm(tmp; recursive = true, force = true)
         end
