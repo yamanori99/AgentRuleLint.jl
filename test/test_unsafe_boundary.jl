@@ -46,7 +46,6 @@
     function _mutation_detector_subprocess(
             repo_root::AbstractString,
             source_relpath::AbstractString,
-            orig::AbstractString,
             patched::AbstractString;
             corpus::AbstractString,
             msg_needle::AbstractString,
@@ -60,7 +59,6 @@
             ],
             '\n',
         )
-        bak = joinpath(repo_root, source_relpath)
         tmp = mktempdir()
         try
             cp(repo_root, tmp; force = true)
@@ -71,7 +69,6 @@
             after_ok = success(run(ignorestatus(setenv(patch_cmd; dir = repo_root))))
             return (!before_ok, after_ok)
         finally
-            write(bak, orig)
             rm(tmp, recursive = true, force = true)
         end
     end
@@ -245,7 +242,6 @@
                         patch_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script)`
                         @test !success(run(ignorestatus(setenv(patch_cmd; dir = repo_root))))
                     finally
-                        write(unsafe_src, unsafe_orig)
                         rm(tmp, recursive = true, force = true)
                         rm(cfg_root, recursive = true, force = true)
                     end
@@ -254,7 +250,6 @@
                     found_before, missed_after = _mutation_detector_subprocess(
                         repo_root,
                         "src/rules/unsafe_boundary.jl",
-                        orig,
                         patched;
                         corpus = repr(corpus),
                         msg_needle = needle,
@@ -296,7 +291,6 @@
                     patch_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script)`
                     @test !success(run(ignorestatus(setenv(patch_cmd; dir = repo_root))))
                 finally
-                    write(builtin_src, builtin_orig)
                     rm(tmp, recursive = true, force = true)
                 end
             finally

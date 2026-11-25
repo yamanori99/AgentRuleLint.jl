@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# Mutation checks for manifest-sync detectors (src/rules/manifest_sync.jl only).
+# Mutation checks for manifest-sync detectors.
+# Copy the repo to a temp worktree, patch the copy only, never write real src/.
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-SRC="${ROOT}/src/rules/manifest_sync.jl"
+REAL_SRC="${ROOT}/src/rules/manifest_sync.jl"
 export JULIA_COLOR=no
-JULIA=(julia --startup-file=no --color=no --project="${ROOT}")
 
 # id|expected testset label (must match test/test_manifest_sync.jl)
 MUTATIONS=(
@@ -22,13 +22,26 @@ MUTATIONS=(
   "orphan_tracked_manifests|detector: tracked manifest without tracked Project.toml"
 )
 
-tmpdir="$(mktemp -d)"
-cp "$SRC" "${tmpdir}/manifest_sync.jl.bak"
+WORK="$(mktemp -d)"
 cleanup() {
-  cp "${tmpdir}/manifest_sync.jl.bak" "$SRC"
-  rm -rf "$tmpdir"
+  rm -rf "$WORK"
 }
 trap cleanup EXIT
+
+cp -R "${ROOT}/." "${WORK}/"
+SRC="${WORK}/src/rules/manifest_sync.jl"
+cp "$SRC" "${WORK}/manifest_sync.jl.bak"
+JULIA=(julia --startup-file=no --color=no --project="${WORK}")
+
+assert_real_src_clean() {
+  local status
+  status="$(git -C "${ROOT}" status --porcelain -- src || true)"
+  if [[ -n "${status}" ]]; then
+    echo "MUTATION FAIL: real src/ is dirty:" >&2
+    echo "${status}" >&2
+    exit 1
+  fi
+}
 
 strip_ansi() {
   sed -E 's/\x1b\[[0-9;]*[a-zA-Z]//g'
@@ -48,7 +61,7 @@ log_has_load_or_syntax_error() {
 }
 
 run_manifest_tests() {
-  "${JULIA[@]}" -e "using Test, AgentRuleLint; const ROOT=\"${ROOT}\"; include(joinpath(\"${ROOT}\", \"test\", \"test_manifest_sync.jl\"))"
+  "${JULIA[@]}" -e "using Test, AgentRuleLint; const ROOT=\"${WORK}\"; include(joinpath(\"${WORK}\", \"test\", \"test_manifest_sync.jl\"))"
 }
 
 smoke_load() {
@@ -57,7 +70,7 @@ smoke_load() {
 
 apply_mutation() {
   local id="$1"
-  cp "${tmpdir}/manifest_sync.jl.bak" "$SRC"
+  cp "${WORK}/manifest_sync.jl.bak" "$SRC"
   case "$id" in
     manifest_format)
       sed -i 's/^    fmt_ver = _check_manifest_format!(.*)$/    fmt_ver = nothing # mutation/' "$SRC"
@@ -104,21 +117,28 @@ apply_mutation() {
   esac
 }
 
+assert_real_src_clean
+
 for entry in "${MUTATIONS[@]}"; do
   id="${entry%%|*}"
   testset="${entry#*|}"
   apply_mutation "$id"
-  if cmp -s "$SRC" "${tmpdir}/manifest_sync.jl.bak"; then
+  if cmp -s "$SRC" "${WORK}/manifest_sync.jl.bak"; then
     echo "MUTATION FAIL: source unchanged after mutation ${id}" >&2
     exit 1
   fi
+  if ! cmp -s "$REAL_SRC" "${WORK}/manifest_sync.jl.bak"; then
+    echo "MUTATION FAIL: real src dirty during ${id}" >&2
+    exit 1
+  fi
+  assert_real_src_clean
   set +e
-  smoke_load 2>"${tmpdir}/load.err"
+  smoke_load 2>"${WORK}/load.err"
   load_status=$?
   set -e
   if [[ $load_status -ne 0 ]]; then
     echo "MUTATION FAIL: ${id} produced load/precompile error" >&2
-    cat "${tmpdir}/load.err" >&2
+    cat "${WORK}/load.err" >&2
     exit 1
   fi
   log="$(mktemp)"
@@ -139,7 +159,9 @@ for entry in "${MUTATIONS[@]}"; do
     exit 1
   fi
   rm -f "$log"
+  assert_real_src_clean
   echo "MUTATION OK: ${id} -> '${testset}' failed as expected"
 done
 
+assert_real_src_clean
 echo "All mutation checks passed."

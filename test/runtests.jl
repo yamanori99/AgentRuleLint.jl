@@ -207,4 +207,9 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     Aqua.test_all(AgentRuleLint)
 
     include("test_runic_invariance.jl")
+
+    @testset "src/ untouched by tests" begin
+        status = read(`git -C $(ROOT) status --porcelain -- src`, String)
+        @test isempty(strip(status))
+    end
 end
