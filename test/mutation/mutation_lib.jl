@@ -52,14 +52,22 @@ function run_source_mutation(;
         needle::AbstractString,
         replacement::AbstractString,
         verify::Function,
+        replace_count::Integer = 1,
     )
     try
         real_path = joinpath(MUTATION_ROOT, String(rel_path))
         isfile(real_path) || error("$name: missing source $rel_path")
         orig = read(real_path, String)
         occursin(needle, orig) || error("$name: mutation needle missing in $rel_path")
-        patched = replace(orig, needle => replacement; count = 1)
+        # Default replace_count=1 keeps single-site mutations precise; pass a
+        # larger value (or typemax(Int)) when every matching call site must be
+        # patched (e.g. both explain resolve_policy sites after #83).
+        patched = replace(orig, needle => replacement; count = Int(replace_count))
         patched == orig && error("$name: replacement left source unchanged")
+        if replace_count > 1
+            n = count(replacement, patched)
+            n < 2 && error("$name: expected ≥2 replacement sites, found $n")
+        end
 
         tmp = mktempdir()
         try
