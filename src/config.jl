@@ -21,8 +21,15 @@ const PROTECTED_PATHS_RULE_KEYS =
 const PROTECTED_PATHS_RULE = "protected-paths"
 const CEILING_RATCHET_RULE = "ceiling-ratchet"
 const SCOPE_PATHS_RULE = "scope-paths"
-const INTEGRITY_FORBID_RULES =
-    Set([PROTECTED_PATHS_RULE, CEILING_RATCHET_RULE, SCOPE_PATHS_RULE])
+const ANALYSIS_INCOMPLETE_RULE = "analysis-incomplete"
+const INTEGRITY_FORBID_RULES = Set(
+    [
+        ANALYSIS_INCOMPLETE_RULE,
+        PROTECTED_PATHS_RULE,
+        CEILING_RATCHET_RULE,
+        SCOPE_PATHS_RULE,
+    ]
+)
 const DEFAULT_PROJECT_TOML_POLICY = "semantic"
 const PROJECT_RULE_KEYS = Set(
     [
@@ -35,7 +42,7 @@ const PROJECT_RULE_KEYS = Set(
     ]
 )
 const VALID_RULE_LEVELS = Set([:forbid, :deny, :allow, :warn])
-const VALID_ON_ALLOW_RULE = Set([:error, :warn, :allow])
+const VALID_ON_ALLOW_RULE = Set([:forbid, :deny, :warn, :allow])
 const VALID_OUTPUT_FORMATS = Set([:human, :json, :agent])
 const KNOWN_PRESET_NAMES = Set(["shell-safety"])
 const SHELL_SAFETY_PRESET_ID = "shell-safety/process-pattern"
@@ -68,7 +75,7 @@ function _parse_on_allow_rule(raw, label::String)
     sym in VALID_ON_ALLOW_RULE ||
         throw(
         ConfigError(
-            "unknown on_allow_rule '$raw' in $label (expected error|warn|allow)",
+            "unknown on_allow_rule '$raw' in $label (expected forbid|deny|warn|allow)",
         ),
     )
     return sym
@@ -133,7 +140,8 @@ function load_toml_string(toml_string::String, path_label::String)
     try
         return TOML.parse(toml_string)
     catch err
-        throw(ParseError("TOML parse error in $path_label: $(err)"))
+        err isa InterruptException && rethrow()
+        throw(ParseError("TOML parse error in $path_label: $(format_error(err))"))
     end
 end
 
@@ -142,8 +150,39 @@ function load_toml_file(path::String)
     try
         return TOML.parsefile(path)
     catch err
-        throw(ParseError("TOML parse error in $path: $(err)"))
+        err isa InterruptException && rethrow()
+        throw(ParseError("TOML parse error in $path: $(format_error(err))"))
     end
+end
+
+"""Read stdout from `cmd`; on failure raise `GitError` including stderr and showerror.
+
+Stderr is drained concurrently so a full stderr pipe cannot deadlock against a
+blocking stdout read (e.g. CRLF / rename-detection warnings from git). The stderr
+task is always awaited in `finally` so a failed stdout read cannot leave it orphaned.
+"""
+function _read_git_cmd(cmd::Cmd; error_prefix::AbstractString)
+    out = Pipe()
+    err = Pipe()
+    proc = run(pipeline(cmd, stdout = out, stderr = err), wait = false)
+    close(out.in)
+    close(err.in)
+    err_task = @async read(err)
+    local stdout_data
+    try
+        stdout_data = read(out)
+    catch
+        fetch(err_task)
+        rethrow()
+    end
+    stderr_data = fetch(err_task)
+    wait(proc)
+    if !success(proc)
+        stderr_s = strip(String(stderr_data))
+        detail = isempty(stderr_s) ? "exit $(proc.exitcode)" : "exit $(proc.exitcode): $stderr_s"
+        throw(GitError("$error_prefix ($detail)"))
+    end
+    return stdout_data
 end
 
 function _collect_rule_tables(raw::Dict)
@@ -293,6 +332,10 @@ function _load_rules_table(raw::Dict)
 end
 
 function _inject_builtin_rules!(rules::Dict{String, RuleSpec})
+    if get(rules, ANALYSIS_INCOMPLETE_RULE, nothing) === nothing
+        # `ANALYSIS_INCOMPLETE_RULE_DEF` is defined later in the module; resolved at call time.
+        rules[ANALYSIS_INCOMPLETE_RULE] = rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF)
+    end
     if get(rules, PROTECTED_PATHS_RULE, nothing) === nothing
         rules[PROTECTED_PATHS_RULE] = RuleSpec(
             PROTECTED_PATHS_RULE,
@@ -473,15 +516,18 @@ function git_resolve_commit_sha(root::AbstractString, ref::AbstractString)
     root = abspath(String(root))
     spec = string(ref, "^{commit}")
     cmd = Cmd(["git", "-C", root, "rev-parse", "--verify", "--end-of-options", spec])
+    ref_s = String(ref)
+    prefix = if ref_s == "HEAD^1"
+        "diff base ref not available: HEAD^1 (shallow clone or single-parent HEAD)"
+    else
+        "diff base ref not available: $ref_s"
+    end
     try
-        return strip(String(read(cmd)))
+        return strip(String(_read_git_cmd(cmd; error_prefix = prefix)))
     catch err
         err isa InterruptException && rethrow()
-        ref_s = String(ref)
-        if ref_s == "HEAD^1"
-            throw(GitError("diff base ref not available: HEAD^1 (shallow clone or single-parent HEAD)"))
-        end
-        throw(GitError("diff base ref not available: $ref_s"))
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
     end
 end
 
@@ -501,15 +547,13 @@ function git_tree_path_exists(root::AbstractString, commit_sha::AbstractString, 
             String(relpath),
         ]
     )
+    prefix = "failed to list $(relpath) at commit $(commit_sha)"
     try
-        return !isempty(read(cmd))
+        return !isempty(_read_git_cmd(cmd; error_prefix = prefix))
     catch err
         err isa InterruptException && rethrow()
-        throw(
-            GitError(
-                "failed to list $(relpath) at commit $(commit_sha): $(sprint(showerror, err))",
-            ),
-        )
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
     end
 end
 
@@ -517,15 +561,13 @@ function git_show_blob_at_commit(root::AbstractString, commit_sha::AbstractStrin
     root = abspath(String(root))
     showspec = string(commit_sha, ":", relpath)
     cmd = Cmd(["git", "-C", root, "show", "--end-of-options", showspec])
+    prefix = "failed to read $(relpath) at commit $(commit_sha)"
     try
-        return String(strip(String(read(cmd))))
+        return String(strip(String(_read_git_cmd(cmd; error_prefix = prefix))))
     catch err
         err isa InterruptException && rethrow()
-        throw(
-            GitError(
-                "failed to read $(relpath) at commit $(commit_sha): $(sprint(showerror, err))",
-            ),
-        )
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
     end
 end
 
@@ -538,28 +580,18 @@ end
 
 function load_policy_from_ref(root::AbstractString, ref::AbstractString)
     root = abspath(String(root))
-    try
-        cfg_text, sha = git_show_file(ref, CONFIG_FILENAME, root)
-        raw = load_toml_string(cfg_text, "$CONFIG_FILENAME@$ref")
-        cs = ConfigSource(:git_ref, CONFIG_FILENAME, String(ref), sha)
-        cfg_path = joinpath(root, CONFIG_FILENAME)
-        return build_policy(raw, cfg_path, cs)
-    catch err
-        if err isa InterruptException
-            rethrow()
-        elseif err isa ConfigError || err isa ParseError
-            rethrow()
-        elseif err isa ErrorException || err isa GitError
-            rethrow()
-        else
-            throw(GitError("failed loading policy from ref $(ref): $(err)"))
-        end
-    end
+    cfg_text, sha = git_show_file(ref, CONFIG_FILENAME, root)
+    raw = load_toml_string(cfg_text, "$CONFIG_FILENAME@$ref")
+    cs = ConfigSource(:git_ref, CONFIG_FILENAME, String(ref), sha)
+    cfg_path = joinpath(root, CONFIG_FILENAME)
+    return build_policy(raw, cfg_path, cs)
 end
 
 function default_policy(root::AbstractString)
     ver = AGENTRULELINT_VERSION
     rules = Dict{String, RuleSpec}(
+        # `ANALYSIS_INCOMPLETE_RULE_DEF` is defined later in the module; resolved at call time.
+        ANALYSIS_INCOMPLETE_RULE => rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF),
         "expect-audit" => RuleSpec(
             "expect-audit",
             :agentrulelint,

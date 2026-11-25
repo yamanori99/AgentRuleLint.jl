@@ -1,15 +1,6 @@
 function _effective_project_level(policy::PolicyBundle, pr::ProjectRule)
-    lvl = pr.level
-    if lvl == :allow
-        return if policy.on_allow_rule == :error
-            :forbid
-        elseif policy.on_allow_rule == :warn
-            :warn
-        else
-            :allow
-        end
-    end
-    return lvl
+    pr.level == :allow && return policy.on_allow_rule
+    return pr.level
 end
 
 function _text_literal_spans(source::AbstractString, lit::AbstractString)
@@ -61,6 +52,7 @@ end
 function _run_project_rules_julia!(
         diags::Vector{Violation},
         fc::FileContext,
+        policy::PolicyBundle,
         pr::ProjectRule,
         rule_id::String,
         eff_level::Symbol,
@@ -68,10 +60,10 @@ function _run_project_rules_julia!(
     path = fc.parsed.path
     source = fc.parsed.normalized
     tree = parse_source(source; filename = path)
-    folds = collect_folded_string_exprs(tree, source)
+    collected = collect_folded_string_exprs(tree, source)
     for lit in pr.forbid_literals
         seen_spans = Set{Tuple{Int, Int}}()
-        for fold in folds
+        for fold in collected.folds
             occursin(lit, fold.value) || continue
             keyspan = (fold.byte_start, fold.byte_end)
             keyspan in seen_spans && continue
@@ -109,6 +101,10 @@ function _run_project_rules_julia!(
                 pr.do_not,
             )
         end
+    end
+    if collected.budget_exceeded
+        at = max(1, collected.at_byte)
+        push_analysis_incomplete!(diags, policy, path, source, at, at, rule_id)
     end
     return nothing
 end
@@ -151,7 +147,7 @@ function run_project_rules(fc::FileContext, policy::PolicyBundle)
         eff_level = _effective_project_level(policy, pr)
         eff_level == :allow && continue
         if julia_source_path(path)
-            _run_project_rules_julia!(diags, fc, pr, rule_id, eff_level)
+            _run_project_rules_julia!(diags, fc, policy, pr, rule_id, eff_level)
         else
             _run_project_rules_text!(diags, fc, pr, rule_id, eff_level)
         end

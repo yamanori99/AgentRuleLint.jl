@@ -1,15 +1,7 @@
 # Shared helpers for built-in / preset rule runners.
 
 function _effective_rule_level(policy::PolicyBundle, level::Symbol)
-    if level == :allow
-        return if policy.on_allow_rule == :error
-            :forbid
-        elseif policy.on_allow_rule == :warn
-            :warn
-        else
-            :allow
-        end
-    end
+    level == :allow && return policy.on_allow_rule
     return level
 end
 

@@ -26,16 +26,13 @@ const _DIFF_NAME_STATUS_PAIR = Set(['R', 'C'])
 function _git_root(path::AbstractString)
     root = abspath(String(path))
     isdir(root) || throw(GitError("not a directory: $root"))
+    cmd = Cmd(["git", "-C", root, "rev-parse", "--show-toplevel"])
     try
-        out = strip(
-            String(
-                read(Cmd(["git", "-C", root, "rev-parse", "--show-toplevel"])),
-            ),
-        )
-        return out
+        return strip(String(_read_git_cmd(cmd; error_prefix = "not a git repository: $root")))
     catch err
         err isa InterruptException && rethrow()
-        throw(GitError("not a git repository: $root"))
+        err isa GitError && rethrow()
+        throw(GitError("not a git repository: $root: $(format_error(err))"))
     end
 end
 
@@ -50,15 +47,18 @@ function verify_diff_base_ref(root::AbstractString, base::AbstractString)
     ref = String(base)
     spec = string(ref, "^{commit}")
     cmd = Cmd(["git", "-C", root, "rev-parse", "--verify", "--end-of-options", spec])
+    prefix = if ref == DEFAULT_DIFF_BASE
+        "diff base ref not available: HEAD^1 (shallow clone or single-parent HEAD)"
+    else
+        "diff base ref not available: $ref"
+    end
     try
-        strip(String(read(cmd)))
+        _read_git_cmd(cmd; error_prefix = prefix)
         return ref
     catch err
         err isa InterruptException && rethrow()
-        if ref == DEFAULT_DIFF_BASE
-            throw(GitError("diff base ref not available: HEAD^1 (shallow clone or single-parent HEAD)"))
-        end
-        throw(GitError("diff base ref not available: $ref"))
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
     end
 end
 
@@ -136,11 +136,13 @@ function git_diff_name_status(root::AbstractString, base::AbstractString)
     root = _git_root(root)
     base = verify_diff_base_ref(root, base)
     cmd = _git_diff_name_status_cmd(root, base)
+    prefix = "git diff failed for base=$(base)"
     bytes = try
-        read(cmd)
+        _read_git_cmd(cmd; error_prefix = prefix)
     catch err
         err isa InterruptException && rethrow()
-        throw(GitError("git diff failed for base=$(base)"))
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
     end
     isempty(bytes) && return Tuple{Char, String}[]
     return _parse_diff_name_status_payload(String(bytes))
@@ -150,11 +152,13 @@ function git_diff_path_events(root::AbstractString, base::AbstractString)
     root = _git_root(root)
     base = verify_diff_base_ref(root, base)
     cmd = _git_diff_name_status_cmd(root, base)
+    prefix = "git diff failed for base=$(base)"
     bytes = try
-        read(cmd)
+        _read_git_cmd(cmd; error_prefix = prefix)
     catch err
         err isa InterruptException && rethrow()
-        throw(GitError("git diff failed for base=$(base)"))
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
     end
     isempty(bytes) && return DiffPathEvent[]
     return _parse_diff_path_events_payload(String(bytes))
@@ -200,11 +204,13 @@ function git_diff_changed_lines(root::AbstractString, base::AbstractString, relp
             path,
         ],
     )
+    prefix = "git diff failed for base=$(base) path=$(path)"
     bytes = try
-        read(cmd)
+        _read_git_cmd(cmd; error_prefix = prefix)
     catch err
         err isa InterruptException && rethrow()
-        throw(GitError("git diff failed for base=$(base) path=$(path)"))
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
     end
     return _parse_unified_hunks(String(bytes))
 end

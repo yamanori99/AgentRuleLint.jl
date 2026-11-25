@@ -230,6 +230,7 @@ function apply_expect_suppression!(diags::Vector{Violation}, expects::Vector{Exp
     used_expect = Set{Int}()
     for (i, d) in enumerate(diags)
         d.suppressed && continue
+        is_analysis_incomplete(d) && continue
         anchor = d.anchor_line
         group = get(anchors, anchor, nothing)
         group === nothing && continue

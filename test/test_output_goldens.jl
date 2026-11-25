@@ -9,10 +9,15 @@
 # 3. Minimal config (rules without intent/do_not) — goldens in
 #    test/goldens/output/minimal_config/ (fixture TOML:
 #    minimal_config/AgentRuleLintConfig.toml)
+#
+# Fold-budget / analysis-incomplete diagnostics (#66 / review on #78) are an
+# intentional output change for the repo-config check goldens and any
+# no_config / minimal_config files they affect.
 
 const OUTPUT_GOLDEN_DIR = joinpath(ROOT, "test", "goldens", "output")
 const OUTPUT_GOLDEN_WIDTH = 80
 const OUTPUT_GOLDEN_EXPLAIN_IDS = (
+    "analysis-incomplete",
     "expect-audit",
     "ceiling-ratchet",
     "manifest-sync",
@@ -25,8 +30,10 @@ const OUTPUT_GOLDEN_EXPLAIN_IDS = (
 )
 
 # Under `default_policy` (no config file), inactive presets / undeclared rules
-# are not registered, so explain is only exercised for these ids (same as main).
+# are not registered, so explain is only exercised for these ids (same as main
+# for the shared set; `analysis-incomplete` is injected as an integrity rule).
 const OUTPUT_GOLDEN_NO_CONFIG_EXPLAIN_IDS = (
+    "analysis-incomplete",
     "expect-audit",
     "ceiling-ratchet",
     "manifest-sync",

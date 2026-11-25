@@ -68,7 +68,7 @@
     @testset "String(UInt8[...]) fold" begin
         src = "s = String(UInt8[72, 73])\n"
         tree = AgentRuleLint.parse_source(src)
-        folds = AgentRuleLint.collect_folded_string_exprs(tree, src)
+        folds = AgentRuleLint.collect_folded_string_exprs(tree, src).folds
         vals = [f.value for f in folds]
         @test "HI" in vals
     end

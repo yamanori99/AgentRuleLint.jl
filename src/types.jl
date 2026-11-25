@@ -70,9 +70,33 @@ struct ParseError <: Exception
     msg::String
 end
 
+"""Unexpected internal failure, optionally with a concrete catch backtrace for CLI dump.
+
+The wrapped exception is already stringified into `msg` (`format_error`); only the
+backtrace is retained separately so fields stay concrete for JETLS.
+"""
 struct InternalError <: Exception
     msg::String
+    bt::Vector{Base.StackTraces.StackFrame}
 end
+
+InternalError(msg::AbstractString) = InternalError(String(msg), Base.StackTraces.StackFrame[])
+
+function Base.showerror(io::IO, e::InternalError)
+    return print(io, e.msg)
+end
+
+"""Dedicated constant-fold step-budget overflow (not an `ArgumentError`)."""
+struct FoldBudgetExceeded <: Exception
+    limit::Int
+end
+
+function Base.showerror(io::IO, e::FoldBudgetExceeded)
+    return print(io, "constant fold step budget exceeded (limit ", e.limit, ")")
+end
+
+"""Single stringification for user-facing and logged errors."""
+format_error(err) = sprint(showerror, err)
 
 struct RuleSpec
     id::String
@@ -191,6 +215,19 @@ struct FoldedStringExpr
     byte_start::Int
     byte_end::Int
 end
+
+"""Result of a constant-fold collection walk (`budget_exceeded` means analysis was truncated).
+
+`at_byte` is the last fold-walk byte offset when the budget was exhausted (1 if not).
+"""
+struct FoldCollectResult
+    folds::Vector{FoldedStringExpr}
+    budget_exceeded::Bool
+    at_byte::Int
+end
+
+FoldCollectResult(folds::Vector{FoldedStringExpr}, budget_exceeded::Bool) =
+    FoldCollectResult(folds, budget_exceeded, 1)
 
 const KEBAB_ID = r"^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
 
