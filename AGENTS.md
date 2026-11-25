@@ -56,5 +56,6 @@ Confirm `Pkg.test()` runs **Aqua** and `test/test_runic_invariance.jl` and that 
 ## 6. Hygiene
 
 - Do not silently edit protected policy/workflow files (`.AgentRuleLintConfig.toml`, `AGENTS.md`, `.github/workflows/**`) unless explicitly requested.
+- When a change must edit protected paths and `protected-paths` will fail by design, follow the interim merge procedure in `CONTRIBUTING.md` (until #70). Agents never merge or approve those PRs.
 - Merge `origin/main`; do not rebase or force-push this branch.
 - Do not post GitHub comments, reviews, or merges directly.

@@ -148,6 +148,31 @@ Runic checks use an isolated env at `test/runic_env/` (CI and local tests).
 - Include or update corpus tests for behavior changes.
 - Ensure CI passes (Julia 1.13 tests, Aqua, Runic invariance).
 
+### Interim: merging changes that trip `protected-paths`
+
+Until [#70](https://github.com/yamanori99/AgentRuleLint.jl/issues/70) lands an
+approval path agents cannot forge, every PR that edits protected paths (including
+`.AgentRuleLintConfig.toml`, and the broader set #70 will add) fails
+`protected-paths` by design. Merging red PRs without a written rule would
+normalize ignoring the check. Use this procedure instead (tracked in
+[#71](https://github.com/yamanori99/AgentRuleLint.jl/issues/71)):
+
+1. **Split PRs.** Code changes (for example fixture exclusion) go in their own
+   PR and must be green. Config, workflow, and other protected-path changes go
+   in a separate PR.
+2. **Only `protected-paths` may be red.** Every other check on that PR must be
+   green.
+3. **Exact match.** The PR description lists the protected files it changes
+   under **Protected paths changed**. The `protected-paths` violations must
+   match that list exactly.
+4. **Owner merges manually** after checking (2) and (3). Agents never merge or
+   approve these PRs.
+5. **Dogfood job stays non-required** until the approval path in #70 lands.
+   Making it required earlier would block all legitimate config changes.
+
+When #70's approval path lands, remove this subsection and make the dogfood job
+required.
+
 ## Code of conduct
 
 Be direct and kind. Disagree on rules with data (reproductions), not tone.
