@@ -58,7 +58,37 @@ function push_analysis_incomplete!(
     return nothing
 end
 
-"""Keep one `analysis-incomplete` finding per path; prefer the more specific span."""
+"""Approximate source coverage of `sp` (same-line column width, else multi-line).
+
+Used only to rank competing `analysis-incomplete` findings for one path.
+"""
+function _span_extent(sp::Span)
+    if sp.end_line == sp.start_line
+        return max(0, sp.end_col - sp.start_col)
+    end
+    # Multi-line spans outrank any single-line width we emit for fold budgets.
+    return typemax(Int) ÷ 4 + max(0, sp.end_line - sp.start_line)
+end
+
+"""Return true when `new` should replace `old` for the same path.
+
+Priority (explicit):
+1. Wider span wins — prefer a syntactic construct (e.g. test-integrity's
+   `@test` macrocall) over a 1-byte fold-walk cursor from project / shell-safety.
+2. On equal extent, prefer the earlier start `(line, col)`.
+3. Otherwise keep `old` (first wins; stable).
+"""
+function _prefer_analysis_incomplete(new::Violation, old::Violation)
+    en = _span_extent(new.span)
+    eo = _span_extent(old.span)
+    en != eo && return en > eo
+    sn = (new.span.start_line, new.span.start_col)
+    so = (old.span.start_line, old.span.start_col)
+    sn != so && return sn < so
+    return false
+end
+
+"""Keep one `analysis-incomplete` finding per path; see `_prefer_analysis_incomplete`."""
 function dedupe_analysis_incomplete!(diags::Vector{Violation})
     best = Dict{String, Int}()
     drop = Set{Int}()
@@ -67,10 +97,7 @@ function dedupe_analysis_incomplete!(diags::Vector{Violation})
         if haskey(best, d.path)
             j = best[d.path]
             prev = diags[j]
-            prefer_new =
-                (d.span.start_line, d.span.start_col, d.span.end_line, d.span.end_col) >
-                (prev.span.start_line, prev.span.start_col, prev.span.end_line, prev.span.end_col)
-            if prefer_new
+            if _prefer_analysis_incomplete(d, prev)
                 push!(drop, j)
                 best[d.path] = i
             else
@@ -89,8 +116,9 @@ Emitted when a constant-fold walk hits the shared step budget (`FOLD_MAX_STEPS`)
 before finishing. Call sites include project-rule literal folding, shell-safety Cmd
 folding, and test-integrity `@test` value folding. The finding is integrity
 `forbid` and cannot be suppressed with `# agentrulelint-expect:`. At most one
-finding is reported per file; the message names the analyzer. Fix by simplifying
-the expression (shorter concatenations or `@test` chains) so static folding can finish.
+finding is reported per file (wider syntactic span preferred over a fold-walk
+point cursor); the message names the analyzer. Fix by simplifying the expression
+(shorter concatenations or `@test` chains) so static folding can finish.
 """
 
 function analysis_incomplete_explain_extra()

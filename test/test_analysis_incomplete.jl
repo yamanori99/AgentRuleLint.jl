@@ -83,7 +83,83 @@
             res.violations,
         )
         @test length(incomplete) == 1
-        @test occursin(r"\((project/no-internal-codename|test-integrity)\)", incomplete[1].message)
+        # Prefer test-integrity's `@test` span over the project fold-walk point.
+        @test occursin("(test-integrity)", incomplete[1].message)
+        @test incomplete[1].span.start_col == 1
+        @test incomplete[1].span.end_col > incomplete[1].span.start_col
+    end
+
+    @testset "dedupe prefers wider syntactic span over fold-walk point" begin
+        path = "budget.jl"
+        point = AgentRuleLint.Violation(
+            AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
+            :agentrulelint,
+            :forbid,
+            path,
+            AgentRuleLint.Span(2, 31988, 2, 31988),
+            2,
+            "",
+            :none,
+            false,
+            AgentRuleLint.analysis_incomplete_message(path, "project/no-pad"),
+            "i",
+            "d",
+        )
+        wide = AgentRuleLint.Violation(
+            AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
+            :agentrulelint,
+            :forbid,
+            path,
+            AgentRuleLint.Span(2, 1, 2, 128042),
+            2,
+            "",
+            :none,
+            false,
+            AgentRuleLint.analysis_incomplete_message(path, "test-integrity"),
+            "i",
+            "d",
+        )
+        # Point first (as project rules append before test-integrity).
+        kept = AgentRuleLint.dedupe_analysis_incomplete!([point, wide])
+        @test length(kept) == 1
+        @test occursin("(test-integrity)", kept[1].message)
+        @test kept[1].span == wide.span
+        # Wide first still keeps the wide span.
+        kept2 = AgentRuleLint.dedupe_analysis_incomplete!([wide, point])
+        @test length(kept2) == 1
+        @test kept2[1].span == wide.span
+        # Equal extent: earlier start wins.
+        a = AgentRuleLint.Violation(
+            AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
+            :agentrulelint,
+            :forbid,
+            path,
+            AgentRuleLint.Span(3, 1, 3, 9),
+            3,
+            "",
+            :none,
+            false,
+            AgentRuleLint.analysis_incomplete_message(path, "test-integrity"),
+            "i",
+            "d",
+        )
+        b = AgentRuleLint.Violation(
+            AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
+            :agentrulelint,
+            :forbid,
+            path,
+            AgentRuleLint.Span(3, 5, 3, 13),
+            3,
+            "",
+            :none,
+            false,
+            AgentRuleLint.analysis_incomplete_message(path, "project/no-pad"),
+            "i",
+            "d",
+        )
+        kept3 = AgentRuleLint.dedupe_analysis_incomplete!([b, a])
+        @test length(kept3) == 1
+        @test kept3[1].span == a.span
     end
 
     @testset "level cannot be weakened" begin

@@ -3,9 +3,6 @@ default_format = "human"
 max_hits_per_rule = 20
 presets = ["shell-safety"]
 
-[rules.analysis-incomplete]
-level = "forbid"
-
 [rules.expect-audit]
 level = "forbid"
 on_allow_rule = "warn"
