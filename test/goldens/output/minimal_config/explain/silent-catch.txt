@@ -1,0 +1,26 @@
+rule_id: silent-catch
+origin: [AgentRuleLint]
+level: deny
+
+intent:
+
+
+do_not:
+
+anchor_line:
+The `try` keyword line of the `try`/`catch` (or `try`/`catch`/`finally`) expression.
+detail:
+Flags catch-all handlers whose body does not rethrow or throw on unhandled paths: empty catch,
+assignments or `nothing` only, log-only handlers, and `if` branches without a propagating `else`.
+
+Legitimate patterns include `e isa T || rethrow()`, `if e isa T ... else rethrow() end`,
+unconditional `rethrow()` / `throw(...)`, and `err isa InterruptException && rethrow()`
+followed by a typed `throw`.
+
+Configure whether `@warn ... exception=...` alone counts as handling via
+`[rules.silent-catch]` `warn_counts_as_handling` (default: false).
+expect_anchor:
+N/A.
+
+example:
+N/A.

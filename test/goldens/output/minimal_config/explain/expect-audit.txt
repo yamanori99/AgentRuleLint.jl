@@ -1,0 +1,23 @@
+rule_id: expect-audit
+origin: [AgentRuleLint]
+level: forbid
+
+intent:
+Keep suppression comments auditable.
+
+do_not:
+Hide violations with unapproved expects.
+syntax:
+Syntax: `# agentrulelint-expect: <rule-id> reason="..."` (ASCII, standalone line only; non-empty reason).
+suppression:
+Suppresses only violations whose anchor_line matches that line.
+Expects are forbidden above `catch`, inside `# runic: off` regions, inside multiline
+call arguments, and with blank lines before the anchor. Forbidden placements do not
+suppress violations. Multiline-call placement uses the same forbid level as other
+expect-audit integrity findings.
+expect_anchor:
+First non-blank code line after contiguous `# agentrulelint-expect:` lines that matches the target syntax kind for the referenced rule (e.g. `try`, `@eval`, `@test*`).
+
+example:
+# agentrulelint-expect: expect-audit reason="documented suppression"
+@eval :ok

@@ -1,0 +1,14 @@
+rule_id: ceiling-ratchet
+origin: [AgentRuleLint]
+level: forbid
+
+intent:
+Keep violation and expect ceilings monotonic (down only).
+
+do_not:
+Raise ceilings or leave stale slack after counts decrease.
+expect_anchor:
+N/A.
+
+example:
+N/A.

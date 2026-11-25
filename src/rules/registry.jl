@@ -1,7 +1,23 @@
 const BUILTIN_RULES = Dict{String, RuleSpec}()
 
-"""Fill empty intent/do_not from the rule's `RuleDef` (config values win when present)."""
+# Same three ids as `main`'s `BUILTIN_DOC_DEFAULTS`. Text comes from `RuleDef`
+# (no duplicated table). Widening this set is an intentional output change and
+# belongs in a separate PR that updates the no_config / minimal_config goldens.
+const BUILTIN_DOC_FILL_IDS = Set(
+    [
+        "expect-audit",
+        "protected-paths",
+        SHELL_SAFETY_PRESET_ID,
+    ]
+)
+
+"""Fill empty intent/do_not from `RuleDef` for the historical three-id set only.
+
+Config values win when present. Other rule ids keep empty intent/do_not when the
+config omits them (behavior-neutral vs `main`).
+"""
 function fill_builtin_docs!(spec::RuleSpec)
+    spec.id in BUILTIN_DOC_FILL_IDS || return spec
     def = get(RULE_DEFS_BY_ID, spec.id, nothing)
     def === nothing && return spec
     intent = isempty(spec.intent) ? def.intent : spec.intent
