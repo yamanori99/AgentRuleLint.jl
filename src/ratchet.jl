@@ -2,7 +2,7 @@
 
 const CEILING_VIOLATIONS_PREFIX = "violations"
 const CEILING_EXPECTS_PREFIX = "expects"
-const CEILING_RATCHET_RULE = "ceiling-ratchet"
+# CEILING_RATCHET_RULE is defined in config.jl
 
 function _ceilings_path(root::AbstractString)
     return joinpath(abspath(root), CEILINGS_REL)

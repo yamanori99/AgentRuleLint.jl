@@ -78,6 +78,18 @@ function shell_safety_explain_extra()
     )
 end
 
+const SHELL_SAFETY_RULE_DEF = RuleDef(
+    SHELL_SAFETY_PRESET_ID,
+    :preset,
+    :deny,
+    "Reject hazardous shell patterns in statically known Cmd literals.",
+    "Split or dynamically assemble command strings to bypass constant folding.",
+    Dict{Symbol, String}(),
+    "shell_safety.jl",
+    "test_shell_safety.jl",
+    ("test/corpus/shell_sudo_cmd.jl",),
+)
+
 function diagnose_shell_safety(fc::FileContext, policy::PolicyBundle, eff_level::Symbol)
     source = fc.parsed.normalized
     tree = parse_source(source; filename = fc.parsed.path)

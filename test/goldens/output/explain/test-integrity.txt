@@ -1,0 +1,14 @@
+rule_id: test-integrity
+origin: [AgentRuleLint]
+level: deny
+
+intent:
+Block hollow or weakened tests that always pass or shrink CI coverage.
+
+do_not:
+Trivially true @test expressions, broad @test_throws Exception/ErrorException, extra @test_skip/@test_broken in a diff, removed test includes or testsets, early exit() in the suite driver, or looser isapprox/≈ tolerances vs base.
+expect_anchor:
+N/A.
+
+example:
+N/A.

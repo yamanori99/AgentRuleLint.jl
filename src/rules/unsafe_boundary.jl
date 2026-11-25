@@ -540,3 +540,15 @@ function unsafe_boundary_explain_extra()
         :config => strip(_UNSAFE_BOUNDARY_EXPLAIN_CONFIG),
     )
 end
+
+const UNSAFE_BOUNDARY_RULE_DEF = RuleDef(
+    "unsafe-boundary",
+    :agentrulelint,
+    :warn,
+    "Keep runtime evaluation and FFI inside reviewed boundaries.",
+    "Hide eval, ccall, or unsafe_* outside allow_modules / allow_globs.",
+    Dict{Symbol, String}(),
+    "unsafe_boundary.jl",
+    "test_unsafe_boundary.jl",
+    ("test/corpus/unsafe_eval_runtime.jl",),
+)

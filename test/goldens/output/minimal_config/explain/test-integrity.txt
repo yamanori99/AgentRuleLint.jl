@@ -1,0 +1,14 @@
+rule_id: test-integrity
+origin: [AgentRuleLint]
+level: deny
+
+intent:
+
+
+do_not:
+
+expect_anchor:
+N/A.
+
+example:
+N/A.

@@ -83,6 +83,27 @@ struct RuleSpec
     extra::Dict{Symbol, String}
 end
 
+"""One built-in or preset rule: identity, defaults, and registration metadata.
+
+`source_file` / `test_file` are basenames under `src/rules/` and `test/`.
+`coverage_paths` are repo-relative paths that must exist (corpus or fixture coverage).
+"""
+struct RuleDef
+    id::String
+    origin::Symbol
+    default_level::Symbol
+    intent::String
+    do_not::String
+    extra::Dict{Symbol, String}
+    source_file::String
+    test_file::String
+    coverage_paths::Tuple{Vararg{String}}
+end
+
+function rule_def_to_spec(def::RuleDef)
+    return RuleSpec(def.id, def.origin, def.default_level, def.intent, def.do_not, copy(def.extra))
+end
+
 struct ShellSafetyConfig
     active::Bool
     level::Symbol

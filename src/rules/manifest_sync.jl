@@ -864,3 +864,15 @@ function manifest_sync_explain_extra()
         :detail => strip(_MANIFEST_SYNC_EXPLAIN_DETAIL),
     )
 end
+
+const MANIFEST_SYNC_RULE_DEF = RuleDef(
+    MANIFEST_SYNC_RULE,
+    :agentrulelint,
+    :deny,
+    "Tracked manifests must match Project.toml.",
+    "Drift project resolve sections away from the manifest.",
+    Dict{Symbol, String}(:group => "integrity"),
+    "manifest_sync.jl",
+    "test_manifest_sync.jl",
+    ("test/corpus/manifest_sync/positive/Project.toml.fixture",),
+)

@@ -876,3 +876,15 @@ function run_test_integrity(
     end
     return diags
 end
+
+const TEST_INTEGRITY_RULE_DEF = RuleDef(
+    TEST_INTEGRITY_RULE,
+    :agentrulelint,
+    :deny,
+    "Keep tests from being hollowed out or silently disabled.",
+    "Replace assertions with trivially true forms, broaden throws, skip without reason, or drop covered tests.",
+    Dict{Symbol, String}(),
+    "test_integrity.jl",
+    "test_test_integrity.jl",
+    ("test/corpus/test_integrity_trivial_true.jl",),
+)
