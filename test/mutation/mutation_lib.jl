@@ -3,6 +3,13 @@
 
 const MUTATION_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 
+"""Mutation applied but fail-closed / detector check still green (survived)."""
+struct MutationSurvived <: Exception
+    msg::String
+end
+
+Base.showerror(io::IO, e::MutationSurvived) = print(io, e.msg)
+
 """
 Run a detector helper with a strict exit contract:
 
@@ -26,6 +33,19 @@ function assert_real_src_clean(root::AbstractString = MUTATION_ROOT)
     return nothing
 end
 
+function _julia_project_cmd(project::AbstractString, args::AbstractString...)
+    # Same interpreter as this process; avoid bare `julia` on PATH.
+    return Cmd(
+        [
+            Base.julia_cmd().exec...,
+            "--compiled-modules=no",
+            "--startup-file=no",
+            "--project=$(project)",
+            args...,
+        ],
+    )
+end
+
 function run_source_mutation(;
         name::String,
         rel_path::AbstractString,
@@ -33,31 +53,42 @@ function run_source_mutation(;
         replacement::AbstractString,
         verify::Function,
     )
-    real_path = joinpath(MUTATION_ROOT, String(rel_path))
-    isfile(real_path) || error("$name: missing source $rel_path")
-    orig = read(real_path, String)
-    occursin(needle, orig) || error("$name: mutation needle missing in $rel_path")
-    patched = replace(orig, needle => replacement; count = 1)
-    patched == orig && error("$name: replacement left source unchanged")
-
-    tmp = mktempdir()
     try
-        cp(MUTATION_ROOT, tmp; force = true)
-        path = joinpath(tmp, String(rel_path))
-        isfile(path) || error("$name: missing source in temp copy $rel_path")
-        write(path, patched)
-        cmp_proc = run(ignorestatus(`cmp -s $real_path $path`))
-        cmp_proc.exitcode == 0 && error("$name: cmp shows temp copy unchanged after mutation")
-        real_status = read(`git -C $(MUTATION_ROOT) status --porcelain -- src`, String)
-        isempty(strip(real_status)) || error("$name: real src/ dirty while mutating temp copy:\n$real_status")
-        load_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e using\ AgentRuleLint`
-        load_proc = run(ignorestatus(setenv(load_cmd; dir = tmp)))
-        load_proc.exitcode != 0 && error("$name: using AgentRuleLint failed after mutation")
-        verify(tmp) || error("$name: fail-closed check still passed after mutation")
-        println("PASS: ", name)
-    finally
-        rm(tmp; recursive = true, force = true)
+        real_path = joinpath(MUTATION_ROOT, String(rel_path))
+        isfile(real_path) || error("$name: missing source $rel_path")
+        orig = read(real_path, String)
+        occursin(needle, orig) || error("$name: mutation needle missing in $rel_path")
+        patched = replace(orig, needle => replacement; count = 1)
+        patched == orig && error("$name: replacement left source unchanged")
+
+        tmp = mktempdir()
+        try
+            cp(MUTATION_ROOT, tmp; force = true)
+            path = joinpath(tmp, String(rel_path))
+            isfile(path) || error("$name: missing source in temp copy $rel_path")
+            write(path, patched)
+            cmp_proc = run(ignorestatus(`cmp -s $real_path $path`))
+            cmp_proc.exitcode == 0 && error("$name: cmp shows temp copy unchanged after mutation")
+            real_status = read(`git -C $(MUTATION_ROOT) status --porcelain -- src`, String)
+            isempty(strip(real_status)) ||
+                error("$name: real src/ dirty while mutating temp copy:\n$real_status")
+            load_cmd = _julia_project_cmd(tmp, "-e", "using AgentRuleLint")
+            load_proc = run(ignorestatus(setenv(load_cmd; dir = tmp)))
+            load_proc.exitcode != 0 && error("$name: using AgentRuleLint failed after mutation")
+            verify(tmp) || throw(MutationSurvived("$name: fail-closed check still passed after mutation"))
+            println("PASS: ", name)
+        finally
+            rm(tmp; recursive = true, force = true)
+        end
+        assert_real_src_clean()
+        return nothing
+    catch err
+        if err isa MutationSurvived
+            println(stderr, err.msg)
+            exit(1)
+        end
+        showerror(stderr, err)
+        println(stderr)
+        exit(3)
     end
-    assert_real_src_clean()
-    return nothing
 end

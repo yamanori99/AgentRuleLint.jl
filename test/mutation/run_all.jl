@@ -32,9 +32,10 @@ function run_one_mutation(script::AbstractString)
     if code == 0
         return (; name, result = :pass, code, elapsed)
     elseif code == 1
-        # Typical Julia `error(...)` / uncaught failure: mutation survived or verify failed.
+        # MutationSurvived / verify failed: mutation was not killed.
         return (; name, result = :fail, code, elapsed)
     else
+        # Harness crash (exit 3 from mutation_lib, or unexpected codes).
         return (; name, result = :crash, code, elapsed)
     end
 end

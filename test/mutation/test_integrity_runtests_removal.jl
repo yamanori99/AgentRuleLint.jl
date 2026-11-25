@@ -6,7 +6,7 @@ run_source_mutation(;
     needle = "for ek in base_entries",
     replacement = "for ek in ()",
     verify = root -> begin
-        cmd = `julia --compiled-modules=no --startup-file=no --project=$(root) test/test_integrity_mutation_runtests.jl`
+        cmd = _julia_project_cmd(root, "test/test_integrity_mutation_runtests.jl")
         return detector_disabled(cmd; dir = root)
     end,
 )

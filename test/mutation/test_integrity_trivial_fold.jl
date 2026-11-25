@@ -6,7 +6,7 @@ run_source_mutation(;
     needle = "if fold_res == TEST_FOLD_TRIVIAL",
     replacement = "if false && fold_res == TEST_FOLD_TRIVIAL",
     verify = root -> begin
-        cmd = `julia --compiled-modules=no --startup-file=no --project=$(root) test/test_integrity_mutation_trivial.jl`
+        cmd = _julia_project_cmd(root, "test/test_integrity_mutation_trivial.jl")
         return detector_disabled(cmd; dir = root)
     end,
 )
