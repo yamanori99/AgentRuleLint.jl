@@ -1,0 +1,14 @@
+rule_id: ceiling-ratchet
+origin: [AgentRuleLint]
+level: forbid
+
+intent:
+
+
+do_not:
+
+expect_anchor:
+N/A.
+
+example:
+N/A.

@@ -1,0 +1,35 @@
+agentrulelint_version = "=0.1.0-DEV"
+default_format = "human"
+max_hits_per_rule = 20
+presets = ["shell-safety"]
+
+[rules.expect-audit]
+level = "forbid"
+on_allow_rule = "warn"
+
+[rules.silent-catch]
+level = "deny"
+warn_counts_as_handling = false
+
+[rules.test-integrity]
+level = "deny"
+
+[rules.unsafe-boundary]
+level = "warn"
+allow_modules = []
+allow_globs = []
+
+[rules.manifest-sync]
+level = "deny"
+
+[rules.protected-paths]
+level = "forbid"
+
+[rules.ceiling-ratchet]
+level = "forbid"
+
+[rules.scope-paths]
+level = "forbid"
+
+[rules."shell-safety/process-pattern"]
+level = "deny"

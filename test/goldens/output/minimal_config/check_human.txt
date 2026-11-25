@@ -1,0 +1,345 @@
+AgentRuleLint v0.1.0-DEV (policy bundle base: .AgentRuleLintConfig.toml, pos:
+utf8-line-col)
+
+┌ Error: [AgentRuleLint] expect-audit [forbid] (20 violations, ceiling 0)
+│   intent: Keep suppression comments auditable.
+│   do_not: Hide violations with unapproved expects.
+│
+│   test/corpus/block_expect.jl:1:1-1:60
+│     block comment expect forbidden
+│     > #= block agentrulelint-expect: expect-audit reason="nope" =#
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/crlf_expect.jl:1:1-1:50
+│     expect not anchored to rule target syntax
+│     > # agentrulelint-expect: expect-audit reason="crlf"
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/crlf_expect.jl:1:1-1:50
+│     forbid rule suppression
+│     > # agentrulelint-expect: expect-audit reason="crlf"
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_above_catch.jl:3:1-3:69
+│     expect forbidden above catch
+│     >     # agentrulelint-expect: silent-catch reason="forbidden placement"
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_above_catch_suppress.jl:3:1-3:83
+│     expect forbidden above catch
+│     >     # agentrulelint-expect: project/no-internal-codename reason="must n…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_anchor_mismatch.jl:1:1-1:73
+│     expect not anchored to rule target syntax
+│     > # agentrulelint-expect: silent-catch reason="must anchor to try or catc…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_anchor_mismatch_suppress.jl:1:1-1:71
+│     expect not anchored to rule target syntax
+│     > # agentrulelint-expect: no-internal-codename reason="must not suppress"
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_blank_line.jl:1:1-1:79
+│     blank line breaking expect attachment (unused)
+│     > # agentrulelint-expect: project/no-internal-codename reason="should not…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_empty_reason.jl:1:1-1:46
+│     empty reason
+│     > # agentrulelint-expect: expect-audit reason=""
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_mixed_group_anchor.jl:2:1-2:73
+│     expect not anchored to rule target syntax
+│     > # agentrulelint-expect: silent-catch reason="not eligible on same ancho…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_mixed_group_anchor.jl:2:1-2:73
+│     unused expect
+│     > # agentrulelint-expect: silent-catch reason="not eligible on same ancho…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_multiline_call.jl:2:1-2:82
+│     expect inside multiline call arguments
+│     >     # agentrulelint-expect: project/no-internal-codename reason="inside…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_multiline_call_outside.jl:1:1-1:74
+│     blank line breaking expect attachment (unused)
+│     > # agentrulelint-expect: project/no-internal-codename reason="outside ca…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_multiline_call_suppress.jl:2:1-2:83
+│     expect inside multiline call arguments
+│     >     # agentrulelint-expect: project/no-internal-codename reason="must n…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_runic_off.jl:2:1-2:81
+│     blank line breaking expect attachment (unused)
+│     > # agentrulelint-expect: project/no-internal-codename reason="hidden in …
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_runic_off.jl:2:1-2:81
+│     expect inside runic:off region forbidden
+│     > # agentrulelint-expect: project/no-internal-codename reason="hidden in …
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_runic_off_outside.jl:5:1-5:82
+│     unused expect
+│     > # agentrulelint-expect: project/no-internal-codename reason="outside ru…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_runic_off_suppress.jl:2:1-2:79
+│     expect inside runic:off region forbidden
+│     > # agentrulelint-expect: project/no-internal-codename reason="must not s…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_whitespace_reason.jl:1:1-1:49
+│     empty reason
+│     > # agentrulelint-expect: expect-audit reason="   "
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/trailing_expect.jl:1:1-1:58
+│     trailing inline expect
+│     > x = 1 # agentrulelint-expect: expect-audit reason="inline"
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+└ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
+
+┌ Error: [Preset] shell-safety/process-pattern [deny] (12 violations, ceiling 0)
+│   intent: Reject hazardous process patterns in statically known shell/Cmd
+│           literals (pkill, killall, remote shells, sudo).
+│   do_not: Split command names ("pk" * "ill"), alias binaries, or build Cmd
+│           from runtime values to evade folding.
+│
+│   test/corpus/shell_base_cmd_pkill.jl:2:18-2:31
+│     hazardous shell pattern (pkill)
+│     >     run(Base.Cmd(["pkill", "x"]))
+│                        ~~~~~~~~~~~~~~
+│   test/corpus/shell_bash_lc.jl:2:9-2:28
+│     hazardous shell pattern (bash -c)
+│     >     run(`bash -lc "echo hi"`)
+│               ~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/shell_bash_norc_c.jl:2:9-2:34
+│     hazardous shell pattern (bash -c)
+│     >     run(`bash --norc -c "echo hi"`)
+│               ~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/shell_cmd_folded_c.jl:2:13-2:40
+│     hazardous shell pattern (sh -c)
+│     >     run(Cmd(["sh", "-" * "c", "echo hi"]))
+│                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/shell_cmd_pkill.jl:2:13-2:32
+│     hazardous shell pattern (pkill)
+│     >     run(Cmd(["pkill", "-f", "x"]))
+│                   ~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/shell_killall.jl:2:9-2:24
+│     hazardous shell pattern (killall)
+│     >     run(`killall -9 foo`)
+│               ~~~~~~~~~~~~~~~~
+│   test/corpus/shell_open_sh_c.jl:2:10-2:24
+│     hazardous shell pattern (sh -c)
+│     >     open(`sh -c echo hi`)
+│                ~~~~~~~~~~~~~~~
+│   test/corpus/shell_pipeline_sudo.jl:2:24-2:35
+│     hazardous shell pattern (sudo)
+│     >     run(pipeline(`ls`, `sudo tee f`))
+│                              ~~~~~~~~~~~~
+│   test/corpus/shell_pkill_backtick.jl:2:9-2:23
+│     hazardous shell pattern (pkill)
+│     >     run(`pkill -f demo`)
+│               ~~~~~~~~~~~~~~~
+│   test/corpus/shell_sh_dash_c.jl:2:13-2:41
+│     hazardous shell pattern (sh -c)
+│     >     run(Cmd(["sh", "-c", "rm -rf /tmp/x"]))
+│                   ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/shell_ssh_remote.jl:2:9-2:30
+│     hazardous shell pattern (ssh --)
+│     >     run(`ssh user@host -- cmd`)
+│               ~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/shell_sudo_cmd.jl:2:13-2:37
+│     hazardous shell pattern (sudo)
+│     >     run(Cmd(["sudo", "apt", "update"]))
+│                   ~~~~~~~~~~~~~~~~~~~~~~~~~
+└ @ [Preset] (run `agentrulelint explain shell-safety/process-pattern` for
+details)
+
+┌ Error: [AgentRuleLint] silent-catch [deny] (14 violations, ceiling 0)
+│   intent: 
+│   do_not: 
+│
+│   test/corpus/expect_above_catch.jl:1:1-1:3
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     > try
+│       ~~~
+│   test/corpus/expect_above_catch_suppress.jl:1:1-1:3
+│     catch binding uses a leading-underscore name but does not rethrow or throw
+│     > try
+│       ~~~
+│   test/corpus/silent_catch_and_only_interrupt.jl:2:1-2:14
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     >     return try
+│       ~~~~~~~~~~~~~~
+│   test/corpus/silent_catch_assign_default.jl:2:1-2:14
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     >     return try
+│       ~~~~~~~~~~~~~~
+│   test/corpus/silent_catch_branch_evasion.jl:2:1-2:14
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     >     return try
+│       ~~~~~~~~~~~~~~
+│   test/corpus/silent_catch_dead_rethrow.jl:2:1-2:14
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     >     return try
+│       ~~~~~~~~~~~~~~
+│   test/corpus/silent_catch_empty.jl:2:1-2:14
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     >     return try
+│       ~~~~~~~~~~~~~~
+│   test/corpus/silent_catch_fake_emit.jl:6:1-6:14
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     >     return try
+│       ~~~~~~~~~~~~~~
+│   test/corpus/silent_catch_info_not_warn.jl:2:1-2:14
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     >     return try
+│       ~~~~~~~~~~~~~~
+│   test/corpus/silent_catch_log_only.jl:2:1-2:14
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     >     return try
+│       ~~~~~~~~~~~~~~
+│   test/corpus/silent_catch_nested.jl:2:1-2:14
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     >     return try
+│       ~~~~~~~~~~~~~~
+│   test/corpus/silent_catch_nested.jl:5:1-5:11
+│     catch binding uses a leading-underscore name but does not rethrow or throw
+│     >         try
+│       ~~~~~~~~~~~
+│   test/corpus/silent_catch_or_true_evasion.jl:2:1-2:14
+│     catch block swallows exceptions without rethrow or throw on unhandled
+│     paths
+│     >     return try
+│       ~~~~~~~~~~~~~~
+│   test/corpus/silent_catch_underscore_nothing.jl:2:1-2:14
+│     catch binding uses a leading-underscore name but does not rethrow or throw
+│     >     return try
+│       ~~~~~~~~~~~~~~
+└ @ AgentRuleLint (run `agentrulelint explain silent-catch` for details)
+
+┌ Error: [AgentRuleLint] test-integrity [deny] (7 violations, ceiling 0)
+│   intent: 
+│   do_not: 
+│
+│   test/corpus/test_integrity_broad_throws.jl:1:1-1:41
+│     @test_throws uses overly broad exception type (ErrorException)
+│     > @test_throws ErrorException nonexistent()
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/test_integrity_broad_throws.jl:2:1-2:35
+│     @test_throws uses overly broad exception type (Base.Exception)
+│     > @test_throws Base.Exception other()
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/test_integrity_const_fold.jl:2:1-2:15
+│     @test condition is trivially true after constant folding
+│     > @test ALWAYS_OK
+│       ~~~~~~~~~~~~~~~
+│   test/corpus/test_integrity_fold_budget.jl:2:1-2:128042
+│     test expression too complex to verify; simplify it
+│     > @test true == true == true == true == true == true == true == true == t…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/test_integrity_fold_budget_const.jl:3:1-3:9
+│     test expression too complex to verify; simplify it
+│     > @test BIG
+│       ~~~~~~~~~
+│   test/corpus/test_integrity_trivial_true.jl:1:1-1:10
+│     @test condition is trivially true after constant folding
+│     > @test true
+│       ~~~~~~~~~~
+│   test/corpus/test_integrity_trivial_true.jl:2:1-2:12
+│     @test condition is trivially true after constant folding
+│     > @test 1 == 1
+│       ~~~~~~~~~~~~
+└ @ AgentRuleLint (run `agentrulelint explain test-integrity` for details)
+
+┌ Warning: [AgentRuleLint] unsafe-boundary [warn] (20 violations, ceiling 0)
+│   intent: Keep runtime evaluation, metaprogramming escapes, and FFI calls
+│           inside reviewed module or path boundaries.
+│   do_not: Alias Core.eval to a local name, pass
+│           eval/Meta.parse/ccall/invokelatest as values, split strings,
+│           Expr(:call,:eval,...), or hide calls outside allow_modules /
+│           allow_globs.
+│
+│   test/corpus/unsafe_allow_module.jl:3:5-3:28
+│     ccall boundary escape
+│     >     ccall(:getpid, Cint, ())
+│           ~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_assume_effects_macro.jl:2:5-2:35
+│     unsafe boundary escape (@assume_effects)
+│     >     @assume_effects :foldable foo()
+│           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_ccall.jl:2:5-2:35
+│     ccall boundary escape
+│     >     ccall(:exit, Cvoid, (Cint,), 0)
+│           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_default_kwarg.jl:2:20-2:33
+│     unsafe_* call (unsafe_load)
+│     >     function f(x = unsafe_load(p))
+│                          ~~~~~~~~~~~~~~
+│   test/corpus/unsafe_eval_runtime.jl:2:12-2:18
+│     runtime eval (eval)
+│     >     return eval(x)
+│                  ~~~~~~~
+│   test/corpus/unsafe_evasion_const_eval.jl:1:11-1:19
+│     boundary value alias (Core.eval)
+│     > const E = Core.eval
+│                 ~~~~~~~~~
+│   test/corpus/unsafe_evasion_const_eval.jl:4:12-4:15
+│     call via value alias (E)
+│     >     return E(x)
+│                  ~~~~
+│   test/corpus/unsafe_evasion_const_eval.jl:8:12-8:26
+│     unsafe boundary escape (@eval)
+│     >     return @eval $(esc(x))
+│                  ~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_inbounds.jl:2:5-2:25
+│     unsafe boundary escape (@inbounds)
+│     >     @inbounds return A[i]
+│           ~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_indirect_eval.jl:2:9-2:29
+│     indirect eval via getfield
+│     >     f = getfield(Base, :eval)
+│               ~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_intrinsic_call.jl:2:12-2:25
+│     unsafe_* call (unsafe_load)
+│     >     return unsafe_load(p)
+│                  ~~~~~~~~~~~~~~
+│   test/corpus/unsafe_meta_parse.jl:2:12-2:24
+│     Meta.parse boundary escape
+│     >     return Meta.parse(s)
+│                  ~~~~~~~~~~~~~
+│   test/corpus/unsafe_qualified_names.jl:2:5-2:36
+│     invokelatest boundary escape
+│     >     Base.invokelatest(println, "hi")
+│           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_qualified_names.jl:3:5-3:26
+│     Meta.parse boundary escape
+│     >     Base.Meta.parse("1+1")
+│           ~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_qualified_names.jl:4:5-4:24
+│     Meta.parse boundary escape
+│     >     Core.Meta.parse("x")
+│           ~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_qualified_names.jl:5:12-5:35
+│     unsafe_* call (Base.unsafe_load)
+│     >     return Base.unsafe_load(C_NULL)
+│                  ~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_value_alias.jl:1:11-1:19
+│     boundary value alias (Core.eval)
+│     > const E = Core.eval
+│                 ~~~~~~~~~
+│   test/corpus/unsafe_value_alias.jl:4:12-4:15
+│     call via value alias (E)
+│     >     return E(x)
+│                  ~~~~
+│   test/corpus/unsafe_value_alias.jl:8:9-8:20
+│     boundary value alias (invokelatest)
+│     >     f = invokelatest
+│               ~~~~~~~~~~~~
+│   test/corpus/unsafe_value_alias.jl:13:16-13:19
+│     boundary value reference (eval)
+│     >     return map(eval, xs)
+│                      ~~~~
+└ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
+
+Summary: 73 violations across 5 rules (4 [AgentRuleLint], 1 [Preset]) — FAILED
+(exit 1)
