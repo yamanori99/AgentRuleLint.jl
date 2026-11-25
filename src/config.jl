@@ -35,7 +35,7 @@ const PROJECT_RULE_KEYS = Set(
     ]
 )
 const VALID_RULE_LEVELS = Set([:forbid, :deny, :allow, :warn])
-const VALID_ON_ALLOW_RULE = Set([:error, :warn, :allow])
+const VALID_ON_ALLOW_RULE = Set([:forbid, :deny, :warn, :allow])
 const VALID_OUTPUT_FORMATS = Set([:human, :json, :agent])
 const KNOWN_PRESET_NAMES = Set(["shell-safety"])
 const SHELL_SAFETY_PRESET_ID = "shell-safety/process-pattern"
@@ -68,7 +68,7 @@ function _parse_on_allow_rule(raw, label::String)
     sym in VALID_ON_ALLOW_RULE ||
         throw(
         ConfigError(
-            "unknown on_allow_rule '$raw' in $label (expected error|warn|allow)",
+            "unknown on_allow_rule '$raw' in $label (expected forbid|deny|warn|allow)",
         ),
     )
     return sym
@@ -133,7 +133,8 @@ function load_toml_string(toml_string::String, path_label::String)
     try
         return TOML.parse(toml_string)
     catch err
-        throw(ParseError("TOML parse error in $path_label: $(err)"))
+        err isa InterruptException && rethrow()
+        throw(ParseError("TOML parse error in $path_label: $(format_error(err))"))
     end
 end
 
@@ -142,8 +143,27 @@ function load_toml_file(path::String)
     try
         return TOML.parsefile(path)
     catch err
-        throw(ParseError("TOML parse error in $path: $(err)"))
+        err isa InterruptException && rethrow()
+        throw(ParseError("TOML parse error in $path: $(format_error(err))"))
     end
+end
+
+"""Read stdout from `cmd`; on failure raise `GitError` including stderr and showerror."""
+function _read_git_cmd(cmd::Cmd; error_prefix::AbstractString)
+    out = Pipe()
+    err = Pipe()
+    proc = run(pipeline(cmd, stdout = out, stderr = err), wait = false)
+    close(out.in)
+    close(err.in)
+    stdout_data = read(out)
+    stderr_data = read(err)
+    wait(proc)
+    if !success(proc)
+        stderr_s = strip(String(stderr_data))
+        detail = isempty(stderr_s) ? "exit $(proc.exitcode)" : "exit $(proc.exitcode): $stderr_s"
+        throw(GitError("$error_prefix ($detail)"))
+    end
+    return stdout_data
 end
 
 function _collect_rule_tables(raw::Dict)
@@ -473,15 +493,18 @@ function git_resolve_commit_sha(root::AbstractString, ref::AbstractString)
     root = abspath(String(root))
     spec = string(ref, "^{commit}")
     cmd = Cmd(["git", "-C", root, "rev-parse", "--verify", "--end-of-options", spec])
+    ref_s = String(ref)
+    prefix = if ref_s == "HEAD^1"
+        "diff base ref not available: HEAD^1 (shallow clone or single-parent HEAD)"
+    else
+        "diff base ref not available: $ref_s"
+    end
     try
-        return strip(String(read(cmd)))
+        return strip(String(_read_git_cmd(cmd; error_prefix = prefix)))
     catch err
         err isa InterruptException && rethrow()
-        ref_s = String(ref)
-        if ref_s == "HEAD^1"
-            throw(GitError("diff base ref not available: HEAD^1 (shallow clone or single-parent HEAD)"))
-        end
-        throw(GitError("diff base ref not available: $ref_s"))
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
     end
 end
 
@@ -501,15 +524,13 @@ function git_tree_path_exists(root::AbstractString, commit_sha::AbstractString, 
             String(relpath),
         ]
     )
+    prefix = "failed to list $(relpath) at commit $(commit_sha)"
     try
-        return !isempty(read(cmd))
+        return !isempty(_read_git_cmd(cmd; error_prefix = prefix))
     catch err
         err isa InterruptException && rethrow()
-        throw(
-            GitError(
-                "failed to list $(relpath) at commit $(commit_sha): $(sprint(showerror, err))",
-            ),
-        )
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
     end
 end
 
@@ -517,15 +538,13 @@ function git_show_blob_at_commit(root::AbstractString, commit_sha::AbstractStrin
     root = abspath(String(root))
     showspec = string(commit_sha, ":", relpath)
     cmd = Cmd(["git", "-C", root, "show", "--end-of-options", showspec])
+    prefix = "failed to read $(relpath) at commit $(commit_sha)"
     try
-        return String(strip(String(read(cmd))))
+        return String(strip(String(_read_git_cmd(cmd; error_prefix = prefix))))
     catch err
         err isa InterruptException && rethrow()
-        throw(
-            GitError(
-                "failed to read $(relpath) at commit $(commit_sha): $(sprint(showerror, err))",
-            ),
-        )
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
     end
 end
 
@@ -538,23 +557,11 @@ end
 
 function load_policy_from_ref(root::AbstractString, ref::AbstractString)
     root = abspath(String(root))
-    try
-        cfg_text, sha = git_show_file(ref, CONFIG_FILENAME, root)
-        raw = load_toml_string(cfg_text, "$CONFIG_FILENAME@$ref")
-        cs = ConfigSource(:git_ref, CONFIG_FILENAME, String(ref), sha)
-        cfg_path = joinpath(root, CONFIG_FILENAME)
-        return build_policy(raw, cfg_path, cs)
-    catch err
-        if err isa InterruptException
-            rethrow()
-        elseif err isa ConfigError || err isa ParseError
-            rethrow()
-        elseif err isa ErrorException || err isa GitError
-            rethrow()
-        else
-            throw(GitError("failed loading policy from ref $(ref): $(err)"))
-        end
-    end
+    cfg_text, sha = git_show_file(ref, CONFIG_FILENAME, root)
+    raw = load_toml_string(cfg_text, "$CONFIG_FILENAME@$ref")
+    cs = ConfigSource(:git_ref, CONFIG_FILENAME, String(ref), sha)
+    cfg_path = joinpath(root, CONFIG_FILENAME)
+    return build_policy(raw, cfg_path, cs)
 end
 
 function default_policy(root::AbstractString)

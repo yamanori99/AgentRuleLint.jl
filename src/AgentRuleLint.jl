@@ -50,7 +50,7 @@ function check(root::AbstractString; kwargs...)
             rethrow()
         end
         is_fail_closed(err) && rethrow()
-        throw(InternalError(string(err)))
+        throw(InternalError(format_error(err)))
     end
 end
 
@@ -134,15 +134,20 @@ function _emit_fail_closed(err, io = stderr)
         println(io, "AgentRuleLint internal error: ", err.msg)
         return 3
     elseif is_fail_closed(err)
-        println(io, "AgentRuleLint fail-closed: ", sprint(showerror, err))
+        println(io, "AgentRuleLint fail-closed: ", format_error(err))
         return 2
     elseif err isa ArgumentError
         println(io, "AgentRuleLint: ", err.msg)
         return 2
     else
-        println(io, "AgentRuleLint bug: ", sprint(showerror, err))
+        println(io, "AgentRuleLint bug: ", format_error(err))
         return 3
     end
+end
+
+"""Exit code for a thrown error after CLI catch (`InternalError` → 3, fail-closed / `ArgumentError` → 2, else → 3)."""
+function exit_code_for_error(err)
+    return _emit_fail_closed(err, devnull)
 end
 
 function _resolve_emit_format(result::CheckResult, opts)

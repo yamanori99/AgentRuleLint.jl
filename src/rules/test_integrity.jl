@@ -149,7 +149,7 @@ function _is_exit_call(node::GreenNode, src::AbstractString, pos::Int)
 end
 
 function _folded_string_arg(node::GreenNode, src::AbstractString, pos::Int)
-    v = _fold_atom(node, src, pos, 0, Ref(0))
+    v = _fold_atom(node, src, pos, 0, FoldBudget())
     return v
 end
 

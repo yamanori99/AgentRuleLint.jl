@@ -9,9 +9,8 @@ const TEST_FOLD_NOT_TRIVIAL = :not_trivial
 const TEST_FOLD_BUDGET = :budget_exceeded
 const TestFoldConst = Union{FoldedTestValue, typeof(TEST_FOLD_BUDGET)}
 
-function _fold_test_budget!(steps::Ref{Int})
-    steps[] += 1
-    return steps[] > _ACTIVE_FOLD_LIMIT[] && throw(ArgumentError(FOLD_BUDGET_MSG))
+function _fold_test_budget!(budget::FoldBudget)
+    return _fold_budget!(budget)
 end
 
 function _node_text_trim(node::GreenNode, src::AbstractString, pos::Int)
@@ -48,11 +47,11 @@ function _try_fold_test_value(
         src::AbstractString,
         pos::Int,
         depth::Int,
-        steps::Ref{Int},
+        budget::FoldBudget,
         consts::Dict{String, TestFoldConst},
     )::Union{Nothing, FoldedTestValue}
-    _fold_test_budget!(steps)
-    depth > _FOLD_TEST_MAX_DEPTH && throw(ArgumentError(FOLD_BUDGET_MSG))
+    _fold_test_budget!(budget)
+    depth > _FOLD_TEST_MAX_DEPTH && throw(FoldBudgetExceeded(budget.limit))
 
     s = summary(node)
     if s == "Bool" || (is_leaf(node) && kind(node) == JuliaSyntax.K"Bool")
@@ -63,13 +62,13 @@ function _try_fold_test_value(
     elseif s == "Float"
         return _parse_float_node(node, src, pos)
     elseif s == "string" || s == "char"
-        v = _fold_atom(node, src, pos, depth, steps)
+        v = _fold_atom(node, src, pos, depth, budget)
         return v
     elseif s == "Identifier"
         name = _node_text_trim(node, src, pos)
         entry = get(consts, name, nothing)
         entry === nothing && return nothing
-        entry === TEST_FOLD_BUDGET && throw(ArgumentError(FOLD_BUDGET_MSG))
+        entry === TEST_FOLD_BUDGET && throw(FoldBudgetExceeded(budget.limit))
         return entry::FoldedTestValue
     end
 
@@ -83,8 +82,8 @@ function _try_fold_test_value(
         length(args) == 3 || return nothing
         (left, lp), (op, oppos), (right, rp) = args
         _is_eq_op(op, src, oppos) || return nothing
-        l = _try_fold_test_value(left, src, lp, depth + 1, steps, consts)
-        r = _try_fold_test_value(right, src, rp, depth + 1, steps, consts)
+        l = _try_fold_test_value(left, src, lp, depth + 1, budget, consts)
+        r = _try_fold_test_value(right, src, rp, depth + 1, budget, consts)
         l === nothing && r === nothing && return nothing
         l === r && return true
         if l isa String && r isa String
@@ -111,7 +110,7 @@ function _try_fold_test_value(
         vals = Vector{FoldedTestValue}(undef, nvals)
         for i in 1:nvals
             c, cp = parts[2 * i - 1]
-            v = _try_fold_test_value(c, src, cp, depth + 1, steps, consts)
+            v = _try_fold_test_value(c, src, cp, depth + 1, budget, consts)
             v === nothing && return nothing
             vals[i] = v
         end
@@ -136,8 +135,8 @@ function _try_fold_test_value(
         length(args) == 3 || return nothing
         (left, lp), (op, oppos), (right, rp) = args
         _is_eq_op(op, src, oppos) || return nothing
-        l = _try_fold_test_value(left, src, lp, depth + 1, steps, consts)
-        r = _try_fold_test_value(right, src, rp, depth + 1, steps, consts)
+        l = _try_fold_test_value(left, src, lp, depth + 1, budget, consts)
+        r = _try_fold_test_value(right, src, rp, depth + 1, budget, consts)
         (l === nothing || r === nothing) && return nothing
         return l == r
     end
@@ -151,9 +150,9 @@ function test_condition_fold_result(
         pos::Int,
         consts::Dict{String, TestFoldConst},
     )::Symbol
-    steps = Ref(0)
+    budget = FoldBudget()
     try
-        v = _try_fold_test_value(node, src, pos, 0, steps, consts)
+        v = _try_fold_test_value(node, src, pos, 0, budget, consts)
         return v === true ? TEST_FOLD_TRIVIAL : TEST_FOLD_NOT_TRIVIAL
     catch err
         _fold_budget_exceeded(err) && return TEST_FOLD_BUDGET
@@ -166,14 +165,14 @@ function collect_toplevel_const_bindings(
         src::AbstractString,
     )::Dict{String, TestFoldConst}
     consts = Dict{String, TestFoldConst}()
-    steps = Ref(0)
+    budget = FoldBudget()
     for (node, pos) in _toplevel_stmt_nodes(tree)
         summary(node) == "const" || continue
         bind = _const_binding_pair(node, src, pos)
         bind === nothing && continue
         name, val_node, val_pos = bind
         try
-            v = _try_fold_test_value(val_node, src, val_pos, 0, steps, consts)
+            v = _try_fold_test_value(val_node, src, val_pos, 0, budget, consts)
             v === nothing && continue
             consts[name] = v
         catch err

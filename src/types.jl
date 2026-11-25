@@ -74,6 +74,18 @@ struct InternalError <: Exception
     msg::String
 end
 
+"""Dedicated constant-fold step-budget overflow (not an `ArgumentError`)."""
+struct FoldBudgetExceeded <: Exception
+    limit::Int
+end
+
+function Base.showerror(io::IO, e::FoldBudgetExceeded)
+    return print(io, "constant fold step budget exceeded (limit ", e.limit, ")")
+end
+
+"""Single stringification for user-facing and logged errors."""
+format_error(err) = sprint(showerror, err)
+
 struct RuleSpec
     id::String
     origin::Symbol

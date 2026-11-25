@@ -1,15 +1,6 @@
 function _effective_project_level(policy::PolicyBundle, pr::ProjectRule)
-    lvl = pr.level
-    if lvl == :allow
-        return if policy.on_allow_rule == :error
-            :forbid
-        elseif policy.on_allow_rule == :warn
-            :warn
-        else
-            :allow
-        end
-    end
-    return lvl
+    pr.level == :allow && return policy.on_allow_rule
+    return pr.level
 end
 
 function _text_literal_spans(source::AbstractString, lit::AbstractString)

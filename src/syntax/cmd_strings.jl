@@ -23,25 +23,25 @@ function _cmdstring_text(node::GreenNode, src::AbstractString, pos::Int)
     return FoldedStringExpr(text, pos, pos + span(node) - 1)
 end
 
-function _collect_cmd_from_vect(node::GreenNode, src::AbstractString, pos::Int, depth::Int, steps::Ref{Int})
+function _collect_cmd_from_vect(node::GreenNode, src::AbstractString, pos::Int, depth::Int, budget::FoldBudget)
     summary(node) == "vect" || return String[]
-    strings = _fold_vect_strings(node, src, pos, depth, steps)
+    strings = _fold_vect_strings(node, src, pos, depth, budget)
     return strings === nothing ? String[] : strings
 end
 
-function _collect_cmd_from_call(node::GreenNode, src::AbstractString, pos::Int, steps::Ref{Int})
+function _collect_cmd_from_call(node::GreenNode, src::AbstractString, pos::Int, budget::FoldBudget)
     fname, args, argpos = _shell_call_parts(node, src, pos)
     _is_cmd_constructor(fname) || return FoldedStringExpr[]
     out = FoldedStringExpr[]
     for (arg, ap) in zip(args, argpos)
         s = summary(arg)
         if s == "vect"
-            strings = _collect_cmd_from_vect(arg, src, ap, 0, steps)
+            strings = _collect_cmd_from_vect(arg, src, ap, 0, budget)
             isempty(strings) && continue
             val = join(strings, " ")
             push!(out, FoldedStringExpr(val, ap, ap + span(arg) - 1))
         elseif s == "string" || s == "cmdstring"
-            folded = try_fold_expr(arg, src, ap, 0, steps)
+            folded = try_fold_expr(arg, src, ap, 0, budget)
             folded !== nothing && push!(out, folded)
         end
     end
@@ -91,7 +91,7 @@ function _walk_cmd_strings!(
         node::GreenNode,
         src::AbstractString,
         pos::Int,
-        steps::Ref{Int},
+        budget::FoldBudget,
         out::Vector{FoldedStringExpr},
     )
     s = summary(node)
@@ -101,7 +101,7 @@ function _walk_cmd_strings!(
     elseif s == "call"
         fname, args, argpos = _shell_call_parts(node, src, pos)
         if _is_cmd_constructor(fname)
-            append!(out, _collect_cmd_from_call(node, src, pos, steps))
+            append!(out, _collect_cmd_from_call(node, src, pos, budget))
         elseif fname in _CMD_WRAPPER_CALLEES
             for (arg, ap) in zip(args, argpos)
                 as = summary(arg)
@@ -111,14 +111,14 @@ function _walk_cmd_strings!(
                 elseif as == "call"
                     afname, _, _ = _shell_call_parts(arg, src, ap)
                     _is_cmd_constructor(afname) &&
-                        append!(out, _collect_cmd_from_call(arg, src, ap, steps))
+                        append!(out, _collect_cmd_from_call(arg, src, ap, budget))
                 end
             end
         end
     end
     for (c, p) in _child_positions(node, pos)[1]
         JuliaSyntax.is_trivia(head(c)) && continue
-        _walk_cmd_strings!(c, src, p, steps, out)
+        _walk_cmd_strings!(c, src, p, budget, out)
     end
     return nothing
 end
@@ -139,8 +139,8 @@ concatenation and `String(UInt8[...])` forms.
 """
 function collect_cmd_string_literals(tree::GreenNode, source::AbstractString)
     src = normalize_source(source)
-    steps = Ref(0)
+    budget = FoldBudget()
     out = FoldedStringExpr[]
-    _walk_cmd_strings!(tree, src, 1, steps, out)
+    _walk_cmd_strings!(tree, src, 1, budget, out)
     return out
 end
