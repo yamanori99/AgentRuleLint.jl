@@ -70,22 +70,20 @@ struct ParseError <: Exception
     msg::String
 end
 
-"""Unexpected internal failure; optionally retains the original cause and catch backtrace."""
+"""Unexpected internal failure, optionally with a concrete catch backtrace for CLI dump.
+
+The wrapped exception is already stringified into `msg` (`format_error`); only the
+backtrace is retained separately so fields stay concrete for JETLS.
+"""
 struct InternalError <: Exception
     msg::String
-    cause::Any
-    bt::Any
+    bt::Vector{Base.StackTraces.StackFrame}
 end
 
-InternalError(msg::AbstractString) = InternalError(String(msg), nothing, nothing)
+InternalError(msg::AbstractString) = InternalError(String(msg), Base.StackTraces.StackFrame[])
 
 function Base.showerror(io::IO, e::InternalError)
-    print(io, e.msg)
-    if e.cause !== nothing
-        print(io, "\nCaused by: ")
-        showerror(io, e.cause)
-    end
-    return nothing
+    return print(io, e.msg)
 end
 
 """Dedicated constant-fold step-budget overflow (not an `ArgumentError`)."""

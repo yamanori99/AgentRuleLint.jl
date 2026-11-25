@@ -22,8 +22,8 @@ Constant-fold step-budget exhaustion (`FoldBudgetExceeded`) emits a non-suppress
 `analysis incomplete: constant-fold budget exceeded in <file>` finding at `:forbid`
 and no longer maps to an internal-error exit code.
 
-### InternalError retains cause and backtrace
+### InternalError retains backtrace
 
-Unexpected errors wrapped by `check` keep the original exception and
-`catch_backtrace()` on `InternalError`; the CLI prints that backtrace (Phase 3 /
+Unexpected errors wrapped by `check` keep a concrete `stacktrace(catch_backtrace())`
+on `InternalError`; the CLI prints that backtrace (Phase 3 /
 [#66](https://github.com/yamanori99/AgentRuleLint.jl/issues/66) / [#28](https://github.com/yamanori99/AgentRuleLint.jl/issues/28)).

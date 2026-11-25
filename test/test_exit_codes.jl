@@ -110,16 +110,15 @@ end
     end
 end
 
-@testset "InternalError keeps cause and backtrace" begin
-    cause = ErrorException("root cause")
-    bt = Base.backtrace()
-    err = AgentRuleLint.InternalError("wrapped", cause, bt)
-    @test err.cause === cause
+@testset "InternalError keeps backtrace" begin
+    bt = stacktrace()
+    err = AgentRuleLint.InternalError("wrapped: root cause", bt)
     @test err.bt === bt
+    @test !isempty(err.bt)
     buf = IOBuffer()
     code = AgentRuleLint._emit_fail_closed(err, buf)
     @test code == 3
     text = String(take!(buf))
-    @test occursin("AgentRuleLint internal error: wrapped", text)
+    @test occursin("AgentRuleLint internal error: wrapped: root cause", text)
     @test occursin("root cause", sprint(showerror, err))
 end
