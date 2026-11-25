@@ -14,6 +14,7 @@ const TOP_LEVEL_CONFIG_KEYS = Set(
 )
 const RULE_TABLE_KEYS = Set(["level", "intent", "do_not"])
 const EXPECT_AUDIT_RULE_KEYS = Set(["level", "intent", "do_not", "on_allow_rule"])
+const UNSAFE_BOUNDARY_RULE_KEYS = Set(["level", "intent", "do_not", "allow_modules", "allow_globs"])
 const PROTECTED_PATHS_RULE_KEYS =
     Set(["level", "intent", "do_not", "project_toml_policy", "paths"])
 const PROTECTED_PATHS_RULE = "protected-paths"
@@ -162,6 +163,16 @@ function _collect_rule_tables(raw::Dict)
     return out
 end
 
+function _parse_string_array(raw, label::AbstractString)
+    raw isa AbstractVector || throw(ConfigError("$label must be an array"))
+    out = String[]
+    for (i, v) in enumerate(raw)
+        v isa AbstractString || throw(ConfigError("$label[$i] must be a string"))
+        push!(out, String(v))
+    end
+    return out
+end
+
 function _parse_protected_paths_globs(content::Dict, label::String)
     raw = get(content, "paths", [])
     raw isa AbstractVector || throw(ConfigError("$label.paths must be an array"))
@@ -178,6 +189,34 @@ function _parse_protected_paths_globs(content::Dict, label::String)
     return out
 end
 
+function _load_unsafe_boundary_config(raw::Dict, rules::Dict{String, RuleSpec})
+    spec = get(rules, "unsafe-boundary", nothing)
+    spec === nothing && return UnsafeBoundaryConfig()
+    allow_modules = String[]
+    allow_globs = Regex[]
+    for (id, content) in _collect_rule_tables(raw)
+        id == "unsafe-boundary" || continue
+        if haskey(content, "allow_modules")
+            allow_modules = _parse_string_array(content["allow_modules"], "rules.unsafe-boundary.allow_modules")
+        end
+        if haskey(content, "allow_globs")
+            globs = _parse_string_array(content["allow_globs"], "rules.unsafe-boundary.allow_globs")
+            for (j, g) in enumerate(globs)
+                push!(allow_globs, compile_path_glob(g, "rules.unsafe-boundary.allow_globs[$j]"))
+            end
+        end
+        break
+    end
+    return UnsafeBoundaryConfig(
+        true,
+        spec.level,
+        allow_modules,
+        allow_globs,
+        spec.intent,
+        spec.do_not,
+    )
+end
+
 function _parse_project_toml_policy(raw, label::String)
     s = strip(raw isa AbstractString ? String(raw) : "")
     s == DEFAULT_PROJECT_TOML_POLICY && return DEFAULT_PROJECT_TOML_POLICY
@@ -190,6 +229,8 @@ function _load_rules_table(raw::Dict)
         validate_kebab_rule_id(id, "rules.$id")
         allowed = if id == "expect-audit"
             EXPECT_AUDIT_RULE_KEYS
+        elseif id == "unsafe-boundary"
+            UNSAFE_BOUNDARY_RULE_KEYS
         elseif id == PROTECTED_PATHS_RULE
             PROTECTED_PATHS_RULE_KEYS
         else
@@ -356,6 +397,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     if es !== nothing && haskey(es, "on_allow_rule")
         on_allow = _parse_on_allow_rule(es["on_allow_rule"], "rules.expect-audit.on_allow_rule")
     end
+    unsafe = _load_unsafe_boundary_config(raw, rules)
     ptp, pglobs = _protected_paths_config(raw, rules)
     return PolicyBundle(
         ver,
@@ -365,6 +407,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
         rules,
         project,
         on_allow,
+        unsafe,
         config_path,
         config_source,
         ptp,
@@ -522,6 +565,7 @@ function default_policy(root::AbstractString)
         rules,
         ProjectRule[],
         :warn,
+        UnsafeBoundaryConfig(),
         cfg,
         cs,
         DEFAULT_PROJECT_TOML_POLICY,

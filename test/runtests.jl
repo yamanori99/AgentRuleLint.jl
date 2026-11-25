@@ -123,8 +123,11 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
             "d",
         )
         res = AgentRuleLint.CheckResult([d], true, 1, cs, :human, 20, 0, 1)
-        @test occursin("┌ Error", AgentRuleLint.format_human(res; root = ROOT))
-        @test occursin("RULE", AgentRuleLint.format_agent(res))
+        io = IOContext(IOBuffer(), :color => false)
+        human = AgentRuleLint.format_human(res; root = ROOT, io = io)
+        @test occursin("[Project]", human)
+        @test occursin("└ @ Project", human)
+        @test occursin("RULE", AgentRuleLint.format_agent(res; root = ROOT))
         @test occursin("\"type\":\"header\"", replace(AgentRuleLint.format_json(res), " " => ""))
     end
 
@@ -142,6 +145,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     @testset "CLI exit codes" begin
         cd(ROOT) do
             @test AgentRuleLint.cli_main(["explain", "expect-audit"]) == 0
+            @test AgentRuleLint.cli_main(["explain", "not-a-real-rule"]) == 2
             @test AgentRuleLint.cli_main(["check", "LICENSE"]) == 0
             @test AgentRuleLint.cli_main(["check", "test/corpus/split_string.jl"]) == 1
             @test AgentRuleLint.cli_main(["nope"]) == 2
@@ -186,13 +190,17 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     include("test_project_rules_paths.jl")
     include("test_expect_audit.jl")
     include("test_adapter_fixes.jl")
+    include("test_test_integrity.jl")
     include("test_diff_mode.jl")
     include("test_ceiling_ratchet.jl")
     include("test_diff_name_status_parser.jl")
+    include("test_fail_closed_mutations.jl")
     include("test_protected_paths.jl")
     include("test_scope_paths.jl")
     include("test_config_cli_fail_closed.jl")
     include("test_output_width.jl")
+    include("test_output_formats.jl")
+    include("test_unsafe_boundary.jl")
     include("test_manifest_sync.jl")
     include("test_app_cli.jl")
 

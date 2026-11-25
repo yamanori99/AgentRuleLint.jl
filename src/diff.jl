@@ -265,11 +265,36 @@ function violation_on_changed_lines(d::Violation, changed::Set{Int})
     return d.anchor_line in changed
 end
 
-function filter_diff_violations!(diags::Vector{Violation}, scope::DiffScope)
+function _test_integrity_deleted_on_diff(d::Violation, scope::DiffScope, path_events::Vector{DiffPathEvent})
+    d.rule_id != "test-integrity" && return false
+    d.expect_status != :deleted_test && return false
+    p = normalize_path(d.path)
+    p != "test/runtests.jl" && !startswith(p, "test/") && return false
+    st = diff_path_status(scope, d.path)
+    st == 'D' && return true
+    for ev in path_events
+        ev.status == 'R' || continue
+        normalize_path(ev.old_path) == p && return true
+    end
+    return false
+end
+
+function filter_diff_violations!(
+        diags::Vector{Violation},
+        scope::DiffScope,
+        path_events::Vector{DiffPathEvent} = DiffPathEvent[],
+    )
     out = Violation[]
     for d in diags
         st = diff_path_status(scope, d.path)
-        st == 'D' && continue
+        if st == 'D'
+            _test_integrity_deleted_on_diff(d, scope, path_events) && (push!(out, d); continue)
+            continue
+        end
+        if _test_integrity_deleted_on_diff(d, scope, path_events)
+            push!(out, d)
+            continue
+        end
         changed = diff_changed_lines(scope, d.path)
         violation_on_changed_lines(d, changed) || continue
         push!(out, d)

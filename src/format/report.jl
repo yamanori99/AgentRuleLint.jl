@@ -77,111 +77,99 @@ function format_report(fingerprint::AbstractString, diagnostic::Violation, sourc
     return String(take!(buf))
 end
 
-function explain_rule(id::AbstractString)
-    id = String(id)
-    if id == "expect-audit"
-        return """
-        expect-audit
+function _explain_extra(spec::RuleSpec, key::Symbol)
+    return get(spec.extra, key, "")
+end
 
-        Anchor line: first non-blank code line after contiguous `# agentrulelint-expect:` lines
-        that matches the target syntax kind for the referenced rule (e.g. `try`, `@eval`, `@test*`).
+function _explain_optional_block(label::AbstractString, body::AbstractString)
+    isempty(strip(body)) && return ""
+    return """
 
-        Syntax: `# agentrulelint-expect: <rule-id> reason="..."` (ASCII, standalone line only; non-empty reason).
+    $label:
+    $(strip(body))"""
+end
 
-        Suppresses only violations whose anchor_line matches that line.
-        Expects are forbidden above `catch`, inside `# runic: off` regions, inside multiline
-        call arguments, and with blank lines before the anchor. Forbidden placements do not
-        suppress violations. Multiline-call placement uses the same forbid level as other
-        expect-audit integrity findings.
-        """
-    elseif id == "manifest-sync"
-        return """
-        manifest-sync
+function format_explain_rule(spec::RuleSpec)
+    anchor = _explain_extra(spec, :expect_anchor)
+    example = _explain_extra(spec, :example)
+    anchor_line = _explain_extra(spec, :anchor_line)
+    syntax = _explain_extra(spec, :syntax)
+    suppression = _explain_extra(spec, :suppression)
+    intent_detail = _explain_extra(spec, :intent_detail)
+    config = _explain_extra(spec, :config)
+    detail = _explain_extra(spec, :detail)
+    body = """
+    rule_id: $(spec.id)
+    origin: $(origin_label(spec.origin))
+    level: $(spec.level)
 
-        Anchor line: project table key or manifest header field (e.g. [deps], project_hash).
+    intent:
+    $(spec.intent)
 
-        Group: integrity. Pure TOML against git-tracked Project.toml / Manifest.toml pairs
-        (Manifest.toml, Manifest-vX.Y.toml, JuliaManifest.toml, and Project.toml `manifest` paths).
-        Untracked working-tree manifests are out of scope.
+    do_not:
+    $(spec.do_not)"""
+    body *= _explain_optional_block("anchor_line", anchor_line)
+    body *= _explain_optional_block("syntax", syntax)
+    body *= _explain_optional_block("suppression", suppression)
+    body *= _explain_optional_block("intent_detail", intent_detail)
+    body *= _explain_optional_block("config", config)
+    body *= _explain_optional_block("detail", detail)
+    body *= """
 
-        deny: project [deps] (including workspace subprojects), [weakdeps], and [extras] UUIDs
-        exist in the paired manifest; manifest internal deps closure; UUID uniqueness;
-        Manifest-vX.Y minor version vs julia_version; in --diff mode, resolve sections
-        ([deps], [weakdeps], [compat], [sources], [workspace]) changed without project_hash
-        update (hash is never recomputed); [extensions] triggers declared; manifest_format must be Pkg
-        format 2.0, 2.1, or 2.2 (major 2 only); unknown top-level manifest keys fail closed.
+    expect_anchor:
+    $(isempty(anchor) ? "N/A." : anchor)
 
-        warn: [sources] vs manifest repo/path metadata (normalized paths); tracked manifest
-        under a workspace subproject directory.
+    example:
+    $(isempty(example) ? "N/A." : example)"""
+    return body
+end
 
-        Out of scope: Pkg resolvability, registry presence, git-tree-sha1 verification,
-        [compat] semver satisfaction, Artifacts.toml, Preferences.
+function format_explain_project_rule(pr::ProjectRule)
+    rid = project_rule_id(pr)
+    return """
+    rule_id: $rid
+    origin: [Project]
+    level: $(pr.level)
 
-        Unparseable TOML is a fail-closed error (exit 2).
-        """
-    elseif id == "scope-paths"
-        return """
-        scope-paths
+    intent:
+    $(pr.intent)
 
-        Group: integrity. Level: forbid (no inline expects).
+    do_not:
+    $(pr.do_not)
 
-        Active only when `check` receives `--allow-paths GLOB,...` together with `--diff <base>`.
-        The allowlist is accepted only from the CLI or the `check(...; allow_paths=...)` keyword,
-        never from `.AgentRuleLintConfig.toml`, so only a trusted CI workflow input or human wrapper
-        can widen scope.
+    expect_anchor:
+    When using expect-audit suppression, reference `$rid` in `# agentrulelint-expect:` (same placement rules as expect-audit).
 
-        Every changed path in the diff (add, modify, delete, rename on both sides) must match at
-        least one glob. Otherwise the rule flags the path.
+    example:
+    # agentrulelint-expect: $rid reason="documented"
+    x = "forbidden_literal"
+    """
+end
 
-        Without `--diff`, `--allow-paths` is a usage error (exit 2). An empty or whitespace-only
-        list is a usage error. Absolute paths, `..` segments, and backslash separators are rejected
-        at glob parse time (exit 2).
-
-        Integrity level: `scope-paths` must use `level = "forbid"` in config (ConfigError otherwise).
-        """
-    elseif id == "protected-paths"
-        return """
-        protected-paths
-
-        Group: integrity. Level: forbid (no inline expects).
-
-        Runs only with `--diff <base>`. Reports nothing on a full-tree `check` without `--diff`.
-
-        Auto-protected paths include `.AgentRuleLintConfig.toml`, `.agentrulelint/**`
-        (except `.agentrulelint/ceilings.toml` when the diff is monotonic non-increasing),
-        `.JETLSConfig.toml`, `Manifest*.toml`, `JuliaManifest.toml`, `LocalPreferences.toml`,
-        and every repo-relative `Project.toml`.
-
-        `project_toml_policy = "semantic"` (default) allows adding `[deps]` entries and `[compat]`
-        for newly added deps. Any change to `[sources]` or `[workspace]`, compat removal, or any
-        compat string change (loosening is any non-identical string; no semver reasoning in 0.1.0),
-        or any other top-level key change is a violation.
-
-        Declared `paths = [{ glob = "...", reason = "..." }]` under `[rules.protected-paths]` use
-        project-rule path-glob syntax; the reason appears in the message.
-
-        Missing or unparsable TOML on either side of a compared change fails closed (exit 2).
-
-        Integrity level: `protected-paths`, `ceiling-ratchet`, and `scope-paths` must always use
-        `level = "forbid"` in config. Any other level is a ConfigError (exit 2). Rename or copy
-        of a protected path is never semantically exempt (including Project.toml and ceilings.toml).
-        """
-    elseif startswith(id, "project/")
-        return "Project rule $(id) (declared under [[project_rules]] as id without prefix)."
-    else
-        specs = (
-            "protected-paths" => "forbid edits to protected policy and workflow paths.",
-            "scope-paths" => "enforce trusted path allowlists.",
-            "ceiling-ratchet" => "keep violation/expect ceilings monotonic.",
-            "manifest-sync" => "tracked Manifest must match Project.toml (see `explain manifest-sync`).",
-            "shell-safety/process-pattern" => "preset: hazardous shell / Cmd patterns.",
-            "silent-catch" => "detect swallowed exceptions.",
-            "test-integrity" => "detect hollow or weakened tests.",
-            "unsafe-boundary" => "flag eval, ccall, and unsafe_* at boundaries.",
-        )
-        for (slug, blurb) in specs
-            id == slug && return "$slug — $blurb (planned built-in / preset)."
-        end
-        return "Unknown rule id: $(id)"
+function explain_rule_unknown(id::AbstractString; root::AbstractString = pwd())
+    needle = String(strip(id))
+    policy = resolve_policy(root)
+    init_registry!(policy)
+    if startswith(needle, "project/")
+        short = needle[9:end]
+        return !any(pr -> pr.id == short, policy.project_rules)
     end
+    return !haskey(BUILTIN_RULES, needle)
+end
+
+function explain_rule(id::AbstractString; root::AbstractString = pwd())
+    needle = String(strip(id))
+    explain_rule_unknown(needle; root = root) &&
+        throw(ArgumentError("unknown rule id: $needle"))
+    policy = resolve_policy(root)
+    init_registry!(policy)
+    if startswith(needle, "project/")
+        short = needle[9:end]
+        for pr in policy.project_rules
+            pr.id == short && return format_explain_project_rule(pr)
+        end
+        throw(ArgumentError("unknown rule id: $needle"))
+    end
+    spec = BUILTIN_RULES[needle]
+    return format_explain_rule(spec)
 end

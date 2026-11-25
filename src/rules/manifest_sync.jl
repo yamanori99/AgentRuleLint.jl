@@ -832,3 +832,35 @@ function _audit_manifest_pair!(
     diff_base !== nothing && _check_project_hash_diff!(diags, level, root, diff_base, ctx, intent, do_not)
     return nothing
 end
+
+const _MANIFEST_SYNC_EXPLAIN_ANCHOR = """
+Project table key or manifest header field (e.g. [deps], project_hash).
+"""
+
+const _MANIFEST_SYNC_EXPLAIN_DETAIL = """
+Group: integrity. Pure TOML against git-tracked Project.toml / Manifest.toml pairs
+(Manifest.toml, Manifest-vX.Y.toml, JuliaManifest.toml, and Project.toml `manifest` paths).
+Untracked working-tree manifests are out of scope.
+
+deny: project [deps] (including workspace subprojects), [weakdeps], and [extras] UUIDs
+exist in the paired manifest; manifest internal deps closure; UUID uniqueness;
+Manifest-vX.Y minor version vs julia_version; in --diff mode, resolve sections
+([deps], [weakdeps], [compat], [sources], [workspace]) changed without project_hash
+update (hash is never recomputed); [extensions] triggers declared; manifest_format must be Pkg
+format 2.0, 2.1, or 2.2 (major 2 only); unknown top-level manifest keys fail closed.
+
+warn: [sources] vs manifest repo/path metadata (normalized paths); tracked manifest
+under a workspace subproject directory.
+
+Out of scope: Pkg resolvability, registry presence, git-tree-sha1 verification,
+[compat] semver satisfaction, Artifacts.toml, Preferences.
+
+Unparseable TOML is a fail-closed error (exit 2).
+"""
+
+function manifest_sync_explain_extra()
+    return Dict{Symbol, String}(
+        :anchor_line => strip(_MANIFEST_SYNC_EXPLAIN_ANCHOR),
+        :detail => strip(_MANIFEST_SYNC_EXPLAIN_DETAIL),
+    )
+end

@@ -21,12 +21,16 @@ include("ratchet.jl")
 include("expect.jl")
 include("rules/registry.jl")
 include("rules/project_rules.jl")
-include("rules/manifest_sync.jl")
+include("rules/builtin_rules.jl")
+include("rules/unsafe_boundary.jl")
 include("rules/protected_paths.jl")
+include("rules/test_integrity.jl")
+include("rules/manifest_sync.jl")
 include("rules/scope_paths.jl")
 include("runner.jl")
 include("format/json.jl")
 include("format/width.jl")
+include("format/common.jl")
 include("format/human.jl")
 include("format/agent.jl")
 include("format/report.jl")
@@ -155,18 +159,22 @@ function _resolve_emit_format(result::CheckResult, opts)
     return fmt
 end
 
-function _emit(result::CheckResult, fmt::Symbol, opts)
+function _emit(result::CheckResult, fmt::Symbol, opts; root::AbstractString = pwd())
     fmt in VALID_OUTPUT_FORMATS ||
         throw(ArgumentError("unknown --format value '$fmt' (expected human|json|agent)"))
-    text = fmt == :json ? format_json(result) :
-        fmt == :agent ? format_agent(result) :
-        format_human(result)
-    out = opts[:output]
-    return if out === nothing
-        print(text)
-    else
-        write(out, text)
+    out_path = opts[:output]
+    if out_path === nothing
+        io = IOContext(stdout, :color => stdout isa Base.TTY)
+        text = fmt == :json ? format_json(result) :
+            fmt == :agent ? format_agent(result; root = root, io = io) :
+            format_human(result; root = root, io = io)
+        return print(text)
     end
+    plain_io = IOContext(IOBuffer(), :color => false)
+    text = fmt == :json ? format_json(result) :
+        fmt == :agent ? format_agent(result; root = root, io = plain_io) :
+        format_human(result; root = root, io = plain_io)
+    return write(out_path, text)
 end
 
 function _resolve_allow_paths_kw(raw)
@@ -199,13 +207,13 @@ function _cli_check(positional::Vector{String}, opts)
         allow_paths = opts[:allow_paths],
     )
     fmt = _resolve_emit_format(result, opts)
-    _emit(result, fmt, opts)
+    _emit(result, fmt, opts; root = root)
     return result.exit_code
 end
 
 function _cli_explain(positional::Vector{String}, ::Dict)
-    isempty(positional) && throw(ArgumentError("explain requires <code|id>"))
-    println(explain_rule(positional[1]))
+    isempty(positional) && throw(ArgumentError("explain requires <rule-id>"))
+    println(explain_rule(positional[1]; root = pwd()))
     return 0
 end
 

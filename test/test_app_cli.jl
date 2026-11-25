@@ -8,6 +8,14 @@ function _run_capture(cmd::Cmd)
     return proc.exitcode, String(take!(stdout)), String(take!(stderr))
 end
 
+# Discard one child run so measured stdout/stderr are not polluted by Julia's
+# package precompile progress (see `Base.precompilepkgs` in Julia `precompilation.jl`,
+# which writes summary lines such as "Precompiling …" to `io`, defaulting to `stderr`).
+function _warmup_capture(cmd::Cmd)
+    code, _, _ = _run_capture(cmd)
+    return code
+end
+
 function _module_cmd(args::Vector{String})
     return Cmd(
         vcat(
@@ -31,7 +39,10 @@ end
     project_toml_before = read(_PROJECT_TOML)
 
     cd(_APP_ROOT) do
-        code_m, out_m, err_m = _run_capture(_module_cmd(args))
+        module_cmd = _module_cmd(args)
+        code_warm_m = _warmup_capture(module_cmd)
+        code_m, out_m, err_m = _run_capture(module_cmd)
+        @test code_warm_m == code_m
         code_cli = AgentRuleLint.cli_main(args)
         @test code_cli == code_m
 
@@ -63,7 +74,9 @@ end
                 "JULIA_DEPOT_PATH" => depot,
                 "JULIA_LOAD_PATH" => "@:@stdlib",
             )
+            code_warm_app = _warmup_capture(app_cmd)
             code_app, out_app, err_app = _run_capture(app_cmd)
+            @test code_warm_app == code_app
 
             @test code_app == code_m
             @test out_app == out_m
