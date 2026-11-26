@@ -617,51 +617,12 @@ end
 function default_policy(root::AbstractString)
     ver = AGENTRULELINT_VERSION
     rules = Dict{String, RuleSpec}(
-        # `ANALYSIS_INCOMPLETE_RULE_DEF` is defined later in the module; resolved at call time.
         ANALYSIS_INCOMPLETE_RULE => rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF),
-        "expect-audit" => RuleSpec(
-            "expect-audit",
-            :agentrulelint,
-            :forbid,
-            "Keep suppression comments auditable and fail-closed.",
-            "Use inline or block comment expects to hide violations.",
-            Dict{Symbol, String}(),
-        ),
-        "silent-catch" => RuleSpec(
-            "silent-catch",
-            :agentrulelint,
-            :warn,
-            "Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths.",
-            "Use empty catch bodies, log-only handlers, or partial branches without rethrow to silence errors.",
-            Dict{Symbol, String}(:warn_counts_as_handling => "false"),
-        ),
-        "ceiling-ratchet" => RuleSpec(
-            "ceiling-ratchet",
-            :agentrulelint,
-            :forbid,
-            "Keep violation and expect ceilings monotonic (down only).",
-            "Raise ceilings or leave stale slack after counts decrease.",
-            Dict{Symbol, String}(),
-        ),
-        "manifest-sync" => RuleSpec(
-            "manifest-sync",
-            :agentrulelint,
-            :deny,
-            "Tracked Manifest.toml files must stay consistent with Project.toml (integrity).",
-            "Edit [deps] or other resolve sections without updating the tracked manifest.",
-            Dict{Symbol, String}(
-                :group => "integrity",
-                :fix => "Run Pkg.resolve and commit Manifest.toml with project_hash updates.",
-            ),
-        ),
-        PROTECTED_PATHS_RULE => RuleSpec(
-            PROTECTED_PATHS_RULE,
-            :agentrulelint,
-            :forbid,
-            "Protect designated policy, lockfiles, and workflow paths from silent edits.",
-            "Edit protected files, weaken compat, or rename paths to evade review.",
-            Dict{Symbol, String}(),
-        ),
+        EXPECT_AUDIT_ID => rule_def_to_spec(EXPECT_AUDIT_RULE_DEF),
+        SILENT_CATCH_ID => rule_def_to_spec(SILENT_CATCH_RULE_DEF),
+        CEILING_RATCHET_RULE => rule_def_to_spec(CEILING_RATCHET_RULE_DEF),
+        MANIFEST_SYNC_RULE => rule_def_to_spec(MANIFEST_SYNC_RULE_DEF),
+        PROTECTED_PATHS_RULE => rule_def_to_spec(PROTECTED_PATHS_RULE_DEF),
     )
     cs = ConfigSource(:builtin, "", "", "")
     cfg = joinpath(abspath(root), CONFIG_FILENAME)
