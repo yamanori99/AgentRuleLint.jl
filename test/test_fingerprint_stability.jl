@@ -202,6 +202,23 @@ end
             @test startswith(d.fingerprint, "v1:")
             @test length(d.fingerprint) > 4
         end
+
+        @testset "multi-line span uses multi-line anchor text branch" begin
+            multi_rel = joinpath("test", "corpus", "fingerprint_multiline_span.jl")
+            res = AgentRuleLint.check(ROOT; paths = [multi_rel])
+            hits = filter(
+                d -> d.rule_id == "project/no-internal-codename" && !d.suppressed,
+                res.violations,
+            )
+            @test !isempty(hits)
+            d = first(hits)
+            @test d.span.start_line != d.span.end_line
+            @test startswith(d.fingerprint, "v1:")
+            lines = String[String(l) for l in split(AgentRuleLint.normalize_source(read(joinpath(ROOT, multi_rel), String)), '\n')]
+            anchor = AgentRuleLint.violation_anchor_text(lines, d)
+            @test !isempty(anchor)
+            @test occursin("INTERNAL_CODENAME", anchor)
+        end
     finally
         rm(joinpath(ROOT, corpus_tmp); force = true, recursive = true)
     end
