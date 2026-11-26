@@ -58,7 +58,8 @@ end
 
     @testset "digest builder failure prints unavailable" begin
         old_hook = _FAILURE_DIGEST_FORMAT_HOOK[]
-        out_path = joinpath(ROOT, "test", "last_failures_digest_probe.txt")
+        probe_dir = mktempdir()
+        out_path = joinpath(probe_dir, "last_failures.txt")
         try
             _FAILURE_DIGEST_FORMAT_HOOK[] = () -> error("digest-probe-boom")
             ts = _digest_probe_testset("probe-unavailable") do
@@ -70,14 +71,15 @@ end
             @test startswith(text, FAILURE_DIGEST_MARKER)
         finally
             _FAILURE_DIGEST_FORMAT_HOOK[] = old_hook
-            isfile(out_path) && rm(out_path)
+            rm(probe_dir, recursive = true, force = true)
         end
     end
 
     @testset "digest builder failure does not mask suite error" begin
         old_hook = _FAILURE_DIGEST_FORMAT_HOOK[]
         suite_err = ErrorException("suite-probe-error")
-        out_path = joinpath(ROOT, "test", "last_failures_mask_probe.txt")
+        probe_dir = mktempdir()
+        out_path = joinpath(probe_dir, "last_failures.txt")
         try
             _FAILURE_DIGEST_FORMAT_HOOK[] = () -> error("digest-probe-boom")
             ts = _digest_probe_testset("probe-mask") do
@@ -98,7 +100,7 @@ end
             @test outcome == :rethrown
         finally
             _FAILURE_DIGEST_FORMAT_HOOK[] = old_hook
-            isfile(out_path) && rm(out_path)
+            rm(probe_dir, recursive = true, force = true)
         end
     end
 end

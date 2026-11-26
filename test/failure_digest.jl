@@ -140,7 +140,17 @@ function emit_failure_digest(
         err isa InterruptException && rethrow()
         text = format_digest_unavailable(err)
         print(text)
-        write(path, text)
+        try
+            write(path, text)
+        catch write_err
+            write_err isa InterruptException && rethrow()
+            println(
+                "failure digest: could not write ",
+                path,
+                ": ",
+                _digest_exception_first_line(write_err),
+            )
+        end
     end
     return nothing
 end
