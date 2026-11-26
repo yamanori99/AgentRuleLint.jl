@@ -1,2 +1,0 @@
-=== AgentRuleLint test failure digest ===
-no failures
