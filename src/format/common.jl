@@ -74,10 +74,7 @@ function human_ceiling_display(ceilings::CeilingEntry, rule_id::String)
     return string(total)
 end
 
-function human_policy_banner(
-        result::CheckResult;
-        version::AbstractString = string(AGENTRULELINT_VERSION),
-    )
+function human_policy_banner(result::CheckResult, version::AbstractString)
     cs = result.config_source
     base = if cs.kind == :git_ref && !isempty(cs.ref)
         sha = isempty(cs.sha) ? "?" : cs.sha

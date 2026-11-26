@@ -4,7 +4,7 @@ function format_agent(
         max_hits::Union{Nothing, Int} = nothing,
         io::IO = stdout,
         output_width::Union{Nothing, Int} = nothing,
-        agentrulelint_version::Union{Nothing, AbstractString} = nothing,
+        _agentrulelint_version::Union{Nothing, AbstractString} = nothing, # test-only: override the displayed version (see test_output_goldens.jl)
     )
     width = resolve_output_width(io; output_width = output_width)
     hit_cap = something(max_hits, result.max_hits_per_rule)
@@ -16,7 +16,7 @@ function format_agent(
     groups = violations_by_rule(active)
     rule_hits = length(groups)
     status = result.exit_code == 0 ? "OK" : "FAIL"
-    ver = something(agentrulelint_version, string(AGENTRULELINT_VERSION))
+    ver = something(_agentrulelint_version, string(AGENTRULELINT_VERSION))
     headline =
         "AGENTRULELINT $status v$ver base=$base pos=utf8-codepoint-1based violations=$(result.violation_count) rules=$rule_hits"
     println(buf, headline)
