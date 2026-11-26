@@ -27,6 +27,8 @@ const DESTRUCTIVE_WRITE_OPS = (
 
 const SRC_ROOT_ASSIGN_MARKERS = (REPO_SRC_MARKERS..., PACKAGE_SRC_MARKERS...)
 const SRC_ROOT_ASSIGN_EXACT = r"joinpath\(\s*ROOT\s*,\s*\"src\"\s*\)"
+const OPEN_MODE_ALLOWLIST = Set(["r", "w", "a", "r+", "w+", "a+"])
+const OPEN_WRITE_MODES = Set(["w", "a", "r+", "w+", "a+"])
 
 function _is_exempt(rel::AbstractString)
     return basename(rel) == "mutation_lib.jl" && occursin("mutation", rel)
@@ -38,22 +40,71 @@ function _line_has_tracked_src_target(line::AbstractString)
     return any(marker -> occursin(marker, line), REPO_SRC_MARKERS)
 end
 
-function _open_mode_string_writes(mode::AbstractString)
-    return occursin('w', mode) || occursin('a', mode) || occursin('+', mode)
+function _open_positional_args(line::AbstractString)
+    m = match(r"\bopen\s*\(", line)
+    m === nothing && return String[]
+    pos = m.offset + ncodeunits(m.match)
+    depth = 1
+    arg_start = pos
+    args = String[]
+    while pos <= ncodeunits(line)
+        c = line[pos]
+        if c == '"'
+            pos = nextind(line, pos)
+            while pos <= ncodeunits(line)
+                if line[pos] == '\\'
+                    pos = nextind(line, pos)
+                    pos = nextind(line, pos)
+                    continue
+                elseif line[pos] == '"'
+                    pos = nextind(line, pos)
+                    break
+                end
+                pos = nextind(line, pos)
+            end
+            continue
+        elseif c == '('
+            depth += 1
+            pos = nextind(line, pos)
+        elseif c == ')'
+            depth -= 1
+            if depth == 0
+                push!(args, strip(line[arg_start:(pos - 1)]))
+                break
+            end
+            pos = nextind(line, pos)
+        elseif c == ';' && depth == 1
+            push!(args, strip(line[arg_start:(pos - 1)]))
+            break
+        elseif c == ',' && depth == 1
+            push!(args, strip(line[arg_start:(pos - 1)]))
+            arg_start = nextind(line, pos)
+            pos = arg_start
+        else
+            pos = nextind(line, pos)
+        end
+    end
+    return args
+end
+
+function _open_last_positional_string_mode(line::AbstractString)
+    args = _open_positional_args(line)
+    isempty(args) && return nothing
+    last = strip(args[end])
+    sm = match(r"^\"([^\"]*)\"$", last)
+    sm === nothing && return nothing
+    mode = sm.captures[1]
+    mode === nothing && return nothing
+    mode in OPEN_MODE_ALLOWLIST || return nothing
+    return mode
 end
 
 function _open_looks_write(line::AbstractString)
     occursin(r"\bopen\s*\(", line) || return false
     occursin(r"\b(write|append|truncate|create)\s*=\s*true\b", line) && return true
-    # Heuristic: mode is a trailing string arg (nested `joinpath(...)` breaks `[^)]*` scans).
-    for m in eachmatch(r",\s*\"([^\"]+)\"\s*[\),;]", line)
-        cap = m.captures
-        length(cap) < 1 && continue
-        mode = cap[1]
-        mode === nothing && continue
-        _open_mode_string_writes(mode) && return true
-    end
-    return false
+    mode = _open_last_positional_string_mode(line)
+    mode === nothing && return false
+    return mode in OPEN_WRITE_MODES
 end
 
 function _line_has_destructive_write_op(line::AbstractString)
@@ -172,23 +223,31 @@ end
         sample = "write(joinpath(tmp, \"src\", \"rules\", \"x.jl\"), data)"
         @test isempty(offenders_in_text("fixture_temp.jl", sample))
     end
-    path = "joinpath(pkgdir(AgentRuleLint), \"src\", \"x.jl\")"
+    path = "joinpath(pkgdir(AgentRuleLint), \"src\", \"syntax\", \"parser.jl\")"
+    realistic2 = "joinpath(pkgdir(AgentRuleLint), \"src\", \"rules\", \"shell_safety.jl\")"
     @testset "open read-only under pkgdir src" begin
         @test isempty(offenders_in_text("fixture_open_read.jl", "open($path)"))
         @test isempty(offenders_in_text("fixture_open_read.jl", "open($path, \"r\")"))
+        @test isempty(offenders_in_text("fixture_open_read.jl", "open($realistic2)"))
         @test isempty(
             offenders_in_text(
                 "fixture_open_read.jl",
                 "open($path) do io; read(io, String); end",
             ),
         )
+        @test isempty(
+            offenders_in_text(
+                "fixture_open_read.jl",
+                "open(joinpath(pkgdir(AgentRuleLint), \"src\", \"manifest_sync.jl\"))",
+            ),
+        )
     end
     @testset "open write modes under pkgdir src" begin
-        for mode in ("w", "a", "r+")
+        for mode in ("w", "a", "r+", "w+", "a+")
             @test !isempty(offenders_in_text("fixture_open_write.jl", "open($path, \"$mode\")"))
         end
         @test !isempty(
-            offenders_in_text("fixture_open_write.jl", "open($path; write=true)"),
+            offenders_in_text("fixture_open_write.jl", "open($realistic2; write=true)"),
         )
     end
 end
