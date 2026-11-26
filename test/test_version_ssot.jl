@@ -5,9 +5,11 @@ const ROOT = dirname(@__DIR__)
 
 # Docstrings / user-facing rule text that legitimately name a release series (not
 # `Project.toml` version duplication).
-const VERSION_LITERAL_SRC_ALLOWLIST = Set{String}([
-    joinpath("src", "rules", "protected_paths.jl"),
-])
+const VERSION_LITERAL_SRC_ALLOWLIST = Set{String}(
+    [
+        joinpath("src", "rules", "protected_paths.jl"),
+    ],
+)
 
 function _project_version_string()
     path = joinpath(ROOT, "Project.toml")
