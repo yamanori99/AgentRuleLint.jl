@@ -1,0 +1,3 @@
+# agentrulelint-expect: project/no-internal-codename reason="near miss placement"
+ok = "clean"
+hit = "INTERNAL_CODENAME"

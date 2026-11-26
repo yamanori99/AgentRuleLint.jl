@@ -1,5 +1,5 @@
 AGENTRULELINT FAIL v0.1.0-DEV base=.AgentRuleLintConfig.toml
-pos=utf8-codepoint-1based violations=83 rules=6
+pos=utf8-codepoint-1based violations=84 rules=6
 
 RULE [AgentRuleLint] analysis-incomplete level=forbid count=2 ceiling=-
 intent: Fail closed when static analysis cannot finish (constant-fold budget).
@@ -8075,11 +8075,12 @@ HIT test/corpus/expect_runic_off_suppress.jl:2:1-2:79 | # agentrulelint-expect:
                                                         name
                                                         reason="must not
                                                         suppress"
-HIT test/corpus/expect_text_anchor_mismatch.sh:1:1-1:71 | #
-                                                          agentrulelint-expect:
-                                                          no-internal-codename
-                                                          reason="must not
-                                                          suppress"
+HIT test/corpus/expect_text_anchor_mismatch.toml:1:1-1:71 | #
+                                                            agentrulelint-expect
+                                                            :
+                                                            no-internal-codename
+                                                            reason="must not
+                                                            suppress"
 HIT test/corpus/expect_text_blank_line.yml:1:1-1:79 | # agentrulelint-expect:
                                                       project/no-internal-codena
                                                       me
@@ -8090,7 +8091,7 @@ HIT test/corpus/expect_text_malformed.toml:1:1-1:62 | # agentrulelint-expect:
                                                       reason=""
 ... (+6 omitted)
 
-RULE [Project] project/no-internal-codename level=deny count=16 ceiling=-
+RULE [Project] project/no-internal-codename level=deny count=17 ceiling=-
 intent: Keep internal codenames out of public package files.
 do_not: Split or dynamically concatenate forbidden strings to bypass the check.
 HIT test/corpus/expect_above_catch_suppress.jl:5:9-5:27 | "INTERNAL_CODENAME"
@@ -8100,9 +8101,10 @@ HIT test/corpus/expect_blank_line.jl:3:5-3:23 | "INTERNAL_CODENAME"
 HIT test/corpus/expect_empty_reason.jl:3:5-3:23 | "INTERNAL_CODENAME"
 HIT test/corpus/expect_multiline_call_suppress.jl:3:5-3:23 | "INTERNAL_CODENAME"
 HIT test/corpus/expect_runic_off_suppress.jl:3:5-3:23 | "INTERNAL_CODENAME"
-HIT test/corpus/expect_text_anchor_mismatch.sh:2:6-2:22 | INTERNAL_CODENAME
+HIT test/corpus/expect_text_anchor_mismatch.toml:2:6-2:22 | INTERNAL_CODENAME
 HIT test/corpus/expect_text_blank_line.yml:3:5-3:21 | INTERNAL_CODENAME
 HIT test/corpus/expect_text_malformed.toml:4:6-4:22 | INTERNAL_CODENAME
+HIT test/corpus/expect_text_near_miss.toml:3:8-3:24 | INTERNAL_CODENAME
 HIT test/corpus/expect_whitespace_reason.jl:2:5-2:23 | "INTERNAL_CODENAME"
 HIT test/corpus/fingerprint_multiline_span.jl:3:5-5:3 | "
 HIT test/corpus/join_three.jl:1:10-1:34 | ["INT", "ERNAL_CODENAME"]

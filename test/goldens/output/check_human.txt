@@ -91,7 +91,7 @@ utf8-line-col)
 │     expect inside runic:off region forbidden
 │     > # agentrulelint-expect: project/no-internal-codename reason="must not s…
 │       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-│   test/corpus/expect_text_anchor_mismatch.sh:1:1-1:71
+│   test/corpus/expect_text_anchor_mismatch.toml:1:1-1:71
 │     expect not anchored to rule target syntax
 │     > # agentrulelint-expect: no-internal-codename reason="must not suppress"
 │       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -106,7 +106,7 @@ utf8-line-col)
 │ ... (+6 omitted)
 └ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
 
-┌ Error: [Project] project/no-internal-codename [deny] (16 violations, ceiling …
+┌ Error: [Project] project/no-internal-codename [deny] (17 violations, ceiling …
 │   intent: Keep internal codenames out of public package files.
 │   do_not: Split or dynamically concatenate forbidden strings to bypass the
 │           check.
@@ -135,7 +135,7 @@ utf8-line-col)
 │     forbidden literal matched (folded)
 │     > x = "INTERNAL_CODENAME"
 │           ~~~~~~~~~~~~~~~~~~~
-│   test/corpus/expect_text_anchor_mismatch.sh:2:6-2:22
+│   test/corpus/expect_text_anchor_mismatch.toml:2:6-2:22
 │     forbidden literal matched
 │     > foo="INTERNAL_CODENAME"
 │            ~~~~~~~~~~~~~~~~~
@@ -147,6 +147,10 @@ utf8-line-col)
 │     forbidden literal matched
 │     > x = "INTERNAL_CODENAME"
 │            ~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_text_near_miss.toml:3:8-3:24
+│     forbidden literal matched
+│     > hit = "INTERNAL_CODENAME"
+│              ~~~~~~~~~~~~~~~~~
 │   test/corpus/expect_whitespace_reason.jl:2:5-2:23
 │     forbidden literal matched (folded)
 │     > x = "INTERNAL_CODENAME"
@@ -370,5 +374,5 @@ utf8-line-col)
 │                      ~~~~
 └ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
 
-Summary: 83 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED
+Summary: 84 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED
 (exit 1)

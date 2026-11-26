@@ -143,10 +143,22 @@
         )
         @test project_hit(rel("expect_text_blank_line.yml"); suppressed = false)
         @test has_diag(
-            rel("expect_text_anchor_mismatch.sh"),
+            rel("expect_text_anchor_mismatch.toml"),
             d -> occursin("not anchored", d.message),
         )
-        @test project_hit(rel("expect_text_anchor_mismatch.sh"); suppressed = false)
+        @test project_hit(rel("expect_text_anchor_mismatch.toml"); suppressed = false)
+        # Right rule id, but expect attaches to the clean line above the hit:
+        # project/ anchors accept any non-empty code, so this is unused (not
+        # "not anchored"); the hit stays unsuppressed. Same on the Julia path.
+        @test has_diag(
+            rel("expect_text_near_miss.toml"),
+            d -> d.rule_id == "expect-audit" && occursin("unused expect", d.message),
+        )
+        @test !has_diag(
+            rel("expect_text_near_miss.toml"),
+            d -> occursin("not anchored", d.message),
+        )
+        @test project_hit(rel("expect_text_near_miss.toml"); suppressed = false)
         @test has_diag(
             rel("expect_text_mixed_group.toml"),
             d -> d.anchor_line == 2 && occursin("not anchored", d.message),

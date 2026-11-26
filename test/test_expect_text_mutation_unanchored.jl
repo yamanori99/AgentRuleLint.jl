@@ -3,7 +3,7 @@
 using AgentRuleLint
 
 const ROOT = normpath(joinpath(@__DIR__, ".."))
-path = joinpath("test", "corpus", "expect_text_anchor_mismatch.sh")
+path = joinpath("test", "corpus", "expect_text_anchor_mismatch.toml")
 res = AgentRuleLint.check(ROOT; paths = [path])
 ok = any(
     d ->
