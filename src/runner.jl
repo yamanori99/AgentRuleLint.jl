@@ -76,15 +76,17 @@ end
 
 function build_file_context(root::AbstractString, relpath::AbstractString)
     parsed = read_parsed_file(root, relpath)
-    if julia_source_path(relpath)
+    tree = if julia_source_path(relpath)
         parse_source(parsed.normalized; filename = parsed.path)
+    else
+        nothing
     end
     expects = if julia_source_path(relpath)
         extract_expect_lines(parsed.normalized)
     else
         extract_expect_lines_text(parsed.normalized)
     end
-    return FileContext(parsed, expects, Violation[])
+    return FileContext(parsed, tree, expects, Violation[])
 end
 
 function is_violation_hit(d::Violation)
@@ -146,7 +148,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
             push!(path_diags, d)
         end
         eligible = if julia_source_path(rel)
-            expects_eligible_for_suppression(fc.expects, fc.parsed.normalized)
+            expects_eligible_for_suppression(fc.expects, fc.parsed.normalized; tree = fc.tree)
         else
             expects_eligible_for_suppression_text(fc.expects, fc.parsed.normalized)
         end

@@ -486,11 +486,12 @@ function _tol_grew(base::Union{Nothing, Float64}, head::Union{Nothing, Float64})
     return head > base
 end
 
-function literal_include_graph(runtests_src::AbstractString)
+function literal_include_graph(runtests_src::AbstractString; tree = nothing)
     paths = String[]
-    tree = parse_source(normalize_source(runtests_src); filename = RUNTESTS_REL)
+    src = normalize_source(runtests_src)
+    greentree = tree === nothing ? parse_source(src; filename = RUNTESTS_REL) : tree
     push!(paths, RUNTESTS_REL)
-    for inc in _top_level_include_paths(tree, normalize_source(runtests_src))
+    for inc in _top_level_include_paths(greentree, src)
         rel = normalize_path(inc)
         !startswith(rel, "test/") && (rel = "test/" * lstrip(rel, '/'))
         push!(paths, rel)
@@ -503,7 +504,8 @@ function _file_test_integrity_syntax(fc::FileContext, policy::PolicyBundle, exit
     !_under_test_tree(path) && return Violation[]
     !julia_source_path(path) && return Violation[]
     source = fc.parsed.normalized
-    tree = parse_source(source; filename = path)
+    tree = fc.tree
+    tree === nothing && return Violation[]
     consts = collect_toplevel_const_bindings(tree, source)
     diags = Violation[]
     _walk_test_integrity_syntax!(diags, policy, path, source, tree, consts, exit_scope)
@@ -516,11 +518,12 @@ function _diff_test_skip_broken!(
         root::AbstractString,
         path::String,
         head_src::AbstractString,
-        base_ref::AbstractString,
+        base_ref::AbstractString;
+        head_tree = nothing,
     )
     sha = git_resolve_commit_sha(root, base_ref)
-    head_tree = parse_source(head_src; filename = path)
-    counts = _count_macro_ops(head_tree, head_src, _SKIP_BROKEN_MACROS)
+    ht = head_tree === nothing ? parse_source(head_src; filename = path) : head_tree
+    counts = _count_macro_ops(ht, head_src, _SKIP_BROKEN_MACROS)
     base_counts = if git_tree_path_exists(root, sha, path)
         base_src = git_show_blob_at_commit(root, sha, path)
         base_tree = parse_source(base_src; filename = path)
@@ -530,7 +533,7 @@ function _diff_test_skip_broken!(
     end
     for m in _SKIP_BROKEN_MACROS
         get(counts, m, 0) <= get(base_counts, m, 0) && continue
-        ln, b0, b1 = _first_macro_line(head_tree, head_src, m)
+        ln, b0, b1 = _first_macro_line(ht, head_src, m)
         ln == 0 && (b0 = 1; b1 = min(4, ncodeunits(head_src)))
         _push_test_integrity!(
             diags,
@@ -550,16 +553,17 @@ function _diff_runtests_removed!(
         policy::PolicyBundle,
         root::AbstractString,
         head_src::AbstractString,
-        base_ref::AbstractString,
+        base_ref::AbstractString;
+        head_tree = nothing,
     )
     path = RUNTESTS_REL
     sha = git_resolve_commit_sha(root, base_ref)
     git_tree_path_exists(root, sha, path) || return
     base_src = git_show_blob_at_commit(root, sha, path)
     base_tree = parse_source(base_src; filename = path)
-    head_tree = parse_source(head_src; filename = path)
+    ht = head_tree === nothing ? parse_source(head_src; filename = path) : head_tree
     base_entries = Set((e.kind, e.key) for e in _runtests_entries(base_tree, base_src))
-    head_entries = Set((e.kind, e.key) for e in _runtests_entries(head_tree, head_src))
+    head_entries = Set((e.kind, e.key) for e in _runtests_entries(ht, head_src))
     for ek in base_entries
         ek in head_entries && continue
         kind, key = ek
@@ -583,11 +587,12 @@ function _diff_approx_tolerances!(
         path::String,
         head_src::AbstractString,
         base_src::AbstractString,
-        changed::Set{Int},
+        changed::Set{Int};
+        head_tree = nothing,
     )
-    head_tree = parse_source(head_src; filename = path)
+    ht = head_tree === nothing ? parse_source(head_src; filename = path) : head_tree
     base_tree = parse_source(base_src; filename = path)
-    head_snaps = _collect_approx_tolerances(head_tree, head_src)
+    head_snaps = _collect_approx_tolerances(ht, head_src)
     base_snaps = _collect_approx_tolerances(base_tree, base_src)
     base_by_key = Dict{String, ApproxTolSnapshot}()
     for s in base_snaps
@@ -638,9 +643,11 @@ function _base_runtests_include_set(root::AbstractString, sha::AbstractString)
     return Set(_normalize_test_include_path(p) for p in literal_include_graph(base_src) if p != RUNTESTS_REL)
 end
 
-function _head_runtests_include_set(head_src::AbstractString)
+function _head_runtests_include_set(head_src::AbstractString; tree = nothing)
     isempty(head_src) && return Set{String}()
-    return Set(_normalize_test_include_path(p) for p in literal_include_graph(head_src) if p != RUNTESTS_REL)
+    return Set(
+        _normalize_test_include_path(p) for p in literal_include_graph(head_src; tree = tree) if p != RUNTESTS_REL
+    )
 end
 
 function _diff_anchor_for_deleted(diff_scope::DiffScope, contexts::Vector{FileContext}, root::AbstractString)
@@ -753,7 +760,14 @@ function _diff_deleted_test_files!(
     sha = git_resolve_commit_sha(root, diff_base)
     anchor_path, anchor_src = _diff_anchor_for_deleted(diff_scope, contexts, root)
     head_rt = _head_runtests_normalized(contexts, root)
-    head_includes = _head_runtests_include_set(head_rt)
+    runtests_tree = nothing
+    for fc in contexts
+        if fc.parsed.path == RUNTESTS_REL
+            runtests_tree = fc.tree
+            break
+        end
+    end
+    head_includes = _head_runtests_include_set(head_rt; tree = runtests_tree)
     base_includes = _base_runtests_include_set(root, sha)
 
     for f in diff_scope.files
@@ -833,7 +847,7 @@ function run_test_integrity(
         fc.parsed.path == RUNTESTS_REL && (runtests_fc = fc)
     end
     if runtests_fc !== nothing
-        for p in literal_include_graph(runtests_fc.parsed.normalized)
+        for p in literal_include_graph(runtests_fc.parsed.normalized; tree = runtests_fc.tree)
             push!(exit_paths, normalize_path(p))
         end
     else
@@ -866,13 +880,36 @@ function run_test_integrity(
             changed = Set{Int}()
         end
         head_src = fc.parsed.normalized
-        _diff_test_skip_broken!(diags, policy, root, path, head_src, diff_base)
+        _diff_test_skip_broken!(
+            diags,
+            policy,
+            root,
+            path,
+            head_src,
+            diff_base;
+            head_tree = fc.tree,
+        )
         if path == RUNTESTS_REL
-            _diff_runtests_removed!(diags, policy, root, head_src, diff_base)
+            _diff_runtests_removed!(
+                diags,
+                policy,
+                root,
+                head_src,
+                diff_base;
+                head_tree = fc.tree,
+            )
         end
         git_tree_path_exists(root, sha, path) || continue
         base_src = git_show_blob_at_commit(root, sha, path)
-        _diff_approx_tolerances!(diags, policy, path, head_src, base_src, changed)
+        _diff_approx_tolerances!(
+            diags,
+            policy,
+            path,
+            head_src,
+            base_src,
+            changed;
+            head_tree = fc.tree,
+        )
     end
     return diags
 end

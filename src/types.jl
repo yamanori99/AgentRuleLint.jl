@@ -196,8 +196,10 @@ struct ParsedFile
     normalized::String
 end
 
+"""Per-file lint context. `tree` is the shared `GreenNode` for `.jl` head sources (`nothing` otherwise)."""
 struct FileContext
     parsed::ParsedFile
+    tree::Union{Nothing, JuliaSyntax.GreenNode}
     expects::Vector{ExpectLine}
     expect_errors::Vector{Violation}
 end
