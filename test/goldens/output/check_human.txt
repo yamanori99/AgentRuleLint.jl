@@ -19,7 +19,7 @@ utf8-line-col)
 │       ~~~~~~~~~
 └ @ AgentRuleLint (run `agentrulelint explain analysis-incomplete` for details)
 
-┌ Error: [AgentRuleLint] expect-audit [forbid] (19 violations, ceiling 0)
+┌ Error: [AgentRuleLint] expect-audit [forbid] (26 violations, ceiling 0)
 │   intent: Keep suppression comments auditable.
 │   do_not: Hide violations with unapproved expects.
 │
@@ -91,17 +91,22 @@ utf8-line-col)
 │     expect inside runic:off region forbidden
 │     > # agentrulelint-expect: project/no-internal-codename reason="must not s…
 │       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-│   test/corpus/expect_whitespace_reason.jl:1:1-1:49
+│   test/corpus/expect_text_anchor_mismatch.toml:1:1-1:71
+│     expect not anchored to rule target syntax
+│     > # agentrulelint-expect: no-internal-codename reason="must not suppress"
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_text_blank_line.yml:1:1-1:79
+│     blank line breaking expect attachment (unused)
+│     > # agentrulelint-expect: project/no-internal-codename reason="should not…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_text_malformed.toml:1:1-1:62
 │     empty reason
-│     > # agentrulelint-expect: expect-audit reason="   "
-│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-│   test/corpus/trailing_expect.jl:1:1-1:58
-│     trailing inline expect
-│     > x = 1 # agentrulelint-expect: expect-audit reason="inline"
-│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│     > # agentrulelint-expect: project/no-internal-codename reason=""
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│ ... (+6 omitted)
 └ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
 
-┌ Error: [Project] project/no-internal-codename [deny] (12 violations, ceiling …
+┌ Error: [Project] project/no-internal-codename [deny] (17 violations, ceiling …
 │   intent: Keep internal codenames out of public package files.
 │   do_not: Split or dynamically concatenate forbidden strings to bypass the
 │           check.
@@ -130,10 +135,30 @@ utf8-line-col)
 │     forbidden literal matched (folded)
 │     > x = "INTERNAL_CODENAME"
 │           ~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_text_anchor_mismatch.toml:2:6-2:22
+│     forbidden literal matched
+│     > foo="INTERNAL_CODENAME"
+│            ~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_text_blank_line.yml:3:5-3:21
+│     forbidden literal matched
+│     > x: "INTERNAL_CODENAME"
+│           ~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_text_malformed.toml:4:6-4:22
+│     forbidden literal matched
+│     > x = "INTERNAL_CODENAME"
+│            ~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_text_near_miss.toml:3:8-3:24
+│     forbidden literal matched
+│     > hit = "INTERNAL_CODENAME"
+│              ~~~~~~~~~~~~~~~~~
 │   test/corpus/expect_whitespace_reason.jl:2:5-2:23
 │     forbidden literal matched (folded)
 │     > x = "INTERNAL_CODENAME"
 │           ~~~~~~~~~~~~~~~~~~~
+│   test/corpus/fingerprint_multiline_span.jl:3:5-5:3
+│     forbidden literal matched (folded)
+│     > x = """
+│           ~
 │   test/corpus/join_three.jl:1:10-1:34
 │     forbidden literal matched (folded)
 │     > x = join(["INT", "ERNAL_CODENAME"], "")
@@ -349,5 +374,5 @@ utf8-line-col)
 │                      ~~~~
 └ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
 
-Summary: 72 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED
+Summary: 84 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED
 (exit 1)

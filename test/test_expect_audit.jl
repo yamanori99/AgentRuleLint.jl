@@ -120,4 +120,66 @@
         src2 = "# agentrulelint-nope\n"
         @test any(d -> occursin("malformed", d[2]), AgentRuleLint.detect_malformed_agentrulelint(src2))
     end
+
+    @testset "text path: extract_expect_lines_text skips malformed" begin
+        src = "# agentrulelint-expect: project/no-internal-codename reason=\"\"\nval = 1\n"
+        @test isempty(AgentRuleLint.extract_expect_lines_text(src))
+        ok_src =
+            "# agentrulelint-expect: project/no-internal-codename reason=\"ok\"\nval = 1\n"
+        got = AgentRuleLint.extract_expect_lines_text(ok_src)
+        @test length(got) == 1
+        @test got[1].rule_ref == "project/no-internal-codename"
+    end
+
+    @testset "text path corpus expect-audit" begin
+        @test project_hit(rel("expect_text_standalone.toml"); suppressed = true)
+        @test !has_diag(
+            rel("expect_text_standalone.toml"),
+            d -> d.rule_id == "expect-audit",
+        )
+        @test has_diag(
+            rel("expect_text_blank_line.yml"),
+            d -> occursin("blank line", d.message),
+        )
+        @test project_hit(rel("expect_text_blank_line.yml"); suppressed = false)
+        @test has_diag(
+            rel("expect_text_anchor_mismatch.toml"),
+            d -> occursin("not anchored", d.message),
+        )
+        @test project_hit(rel("expect_text_anchor_mismatch.toml"); suppressed = false)
+        # Right rule id, but expect attaches to the clean line above the hit:
+        # project/ anchors accept any non-empty code, so this is unused (not
+        # "not anchored"); the hit stays unsuppressed. Same on the Julia path.
+        @test has_diag(
+            rel("expect_text_near_miss.toml"),
+            d -> d.rule_id == "expect-audit" && occursin("unused expect", d.message),
+        )
+        @test !has_diag(
+            rel("expect_text_near_miss.toml"),
+            d -> occursin("not anchored", d.message),
+        )
+        @test project_hit(rel("expect_text_near_miss.toml"); suppressed = false)
+        @test has_diag(
+            rel("expect_text_mixed_group.toml"),
+            d -> d.anchor_line == 2 && occursin("not anchored", d.message),
+        )
+        @test project_hit(rel("expect_text_mixed_group.toml"); suppressed = true)
+        @test has_diag(rel("expect_text_malformed.toml"), d -> occursin("empty reason", d.message))
+        @test has_diag(
+            rel("expect_text_malformed.toml"),
+            d -> occursin("malformed # agentrulelint", d.message),
+        )
+        @test has_diag(
+            rel("expect_text_malformed.toml"),
+            d -> occursin("block comment expect", d.message),
+        )
+        @test project_hit(rel("expect_text_malformed.toml"); suppressed = false)
+    end
+
+    @testset "text path: detect_malformed_agentrulelint_text" begin
+        src = "# agentrulelint-expect: foo reason=\"\"\n# agentrulelint-foo\n"
+        diags = AgentRuleLint.detect_malformed_agentrulelint_text(src)
+        @test any(d -> d[2] == "empty reason", diags)
+        @test any(d -> occursin("malformed # agentrulelint", d[2]), diags)
+    end
 end

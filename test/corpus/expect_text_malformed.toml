@@ -1,0 +1,4 @@
+# agentrulelint-expect: project/no-internal-codename reason=""
+# agentrulelint-foo
+#= agentrulelint-expect: expect-audit reason="nope" =#
+x = "INTERNAL_CODENAME"
