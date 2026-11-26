@@ -7,11 +7,14 @@ const TOP_LEVEL_CONFIG_KEYS = Set(
     [
         "agentrulelint_version",
         "default_format",
+        "exit_severity",
         "max_hits_per_rule",
         "presets",
         "project_rules",
     ]
 )
+const VALID_EXIT_SEVERITY = Set([:forbid, :deny, :warn])
+const DEFAULT_EXIT_SEVERITY = :warn
 const RULE_TABLE_KEYS = Set(["level", "intent", "do_not"])
 const EXPECT_AUDIT_RULE_KEYS = Set(["level", "intent", "do_not", "on_allow_rule"])
 const SILENT_CATCH_RULE_KEYS = Set(["level", "intent", "do_not", "warn_counts_as_handling"])
@@ -463,6 +466,11 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     else
         20
     end
+    exit_sev = if haskey(raw, "exit_severity")
+        _parse_exit_severity(raw["exit_severity"], CONFIG_FILENAME)
+    else
+        DEFAULT_EXIT_SEVERITY
+    end
     presets = if haskey(raw, "presets")
         _parse_preset_list(raw["presets"], "presets")
     else
@@ -485,6 +493,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     return PolicyBundle(
         ver,
         fmt,
+        exit_sev,
         max_hits,
         presets,
         rules,
@@ -641,6 +650,7 @@ function default_policy(root::AbstractString)
     return PolicyBundle(
         ver,
         :human,
+        DEFAULT_EXIT_SEVERITY,
         20,
         String[],
         rules,

@@ -237,7 +237,8 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
 
     vcount = count(is_violation_hit, all_diags)
     scount = count(d -> d.suppressed, all_diags)
-    exit = vcount > 0 ? 1 : 0
+    exit_threshold = resolve_exit_severity(policy; exit_severity = get(kwargs, :exit_severity, nothing))
+    exit = check_exit_code(all_diags, exit_threshold)
     result = CheckResult(
         all_diags,
         true,

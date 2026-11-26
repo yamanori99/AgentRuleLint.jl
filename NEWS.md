@@ -4,6 +4,23 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 
 ## Unreleased (0.1.0-DEV)
 
+### `exit_severity` and `--exit-severity` (JETLS-style)
+
+`check` exit code now respects a minimum severity threshold (default **`warn`**,
+unchanged vs treating every non-`allow` hit as failing).
+
+- CLI: `agentrulelint check --exit-severity=warn|deny|forbid` (default `warn`
+  when omitted).
+- Config: top-level `exit_severity = "warn"` in `.AgentRuleLintConfig.toml`
+  (CLI flag overrides for that run).
+- Findings at level **`forbid`** always fail the check, regardless of threshold
+  (integrity rules, malformed expects, and similar).
+- Unknown values → `ConfigError` (config) or exit `2` (CLI), same as other
+  fail-closed options.
+
+JETLS mapping (approximate): AgentRuleLint `forbid` / `deny` ↔ JETLS `error`;
+`warn` ↔ `warn`; default threshold `warn` matches `jetls check --exit-severity=warn`.
+
 ### **[CI-breaking]** `on_allow_rule = "error"` is a ConfigError
 
 `on_allow_rule` now accepts only the rule-level vocabulary `forbid|deny|warn|allow`.

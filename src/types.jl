@@ -165,6 +165,7 @@ end
 struct PolicyBundle
     agentrulelint_version::VersionNumber
     default_format::Symbol
+    exit_severity::Symbol
     max_hits_per_rule::Int
     presets::Vector{String}
     rules::Dict{String, RuleSpec}

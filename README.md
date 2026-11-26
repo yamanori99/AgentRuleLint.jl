@@ -27,6 +27,7 @@ julia -e 'using Pkg; Pkg.Apps.add(url="https://github.com/yamanori99/AgentRuleLi
 cd path/to/your/repo
 agentrulelint check
 agentrulelint check src
+agentrulelint check --exit-severity=deny
 agentrulelint explain expect-audit
 ```
 
@@ -94,6 +95,11 @@ Project.toml             # package metadata, [workspace], and [apps]
 
 - **Fail-closed**: malformed suppression comments, unknown options, or broken
   rule state fail the check instead of silently passing.
+- **Exit threshold**: `check` fails (exit `1`) when any active finding is at or
+  above the configured `exit_severity` (`warn`, `deny`, or `forbid`; default
+  `warn`, aligned with JETLS `jetls check --exit-severity=warn`). Findings at
+  level `forbid` always fail regardless of threshold. Set `exit_severity` in
+  `.AgentRuleLintConfig.toml` or pass `--exit-severity` on the CLI.
 - **Syntax over regex**: inspect parsed Julia syntax with lightweight constant
   folding rather than brittle text patterns, without full type inference.
 - **Assume evasion**: rules target surface-level workarounds (split literals,

@@ -1,5 +1,24 @@
 # CLI output formats
 
+## Exit codes (`check`)
+
+Exit code `0` means no finding met the **exit threshold** for this run (not
+necessarily “zero diagnostics printed”). Default threshold is **`warn`**: any
+active finding at `warn`, `deny`, or `forbid` fails; `allow` and suppressed hits
+do not.
+
+| Source | Option | Default |
+| --- | --- | --- |
+| CLI | `--exit-severity=warn\|deny\|forbid` | `warn` when omitted |
+| Config | `exit_severity = "warn"` in `.AgentRuleLintConfig.toml` | `warn` when omitted |
+
+CLI `--exit-severity` overrides config for that invocation. Unknown values exit
+`2` (fail-closed). Findings at level **`forbid`** always fail the check under
+every allowed threshold (integrity / expect-audit and similar).
+
+JETLS analogue: `forbid` / `deny` map loosely to JETLS `error`; `warn` to `warn`;
+default `warn` matches `jetls check --exit-severity=warn`.
+
 ## JSON (`--format=json`)
 
 AgentRuleLint writes **JSONL**: one JSON object per line, always in this order:
