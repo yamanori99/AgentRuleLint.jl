@@ -1,3 +1,5 @@
+include("mutation_subprocess_helpers.jl")
+
 @testset "unsafe-boundary rule" begin
     _UNSAFE_POSITIVE = String[
         "unsafe_ccall.jl",
@@ -43,14 +45,8 @@
         """
     end
 
-    function _mutation_detector_subprocess(
-            repo_root::AbstractString,
-            source_relpath::AbstractString,
-            patched::AbstractString;
-            corpus::AbstractString,
-            msg_needle::AbstractString,
-        )
-        script = root -> join(
+    function _mutation_detector_script(root::AbstractString, corpus::AbstractString, msg_needle::AbstractString)
+        return join(
             [
                 "using AgentRuleLint",
                 "r = AgentRuleLint.check($(repr(root)); paths=[joinpath(\"test\", \"corpus\", $corpus)])",
@@ -59,18 +55,21 @@
             ],
             '\n',
         )
-        tmp = mktempdir()
-        try
-            cp(repo_root, tmp; force = true)
-            base_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script(tmp))`
-            before_ok = success(run(ignorestatus(setenv(base_cmd; dir = repo_root))))
-            write(joinpath(tmp, source_relpath), patched)
-            patch_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script(tmp))`
-            after_ok = success(run(ignorestatus(setenv(patch_cmd; dir = repo_root))))
-            return (!before_ok, after_ok)
-        finally
-            rm(tmp, recursive = true, force = true)
-        end
+    end
+
+    function _mutation_patch_disabled_in_child(
+            tmp::AbstractString,
+            repo_root::AbstractString,
+            source_relpath::AbstractString,
+            patched::AbstractString,
+            orig::AbstractString;
+            corpus::AbstractString,
+            msg_needle::AbstractString,
+        )
+        write(joinpath(tmp, source_relpath), orig)
+        write(joinpath(tmp, source_relpath), patched)
+        script = _mutation_detector_script(tmp, corpus, msg_needle)
+        return _mutation_child_ok(tmp, script; dir = repo_root)
     end
 
     repo_root = dirname(@__DIR__)
@@ -143,6 +142,8 @@
         builtin_src = joinpath(repo_root, "src", "rules", "builtin_rules.jl")
         unsafe_orig = read(unsafe_src, String)
         builtin_orig = read(builtin_src, String)
+        shared_tmp = mktempdir()
+        cp(repo_root, shared_tmp; force = true)
 
         cases = [
             (
@@ -212,90 +213,96 @@
             ),
         ]
 
-        for (label, _, orig, pair, corpus, needle) in cases
-            @testset "$label" begin
-                if label == "allow_modules gating"
-                    cfg_root = mktempdir()
-                    cp(repo_root, cfg_root; force = true)
+        try
+            for (label, _, orig, pair, corpus, needle) in cases
+                @testset "$label" begin
+                    if label == "allow_modules gating"
+                        cfg_root = mktempdir()
+                        try
+                            cp(repo_root, cfg_root; force = true)
+                            write(
+                                joinpath(cfg_root, ".AgentRuleLintConfig.toml"),
+                                _minimal_config_with_unsafe("allow_modules = [\"BoundarySafe\"]\n"),
+                            )
+                            allow_script = join(
+                                [
+                                    "using AgentRuleLint",
+                                    "root = $(repr(cfg_root))",
+                                    "p = joinpath(root, \"test\", \"corpus\", \"unsafe_allow_module.jl\")",
+                                    "r = AgentRuleLint.check(root; paths=[p])",
+                                    "h = filter(d -> d.rule_id == \"unsafe-boundary\", r.violations)",
+                                    "exit(isempty(h) ? 0 : 1)",
+                                ],
+                                '\n',
+                            )
+                            res = AgentRuleLint.check(
+                                cfg_root;
+                                paths = [joinpath("test", "corpus", "unsafe_allow_module.jl")],
+                            )
+                            hits = filter(d -> d.rule_id == "unsafe-boundary", res.violations)
+                            @test isempty(hits)
+                            patched = replace(orig, pair)
+                            write(joinpath(shared_tmp, "src", "rules", "unsafe_boundary.jl"), patched)
+                            @test !_mutation_child_ok(shared_tmp, allow_script; dir = repo_root)
+                        finally
+                            rm(cfg_root, recursive = true, force = true)
+                            write(joinpath(shared_tmp, "src", "rules", "unsafe_boundary.jl"), unsafe_orig)
+                        end
+                    else
+                        @test !isempty(_unsafe_hits(repo_root, corpus))
+                        patched = replace(orig, pair)
+                        disabled = _mutation_patch_disabled_in_child(
+                            shared_tmp,
+                            repo_root,
+                            "src/rules/unsafe_boundary.jl",
+                            patched,
+                            unsafe_orig;
+                            corpus = repr(corpus),
+                            msg_needle = needle,
+                        )
+                        @test disabled
+                    end
+                end
+            end
+
+            @testset "allow_globs gating" begin
+                globs_root = mktempdir()
+                try
+                    cp(repo_root, globs_root; force = true)
                     write(
-                        joinpath(cfg_root, ".AgentRuleLintConfig.toml"),
-                        _minimal_config_with_unsafe("allow_modules = [\"BoundarySafe\"]\n"),
+                        joinpath(globs_root, ".AgentRuleLintConfig.toml"),
+                        _minimal_config_with_unsafe("allow_globs = [\"**\"]\n"),
                     )
-                    script = join(
+                    globs_script = join(
                         [
                             "using AgentRuleLint",
-                            "root = $(repr(cfg_root))",
-                            "p = joinpath(root, \"test\", \"corpus\", \"unsafe_allow_module.jl\")",
-                            "r = AgentRuleLint.check(root; paths=[p])",
+                            "r = AgentRuleLint.check($(repr(globs_root)); paths=[joinpath(\"test\", \"corpus\", \"unsafe_ccall.jl\")])",
                             "h = filter(d -> d.rule_id == \"unsafe-boundary\", r.violations)",
                             "exit(isempty(h) ? 0 : 1)",
                         ],
                         '\n',
                     )
-                    tmp = mktempdir()
-                    try
-                        cp(repo_root, tmp; force = true)
-                        base_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script)`
-                        @test success(run(ignorestatus(setenv(base_cmd; dir = repo_root))))
-                        patched = replace(orig, pair)
-                        write(joinpath(tmp, "src", "rules", "unsafe_boundary.jl"), patched)
-                        patch_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script)`
-                        @test !success(run(ignorestatus(setenv(patch_cmd; dir = repo_root))))
-                    finally
-                        rm(tmp, recursive = true, force = true)
-                        rm(cfg_root, recursive = true, force = true)
-                    end
-                else
-                    patched = replace(orig, pair)
-                    found_before, missed_after = _mutation_detector_subprocess(
-                        repo_root,
-                        "src/rules/unsafe_boundary.jl",
-                        patched;
-                        corpus = repr(corpus),
-                        msg_needle = needle,
+                    res = AgentRuleLint.check(
+                        globs_root;
+                        paths = [joinpath("test", "corpus", "unsafe_ccall.jl")],
                     )
-                    @test found_before
-                    @test missed_after
-                end
-            end
-        end
-
-        @testset "allow_globs gating" begin
-            globs_root = mktempdir()
-            try
-                cp(repo_root, globs_root; force = true)
-                write(
-                    joinpath(globs_root, ".AgentRuleLintConfig.toml"),
-                    _minimal_config_with_unsafe("allow_globs = [\"**\"]\n"),
-                )
-                script = join(
-                    [
-                        "using AgentRuleLint",
-                        "r = AgentRuleLint.check($(repr(globs_root)); paths=[joinpath(\"test\", \"corpus\", \"unsafe_ccall.jl\")])",
-                        "h = filter(d -> d.rule_id == \"unsafe-boundary\", r.violations)",
-                        "exit(isempty(h) ? 0 : 1)",
-                    ],
-                    '\n',
-                )
-                tmp = mktempdir()
-                try
-                    cp(repo_root, tmp; force = true)
-                    base_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script)`
-                    @test success(run(ignorestatus(setenv(base_cmd; dir = repo_root))))
+                    hits = filter(d -> d.rule_id == "unsafe-boundary", res.violations)
+                    @test isempty(hits)
                     patched = replace(
                         builtin_orig,
                         "path_matches_glob(fc.parsed.path, cfg.allow_globs) && return diags" =>
                             "false && return diags",
                     )
-                    write(joinpath(tmp, "src", "rules", "builtin_rules.jl"), patched)
-                    patch_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script)`
-                    @test !success(run(ignorestatus(setenv(patch_cmd; dir = repo_root))))
+                    write(joinpath(shared_tmp, "src", "rules", "builtin_rules.jl"), builtin_orig)
+                    write(joinpath(shared_tmp, "src", "rules", "builtin_rules.jl"), patched)
+                    @test !_mutation_child_ok(shared_tmp, globs_script; dir = repo_root)
                 finally
-                    rm(tmp, recursive = true, force = true)
+                    rm(globs_root, recursive = true, force = true)
+                    write(joinpath(shared_tmp, "src", "rules", "builtin_rules.jl"), builtin_orig)
                 end
-            finally
-                rm(globs_root, recursive = true, force = true)
             end
+        finally
+            rm(shared_tmp, recursive = true, force = true)
         end
 
     end

@@ -1,3 +1,5 @@
+include("mutation_subprocess_helpers.jl")
+
 function _shell_config(extra::AbstractString = "")
     v = string(pkgversion(AgentRuleLint))
     return """
@@ -31,14 +33,8 @@ function _shell_hits(root::AbstractString, relpath::AbstractString)
 end
 
 @testset "shell-safety process-pattern preset" begin
-    function _shell_mutation_subprocess(
-            repo_root::AbstractString,
-            _orig::AbstractString,
-            patched::AbstractString,
-            corpus::AbstractString,
-            needle::AbstractString,
-        )
-        script = root -> join(
+    function _shell_mutation_script(root::AbstractString, needle::AbstractString)
+        return join(
             [
                 "using AgentRuleLint",
                 "v = string(pkgversion(AgentRuleLint))",
@@ -49,19 +45,16 @@ end
             ],
             '\n',
         )
-        tmp = mktempdir()
-        try
-            cp(repo_root, tmp; force = true)
-            write(joinpath(tmp, "bad.jl"), read(joinpath(CORPUS, corpus), String))
-            base_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script(tmp))`
-            before_ok = success(run(ignorestatus(setenv(base_cmd; dir = repo_root))))
-            write(joinpath(tmp, "src", "rules", "shell_safety.jl"), patched)
-            patch_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script(tmp))`
-            after_ok = success(run(ignorestatus(setenv(patch_cmd; dir = repo_root))))
-            return (!before_ok, after_ok)
-        finally
-            rm(tmp, recursive = true, force = true)
-        end
+    end
+
+    function _shell_active_hits(root::AbstractString, corpus::AbstractString, needle::AbstractString)
+        write(joinpath(root, "bad.jl"), read(joinpath(CORPUS, corpus), String))
+        write(
+            joinpath(root, ".AgentRuleLintConfig.toml"),
+            _shell_config("presets = [\"shell-safety\"]\n\n"),
+        )
+        hits = _shell_hits(root, "bad.jl")
+        return any(d -> occursin(needle, d.message), hits)
     end
 
     repo_root = dirname(@__DIR__)
@@ -151,6 +144,9 @@ end
     @testset "mutation: detector patches (subprocess)" begin
         src = joinpath(repo_root, "src", "rules", "shell_safety.jl")
         orig = read(src, String)
+        shared_tmp = mktempdir()
+        cp(repo_root, shared_tmp; force = true)
+        scratch = mktempdir()
         cases = [
             ("pkill", r"\\bpkill\\b" => "pkill_OFF", "shell_pkill_backtick.jl", "pkill"),
             ("killall", r"\\bkillall\\b" => "killall_OFF", "shell_killall.jl", "killall"),
@@ -158,13 +154,21 @@ end
             ("ssh", r"\\bssh\\b.*\\s--\\s" => "ssh_OFF", "shell_ssh_remote.jl", "ssh"),
             ("sh -c", "_shell_dash_c_label(cmd)" => "nothing", "shell_sh_dash_c.jl", "sh -c"),
         ]
-        for (label, pair, corpus, needle) in cases
-            @testset "$label" begin
-                patched = replace(orig, pair)
-                found, missed = _shell_mutation_subprocess(repo_root, orig, patched, corpus, needle)
-                @test found
-                @test missed
+        try
+            for (label, pair, corpus, needle) in cases
+                @testset "$label" begin
+                    @test _shell_active_hits(scratch, corpus, needle)
+                    write(joinpath(shared_tmp, "bad.jl"), read(joinpath(CORPUS, corpus), String))
+                    patched = replace(orig, pair)
+                    write(joinpath(shared_tmp, "src", "rules", "shell_safety.jl"), orig)
+                    write(joinpath(shared_tmp, "src", "rules", "shell_safety.jl"), patched)
+                    script = _shell_mutation_script(shared_tmp, needle)
+                    @test _mutation_child_ok(shared_tmp, script; dir = repo_root)
+                end
             end
+        finally
+            rm(shared_tmp, recursive = true, force = true)
+            rm(scratch, recursive = true, force = true)
         end
     end
 end
