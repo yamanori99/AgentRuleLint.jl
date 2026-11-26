@@ -350,7 +350,7 @@ function _load_rules_table(raw::Dict)
             )
         end
         eff_level = id in INTEGRITY_FORBID_RULES ? :forbid : level
-        rules[id] = RuleSpec(id, origin, eff_level, intent, do_not, extra)
+        rules[id] = fill_builtin_docs!(RuleSpec(id, origin, eff_level, intent, do_not, extra))
     end
     return rules
 end

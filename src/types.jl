@@ -47,6 +47,17 @@ struct Violation
     do_not::String
 end
 
+struct CeilingEntry
+    violations::Dict{String, Dict{String, Int}}
+    expects::Dict{String, Dict{String, Int}}
+end
+
+function Base.isequal(a::CeilingEntry, b::CeilingEntry)
+    return isequal(a.violations, b.violations) && isequal(a.expects, b.expects)
+end
+
+Base.:(==)(a::CeilingEntry, b::CeilingEntry) = isequal(a, b)
+
 struct CheckResult
     violations::Vector{Violation}
     complete::Bool
@@ -56,6 +67,31 @@ struct CheckResult
     max_hits_per_rule::Int
     suppressed_count::Int
     violation_count::Int
+    ceilings::CeilingEntry
+
+    function CheckResult(
+            violations::Vector{Violation},
+            complete::Bool,
+            exit_code::Int,
+            config_source::ConfigSource,
+            default_format::Symbol,
+            max_hits_per_rule::Int,
+            suppressed_count::Int,
+            violation_count::Int;
+            ceilings::CeilingEntry = CeilingEntry(Dict(), Dict()),
+        )
+        return new(
+            violations,
+            complete,
+            exit_code,
+            config_source,
+            default_format,
+            max_hits_per_rule,
+            suppressed_count,
+            violation_count,
+            ceilings,
+        )
+    end
 end
 
 function Base.isequal(a::CheckResult, b::CheckResult)
@@ -192,11 +228,6 @@ struct PolicyBundle
     config_source::ConfigSource
     project_toml_policy::String
     protected_path_globs::Vector{ProtectedGlobEntry}
-end
-
-struct CeilingEntry
-    violations::Dict{String, Dict{String, Int}}
-    expects::Dict{String, Dict{String, Int}}
 end
 
 struct ExpectLine

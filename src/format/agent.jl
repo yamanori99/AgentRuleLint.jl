@@ -9,16 +9,9 @@ function format_agent(
     width = resolve_output_width(io; output_width = output_width)
     hit_cap = something(max_hits, result.max_hits_per_rule)
     buf = IOBuffer()
-    policy = resolve_policy(root)
-    builtin_registry = build_builtin_registry(policy)
-    ceilings = load_ceilings(root, policy)
+    ceilings = result.ceilings
     base = config_source_base_label(result.config_source)
-    active = violations_for_display(
-        active_violations(result.violations),
-        policy,
-        builtin_registry,
-    )
-    groups = violations_by_rule(active)
+    groups = violations_by_rule(active_violations(result.violations))
     rule_hits = length(groups)
     status = result.exit_code == 0 ? "OK" : "FAIL"
     ver = something(agentrulelint_version, string(AGENTRULELINT_VERSION))

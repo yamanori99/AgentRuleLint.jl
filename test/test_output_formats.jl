@@ -40,7 +40,8 @@ function human_fixture_result(paths::Vector{String})
         res.default_format,
         res.max_hits_per_rule,
         res.suppressed_count,
-        res.violation_count,
+        res.violation_count;
+        ceilings = res.ceilings,
     )
 end
 
