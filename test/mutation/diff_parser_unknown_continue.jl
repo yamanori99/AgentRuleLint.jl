@@ -16,7 +16,7 @@ run_source_mutation(;
             exit(0)
         end
         """
-        cmd = `julia --compiled-modules=no --startup-file=no --project=$(root) -e $script`
+        cmd = _julia_project_cmd(root, "-e", script)
         return !success(run(ignorestatus(setenv(cmd; dir = root))))
     end,
 )

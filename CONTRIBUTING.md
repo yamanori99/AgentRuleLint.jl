@@ -142,11 +142,30 @@ Runic checks use an isolated env at `test/runic_env/` (CI and local tests).
 - Document new rules with `intent` and `do_not` in config samples and `explain`.
 - Do not add rules that duplicate JETLS, Aqua, ExplicitImports, or Runic.
 
+## Mutation harnesses
+
+Standalone detector mutations live under `test/mutation/` (one script per case,
+plus `mutation_lib.jl`). They patch a **temp copy** of the repo only—never real
+`src/`. Run them locally with Julia 1.13:
+
+```bash
+julia +1.13 --startup-file=no --project=. test/mutation/run_all.jl
+```
+
+`run_all.jl` discovers every `test/mutation/*.jl` except `mutation_lib.jl` /
+itself (glob, not a hand list). CI runs the same entry point in the
+**Mutation (Julia 1.13, ubuntu-latest, x64)** job on every `pull_request` and
+`push` to `main`.
+
+A new or changed detector should ship with a mutation file in that directory.
+After the job exists, a repository owner must add that job name to branch
+protection as a **required** check (agents do not change repo settings).
+
 ## Pull requests
 
 - Keep changes focused; one lever per PR when hill-climbing rule behavior.
 - Include or update corpus tests for behavior changes.
-- Ensure CI passes (Julia 1.13 tests, Aqua, Runic invariance).
+- Ensure CI passes (Julia 1.13 tests, Aqua, Runic invariance, Mutation).
 
 ### Interim: merging changes that trip `protected-paths`
 

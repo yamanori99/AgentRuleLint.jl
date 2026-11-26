@@ -5,8 +5,11 @@ run_source_mutation(;
     rel_path = "src/format/report.jl",
     needle = "policy = resolve_policy(root)",
     replacement = "policy = try resolve_policy(root) catch; default_policy(root) end",
+    # After inactive-builtin explain, both explain_rule_unknown and explain_rule
+    # call resolve_policy; patching only the first leaves ConfigError intact.
+    replace_count = typemax(Int),
     verify = root -> begin
-        cmd = `julia --compiled-modules=no --startup-file=no --project=$(root) test/test_explain_invalid_config.jl`
+        cmd = _julia_project_cmd(root, "test/test_explain_invalid_config.jl")
         return !success(run(ignorestatus(setenv(cmd; dir = root))))
     end,
 )
