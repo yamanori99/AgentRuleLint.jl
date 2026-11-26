@@ -86,3 +86,8 @@ Migrate notes:
 - Scripts or goldens that expected exit 2 for `explain shell-safety/process-pattern`,
   `explain test-integrity`, or `explain unsafe-boundary` under a config that does not
   enable them must expect exit 0 and the new `status:` / default-level lines instead.
+
+#### Built-in `intent` / `do_not` when config omits them
+
+Rules whose config omits `intent`/`do_not` now show the built-in text in `explain`,
+human, and agent output (previously empty).
