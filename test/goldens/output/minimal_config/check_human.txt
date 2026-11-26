@@ -105,9 +105,10 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLintConfig.toml, pos: ut
 └ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
 
 ┌ Error: [Preset] shell-safety/process-pattern [deny] (12 violations, ceiling 0)
-│   intent: Reject hazardous shell patterns in statically known Cmd literals.
-│   do_not: Split or dynamically assemble command strings to bypass constant
-│           folding.
+│   intent: Reject hazardous process patterns in statically known shell/Cmd
+│           literals (pkill, killall, remote shells, sudo).
+│   do_not: Split command names ("pk" * "ill"), alias binaries, or build Cmd
+│           from runtime values to evade folding.
 │
 │   test/corpus/shell_base_cmd_pkill.jl:2:18-2:31
 │     hazardous shell pattern (pkill)
@@ -263,8 +264,12 @@ details)
 └ @ AgentRuleLint (run `agentrulelint explain test-integrity` for details)
 
 ┌ Warning: [AgentRuleLint] unsafe-boundary [warn] (18 violations, ceiling 0)
-│   intent: Keep runtime evaluation and FFI inside reviewed boundaries.
-│   do_not: Hide eval, ccall, or unsafe_* outside allow_modules / allow_globs.
+│   intent: Keep runtime evaluation, metaprogramming escapes, and FFI calls
+│           inside reviewed module or path boundaries.
+│   do_not: Alias Core.eval to a local name, pass
+│           eval/Meta.parse/ccall/invokelatest as values, split strings,
+│           Expr(:call,:eval,...), or hide calls outside allow_modules /
+│           allow_globs.
 │
 │   test/corpus/unsafe_allow_module.jl:3:5-3:28
 │     ccall boundary escape

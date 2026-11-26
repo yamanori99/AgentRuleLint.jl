@@ -1,8 +1,3 @@
-const _UNSAFE_BOUNDARY_STRICT_INTENT =
-    "Flag `@inbounds`, `@generated`, and `@assume_effects` unless opt-in preset is enabled."
-const _UNSAFE_BOUNDARY_STRICT_DO_NOT =
-    "Rely on core `unsafe-boundary` alone when skipping strict macro checks."
-
 const _UNSAFE_BOUNDARY_STRICT_EXPLAIN_ANCHOR = """
 `@inbounds`, `@generated`, or `@assume_effects` (including qualified `Base.@assume_effects`).
 Wrong `@inbounds` is undefined behavior; on many hot paths bounds checks are nearly free.
@@ -25,8 +20,8 @@ const UNSAFE_BOUNDARY_STRICT_RULE_DEF = RuleDef(
     UNSAFE_BOUNDARY_STRICT_PRESET_ID,
     :preset,
     :warn,
-    _UNSAFE_BOUNDARY_STRICT_INTENT,
-    _UNSAFE_BOUNDARY_STRICT_DO_NOT,
+    "Flag `@inbounds`, `@generated`, and `@assume_effects` unless opt-in preset is enabled.",
+    "Rely on core `unsafe-boundary` alone when skipping strict macro checks.",
     Dict{Symbol, String}(),
     "unsafe_boundary_strict.jl",
     "test_unsafe_boundary.jl",

@@ -8087,9 +8087,10 @@ HIT test/corpus/trailing_expect.jl:1:1-1:58 | x = 1 # agentrulelint-expect:
                                               expect-audit reason="inline"
 
 RULE [Preset] shell-safety/process-pattern level=deny count=12 ceiling=-
-intent: Reject hazardous shell patterns in statically known Cmd literals.
-do_not: Split or dynamically assemble command strings to bypass constant
-        folding.
+intent: Reject hazardous process patterns in statically known shell/Cmd literals
+        (pkill, killall, remote shells, sudo).
+do_not: Split command names ("pk" * "ill"), alias binaries, or build Cmd from
+        runtime values to evade folding.
 HIT test/corpus/shell_base_cmd_pkill.jl:2:18-2:31 | ["pkill", "x"]
 HIT test/corpus/shell_bash_lc.jl:2:9-2:28 | `bash -lc "echo hi"`
 HIT test/corpus/shell_bash_norc_c.jl:2:9-2:34 | `bash --norc -c "echo hi"`
@@ -8137,8 +8138,11 @@ HIT test/corpus/test_integrity_trivial_true.jl:1:1-1:10 | @test true
 HIT test/corpus/test_integrity_trivial_true.jl:2:1-2:12 | @test 1 == 1
 
 RULE [AgentRuleLint] unsafe-boundary level=warn count=18 ceiling=-
-intent: Keep runtime evaluation and FFI inside reviewed boundaries.
-do_not: Hide eval, ccall, or unsafe_* outside allow_modules / allow_globs.
+intent: Keep runtime evaluation, metaprogramming escapes, and FFI calls inside
+        reviewed module or path boundaries.
+do_not: Alias Core.eval to a local name, pass eval/Meta.parse/ccall/invokelatest
+        as values, split strings, Expr(:call,:eval,...), or hide calls outside
+        allow_modules / allow_globs.
 HIT test/corpus/unsafe_allow_module.jl:3:5-3:28 | ccall(:getpid, Cint, ())
 HIT test/corpus/unsafe_ccall.jl:2:5-2:35 | ccall(:exit, Cvoid, (Cint,), 0)
 HIT test/corpus/unsafe_default_kwarg.jl:2:20-2:33 | unsafe_load(p)

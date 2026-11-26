@@ -1,10 +1,5 @@
 using JuliaSyntax: GreenNode, head, is_infix_op_call, span
 
-const _UNSAFE_BOUNDARY_INTENT =
-    "Keep runtime evaluation, metaprogramming escapes, and FFI calls inside reviewed module or path boundaries."
-const _UNSAFE_BOUNDARY_DO_NOT =
-    "Alias Core.eval to a local name, pass eval/Meta.parse/ccall/invokelatest as values, split strings, Expr(:call,:eval,...), or hide calls outside allow_modules / allow_globs."
-
 const _INDIRECT_EVAL_MODULES = Set(["Base", "Core"])
 
 const _ALLOWED_BOUNDARY_QUALIFIERS = Set(["", "Base", "Core", "Meta", "Base.Meta", "Core.Meta"])
@@ -535,8 +530,8 @@ function diagnose_unsafe_boundary(
         eff_level::Symbol,
     )
     cfg = policy.unsafe_boundary
-    intent = isempty(cfg.intent) ? _UNSAFE_BOUNDARY_INTENT : cfg.intent
-    do_not = isempty(cfg.do_not) ? _UNSAFE_BOUNDARY_DO_NOT : cfg.do_not
+    intent = isempty(cfg.intent) ? UNSAFE_BOUNDARY_RULE_DEF.intent : cfg.intent
+    do_not = isempty(cfg.do_not) ? UNSAFE_BOUNDARY_RULE_DEF.do_not : cfg.do_not
     return _diagnose_unsafe_boundary_macros(
         fc,
         cfg,
@@ -558,12 +553,12 @@ function diagnose_unsafe_boundary_strict(
     if policy.unsafe_boundary.active
         cfg = policy.unsafe_boundary
         rule_id = "unsafe-boundary"
-        intent = isempty(cfg.intent) ? _UNSAFE_BOUNDARY_INTENT : cfg.intent
-        do_not = isempty(cfg.do_not) ? _UNSAFE_BOUNDARY_DO_NOT : cfg.do_not
+        intent = isempty(cfg.intent) ? UNSAFE_BOUNDARY_RULE_DEF.intent : cfg.intent
+        do_not = isempty(cfg.do_not) ? UNSAFE_BOUNDARY_RULE_DEF.do_not : cfg.do_not
     else
         rule_id = UNSAFE_BOUNDARY_STRICT_PRESET_ID
-        intent = isempty(strict_cfg.intent) ? _UNSAFE_BOUNDARY_STRICT_INTENT : strict_cfg.intent
-        do_not = isempty(strict_cfg.do_not) ? _UNSAFE_BOUNDARY_STRICT_DO_NOT : strict_cfg.do_not
+        intent = isempty(strict_cfg.intent) ? UNSAFE_BOUNDARY_STRICT_RULE_DEF.intent : strict_cfg.intent
+        do_not = isempty(strict_cfg.do_not) ? UNSAFE_BOUNDARY_STRICT_RULE_DEF.do_not : strict_cfg.do_not
     end
     return _diagnose_unsafe_boundary_macros(
         fc,
@@ -606,8 +601,8 @@ const UNSAFE_BOUNDARY_RULE_DEF = RuleDef(
     "unsafe-boundary",
     :agentrulelint,
     :warn,
-    "Keep runtime evaluation and FFI inside reviewed boundaries.",
-    "Hide eval, ccall, or unsafe_* outside allow_modules / allow_globs.",
+    "Keep runtime evaluation, metaprogramming escapes, and FFI calls inside reviewed module or path boundaries.",
+    "Alias Core.eval to a local name, pass eval/Meta.parse/ccall/invokelatest as values, split strings, Expr(:call,:eval,...), or hide calls outside allow_modules / allow_globs.",
     Dict{Symbol, String}(),
     "unsafe_boundary.jl",
     "test_unsafe_boundary.jl",

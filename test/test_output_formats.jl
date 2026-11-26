@@ -316,8 +316,8 @@ end
                 """,
             )
             shell = AgentRuleLint.explain_rule("shell-safety/process-pattern"; root = dir)
-            @test occursin("Reject hazardous shell patterns", shell)
-            @test occursin("Split or dynamically assemble command strings", shell)
+            @test occursin("pkill, killall, remote shells, sudo", shell)
+            @test occursin("pk\" * \"ill", shell)
         finally
             rm(dir, recursive = true, force = true)
         end
