@@ -59,7 +59,8 @@ function _run_project_rules_julia!(
     )
     path = fc.parsed.path
     source = fc.parsed.normalized
-    tree = parse_source(source; filename = path)
+    tree = fc.tree
+    tree === nothing && return nothing
     collected = collect_folded_string_exprs(tree, source)
     for lit in pr.forbid_literals
         seen_spans = Set{Tuple{Int, Int}}()

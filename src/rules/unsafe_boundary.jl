@@ -480,7 +480,8 @@ function diagnose_unsafe_boundary(
     )
     cfg = policy.unsafe_boundary
     source = fc.parsed.normalized
-    tree = parse_source(source; filename = fc.parsed.path)
+    tree = fc.tree
+    tree === nothing && return Violation[]
     ctx = UnsafeBoundaryWalk(
         source,
         cfg.allow_modules,

@@ -189,6 +189,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     end
 
     include("test_fingerprint_stability.jl")
+    include("test_shared_parse_tree.jl")
     include("test_rule_registration.jl")
     include("test_output_goldens.jl")
     include("test_exit_codes.jl")

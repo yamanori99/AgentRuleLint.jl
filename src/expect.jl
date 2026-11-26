@@ -361,7 +361,7 @@ function expect_audit_diagnostics(fc::FileContext, policy::PolicyBundle)
     end
 
     runic_regions = runic_off_regions(source)
-    call_arg_lines = multiline_call_interior_lines(source)
+    call_arg_lines = multiline_call_interior_lines(source; tree = fc.tree)
 
     for ex in fc.expects
         if line_in_runic_off_region(ex.line, runic_regions)
