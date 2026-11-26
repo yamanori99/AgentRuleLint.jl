@@ -1,0 +1,83 @@
+name: Daily
+
+# Cross-platform smoke: scheduled signal only (never required for merge).
+on:
+  schedule:
+    - cron: "23 4 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Pkg.test (${{ matrix.julia-version }}, ${{ matrix.os }})
+    continue-on-error: ${{ matrix.julia-version == '~1.14.0-0' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - windows-latest
+          # Xcode 27 toolchain image (arm64): actions/runner-images images/macos/xcode-27-arm64-Readme.md
+          - xcode-27
+        julia-version:
+          - "1.13"
+          - "~1.14.0-0"
+    permissions:
+      contents: read
+      actions: write # julia-depot-cache save on main push (no-op on schedule)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: julia-actions/setup-julia@da908477b5db94c10ffce8cfea9f2b3b9d5db687 # v3.0.3
+        with:
+          version: ${{ matrix.julia-version }}
+
+      - uses: ./.github/actions/julia-depot-cache # zizmor: ignore[self-repository]
+        with:
+          cache-scratchspaces: false
+
+      - name: Instantiate main project
+        shell: bash
+        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+      - name: Instantiate Runic test env
+        shell: bash
+        run: julia --startup-file=no --project=test/runic_env -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+      - name: Run tests
+        shell: bash
+        run: julia --startup-file=no --project=. --color=yes -e 'using Pkg; Pkg.test()'
+
+  mutation:
+    name: Mutation (Julia 1.13, ubuntu-latest, x64)
+    permissions:
+      contents: read
+      actions: write # julia-depot-cache save on main push (no-op on schedule)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: julia-actions/setup-julia@da908477b5db94c10ffce8cfea9f2b3b9d5db687 # v3.0.3
+        with:
+          version: "1.13"
+
+      - uses: ./.github/actions/julia-depot-cache # zizmor: ignore[self-repository]
+        with:
+          cache-scratchspaces: false
+
+      - name: Instantiate main project
+        shell: bash
+        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+      - name: Run mutation harnesses
+        shell: bash
+        run: julia --startup-file=no --project=. test/mutation/run_all.jl
