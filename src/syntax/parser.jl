@@ -1,21 +1,14 @@
 const PARSER_TREE = JuliaSyntax.GreenNode
 
-# Test-only observer (Ref holds `nothing` or a callable). Hot path is one pointer compare.
-const _PARSE_SOURCE_OBSERVER = Ref{Any}(nothing)
+# Test-only hook; default `nothing`. Scoped per `with_parse_source_observer` task.
+const PARSE_SOURCE_OBSERVER = Base.ScopedValues.ScopedValue{Any}(nothing)
 
-# Do-block form: `with_parse_source_observer(obs) do ... end` → (f, observer).
 function with_parse_source_observer(f::Function, observer)
-    prev = _PARSE_SOURCE_OBSERVER[]
-    _PARSE_SOURCE_OBSERVER[] = observer
-    try
-        return f()
-    finally
-        _PARSE_SOURCE_OBSERVER[] = prev
-    end
+    return Base.ScopedValues.with(f, PARSE_SOURCE_OBSERVER => observer)
 end
 
 function parse_source(text::AbstractString; syntax_version = VERSION, filename = nothing)
-    obs = _PARSE_SOURCE_OBSERVER[]
+    obs = PARSE_SOURCE_OBSERVER[]
     if obs !== nothing
         obs((; text = String(text), syntax_version = syntax_version, filename = filename))
     end

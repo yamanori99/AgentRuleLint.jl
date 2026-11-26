@@ -12,9 +12,13 @@
     @test !isempty(jl_files)
 
     counts = Dict{String, Int}()
+    unnamed = 0
     observer = function (meta)
         fn = meta.filename
-        fn === nothing && return
+        if fn === nothing
+            unnamed += 1
+            return
+        end
         key = replace(String(fn), '\\' => '/')
         counts[key] = get(counts, key, 0) + 1
         return
@@ -24,11 +28,11 @@
         AgentRuleLint.check(ROOT; paths = [corpus])
     end
 
+    @test unnamed == 0
     for rel in jl_files
         n = get(counts, rel, 0)
         @test n == 1
     end
-    # No stray head-side parses for corpus paths we did not select as .jl.
     extras = setdiff(keys(counts), Set(jl_files))
     @test isempty(extras)
 end
