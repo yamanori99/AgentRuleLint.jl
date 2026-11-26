@@ -58,6 +58,12 @@ struct CheckResult
     violation_count::Int
 end
 
+function Base.isequal(a::CheckResult, b::CheckResult)
+    return all(f -> isequal(getfield(a, f), getfield(b, f)), fieldnames(CheckResult))
+end
+
+Base.:(==)(a::CheckResult, b::CheckResult) = isequal(a, b)
+
 struct ConfigError <: Exception
     msg::String
 end

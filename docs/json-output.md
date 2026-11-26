@@ -31,7 +31,7 @@ When the ceilings file is missing, empty for that rule, or sums to zero, formatt
 
 ## `agentrulelint explain`
 
-`explain <rule-id>` prints text only for rules that exist in the loaded policy or built-in registry after `init_registry!`:
+`explain <rule-id>` prints text only for rules that exist in the loaded policy or the per-call built-in registry from `build_builtin_registry`:
 
 - Tables under `[[rules]]` / `[rules.*]` in `.AgentRuleLintConfig.toml`
 - Built-ins registered from policy (including the default `expect-audit` fallback when omitted from config)
