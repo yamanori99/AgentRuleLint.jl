@@ -77,11 +77,12 @@ end
 
 """Normalize human/agent text for cross-environment comparison.
 
-Pinned with `output_width=$(OUTPUT_GOLDEN_WIDTH)` so wrapping does not depend on
-TTY/`COLUMNS`. Strip ANSI in case a caller enables color. Paths in these formats
-are repo-relative, so no absolute-path rewrite is needed. Package version is
-replaced with `OUTPUT_GOLDEN_VERSION_PLACEHOLDER` so goldens stay stable across
-bumps (`Project.toml` is the sole source of truth).
+Pinned with `output_width=$(OUTPUT_GOLDEN_WIDTH)` so body wrapping does not depend on
+TTY/`COLUMNS`. Agent and human status headers are never width-wrapped. Strip ANSI
+in case a caller enables color. Paths in these formats are repo-relative, so no
+absolute-path rewrite is needed. Package version is replaced with
+`OUTPUT_GOLDEN_VERSION_PLACEHOLDER` so goldens stay stable across bumps
+(`Project.toml` is the sole source of truth).
 """
 function _golden_substitute_version(text::AbstractString)
     ver = string(AgentRuleLint.AGENTRULELINT_VERSION)
@@ -172,6 +173,48 @@ end
                 @test occursin(OUTPUT_GOLDEN_VERSION_PLACEHOLDER, body)
             end
         end
+    end
+
+    @testset "status headers invariant to version string length" begin
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "split_string.jl")])
+        plain_io = IOContext(IOBuffer(), :color => false)
+        width = OUTPUT_GOLDEN_WIDTH
+        short_v = "0.1.0"
+        long_v = "0.1.0-DEV.1234"
+        human_short = AgentRuleLint.format_human(
+            res;
+            root = ROOT,
+            io = plain_io,
+            output_width = width,
+            agentrulelint_version = short_v,
+        )
+        human_long = AgentRuleLint.format_human(
+            res;
+            root = ROOT,
+            io = plain_io,
+            output_width = width,
+            agentrulelint_version = long_v,
+        )
+        agent_short = AgentRuleLint.format_agent(
+            res;
+            root = ROOT,
+            io = plain_io,
+            output_width = width,
+            agentrulelint_version = short_v,
+        )
+        agent_long = AgentRuleLint.format_agent(
+            res;
+            root = ROOT,
+            io = plain_io,
+            output_width = width,
+            agentrulelint_version = long_v,
+        )
+        norm_short_h = replace(human_short, short_v => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
+        norm_long_h = replace(human_long, long_v => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
+        norm_short_a = replace(agent_short, short_v => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
+        norm_long_a = replace(agent_long, long_v => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
+        @test norm_short_h == norm_long_h
+        @test norm_short_a == norm_long_a
     end
 
     @testset "live check output embeds package version" begin

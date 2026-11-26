@@ -39,7 +39,7 @@ end
 
     @testset "src/ has no pkgversion except the module root" begin
         for path in _src_jl_files()
-            rel = relpath(path, ROOT)
+            rel = replace(relpath(path, ROOT), '\\' => '/')
             text = read(path, String)
             if rel == "src/AgentRuleLint.jl"
                 @test occursin("pkgversion", text)
@@ -53,7 +53,7 @@ end
 
     @testset "src/ has no literal Project.toml version string" begin
         for path in _src_jl_files()
-            rel = relpath(path, ROOT)
+            rel = replace(relpath(path, ROOT), '\\' => '/')
             rel in VERSION_LITERAL_SRC_ALLOWLIST && continue
             text = read(path, String)
             occursin(pkg_ver, text) &&
