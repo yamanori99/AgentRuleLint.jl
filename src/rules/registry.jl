@@ -1,5 +1,3 @@
-const BUILTIN_RULES = Dict{String, RuleSpec}()
-
 # Same three ids as `main`'s `BUILTIN_DOC_DEFAULTS`. Text comes from `RuleDef`
 # (no duplicated table). Widening this set is an intentional output change and
 # belongs in a separate PR that updates the no_config / minimal_config goldens.
@@ -49,21 +47,27 @@ function attach_rule_explain_docs(spec::RuleSpec)
     return RuleSpec(spec.id, spec.origin, spec.level, spec.intent, spec.do_not, extra)
 end
 
-function register_builtin!(r::RuleSpec)
-    return BUILTIN_RULES[r.id] = attach_rule_explain_docs(fill_builtin_docs!(r))
+function _register_builtin!(rules::Dict{String, RuleSpec}, r::RuleSpec)
+    rules[r.id] = attach_rule_explain_docs(fill_builtin_docs!(r))
+    return nothing
 end
 
-function init_registry!(policy::PolicyBundle)
-    empty!(BUILTIN_RULES)
+"""
+    build_builtin_registry(policy) -> Dict{String, RuleSpec}
+
+Fresh built-in rule table for one `check` or `explain` call (reentrant; no global state).
+"""
+function build_builtin_registry(policy::PolicyBundle)
+    rules = Dict{String, RuleSpec}()
     for (_, r) in policy.rules
-        register_builtin!(r)
+        _register_builtin!(rules, r)
     end
     if policy.shell_safety.active
         spec = get(policy.rules, SHELL_SAFETY_PRESET_ID, rule_def_to_spec(SHELL_SAFETY_RULE_DEF))
-        register_builtin!(spec)
+        _register_builtin!(rules, spec)
     end
     if policy.unsafe_boundary.active && get(policy.rules, "unsafe-boundary", nothing) === nothing
-        register_builtin!(rule_def_to_spec(UNSAFE_BOUNDARY_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(UNSAFE_BOUNDARY_RULE_DEF))
     end
     if policy.unsafe_boundary_strict.active
         spec = get(
@@ -74,22 +78,22 @@ function init_registry!(policy::PolicyBundle)
         register_builtin!(spec)
     end
     if get(policy.rules, EXPECT_AUDIT_ID, nothing) === nothing
-        register_builtin!(rule_def_to_spec(EXPECT_AUDIT_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(EXPECT_AUDIT_RULE_DEF))
     end
     if get(policy.rules, SILENT_CATCH_ID, nothing) === nothing
-        register_builtin!(rule_def_to_spec(SILENT_CATCH_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(SILENT_CATCH_RULE_DEF))
     end
     if get(policy.rules, MANIFEST_SYNC_RULE, nothing) === nothing
-        register_builtin!(rule_def_to_spec(MANIFEST_SYNC_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(MANIFEST_SYNC_RULE_DEF))
     end
     if get(policy.rules, SCOPE_PATHS_RULE, nothing) === nothing
-        register_builtin!(rule_def_to_spec(SCOPE_PATHS_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(SCOPE_PATHS_RULE_DEF))
     end
     if get(policy.rules, PROTECTED_PATHS_RULE, nothing) === nothing
-        register_builtin!(rule_def_to_spec(PROTECTED_PATHS_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(PROTECTED_PATHS_RULE_DEF))
     end
     if get(policy.rules, ANALYSIS_INCOMPLETE_RULE, nothing) === nothing
-        register_builtin!(rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF))
     end
-    return nothing
+    return rules
 end

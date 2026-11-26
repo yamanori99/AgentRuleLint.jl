@@ -39,7 +39,8 @@ function run_silent_catch(fc::FileContext, policy::PolicyBundle)
     rule.level == :allow && return Violation[]
     path = fc.parsed.path
     source = fc.parsed.normalized
-    tree = parse_source(source; filename = path)
+    tree = fc.tree
+    tree === nothing && return Violation[]
     warn_counts = _silent_catch_warn_counts(rule)
     diags = Violation[]
     for site in collect_try_catch_sites(tree, source)

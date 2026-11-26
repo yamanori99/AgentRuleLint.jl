@@ -1,6 +1,17 @@
 const PARSER_TREE = JuliaSyntax.GreenNode
 
+# Test-only hook; default `nothing`. Scoped per `with_parse_source_observer` task.
+const PARSE_SOURCE_OBSERVER = Base.ScopedValues.ScopedValue{Any}(nothing)
+
+function with_parse_source_observer(f::Function, observer)
+    return Base.ScopedValues.with(f, PARSE_SOURCE_OBSERVER => observer)
+end
+
 function parse_source(text::AbstractString; syntax_version = VERSION, filename = nothing)
+    obs = PARSE_SOURCE_OBSERVER[]
+    if obs !== nothing
+        obs((; text = String(text), syntax_version = syntax_version, filename = filename))
+    end
     try
         return parseall(
             PARSER_TREE,

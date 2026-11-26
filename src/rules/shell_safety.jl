@@ -92,7 +92,8 @@ const SHELL_SAFETY_RULE_DEF = RuleDef(
 
 function diagnose_shell_safety(fc::FileContext, policy::PolicyBundle, eff_level::Symbol)
     source = fc.parsed.normalized
-    tree = parse_source(source; filename = fc.parsed.path)
+    tree = fc.tree
+    tree === nothing && return Violation[]
     collected = collect_cmd_string_literals(tree, source)
     cfg = policy.shell_safety
     intent = isempty(cfg.intent) ? _SHELL_SAFETY_INTENT : cfg.intent

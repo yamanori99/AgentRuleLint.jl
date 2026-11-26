@@ -76,15 +76,17 @@ end
 
 function build_file_context(root::AbstractString, relpath::AbstractString)
     parsed = read_parsed_file(root, relpath)
-    if julia_source_path(relpath)
+    tree = if julia_source_path(relpath)
         parse_source(parsed.normalized; filename = parsed.path)
+    else
+        nothing
     end
     expects = if julia_source_path(relpath)
         extract_expect_lines(parsed.normalized)
     else
         extract_expect_lines_text(parsed.normalized)
     end
-    return FileContext(parsed, expects, Violation[])
+    return FileContext(parsed, tree, expects, Violation[])
 end
 
 function is_violation_hit(d::Violation)
@@ -100,7 +102,6 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         config_path = get(kwargs, :config_path, nothing),
         config_from = get(kwargs, :config_from, nothing),
     )
-    init_registry!(policy)
     paths_kw = get(kwargs, :paths, String[])
     diff_base = get(kwargs, :diff_base, nothing)
     allow_paths = validate_allow_paths_kw(_resolve_allow_paths_kw(get(kwargs, :allow_paths, nothing)), diff_base)
@@ -146,7 +147,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
             push!(path_diags, d)
         end
         eligible = if julia_source_path(rel)
-            expects_eligible_for_suppression(fc.expects, fc.parsed.normalized)
+            expects_eligible_for_suppression(fc.expects, fc.parsed.normalized; tree = fc.tree)
         else
             expects_eligible_for_suppression_text(fc.expects, fc.parsed.normalized)
         end
@@ -233,7 +234,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     assign_diagnostic_fingerprints!(all_diags, sources)
 
     all_diags = _unique_violations(all_diags)
-    all_diags = sort(all_diags; by = d -> (d.path, d.span, d.rule_id))
+    all_diags = sort(all_diags; by = diag_sort_key)
 
     vcount = count(is_violation_hit, all_diags)
     scount = count(d -> d.suppressed, all_diags)

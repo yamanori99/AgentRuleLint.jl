@@ -487,7 +487,8 @@ function _diagnose_unsafe_boundary_macros(
         macro_only::Bool = false,
     )
     source = fc.parsed.normalized
-    tree = parse_source(source; filename = fc.parsed.path)
+    tree = fc.tree
+    tree === nothing && return Violation[]
     ctx = UnsafeBoundaryWalk(
         source,
         cfg.allow_modules,
