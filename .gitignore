@@ -35,3 +35,6 @@ JuliaLocalPreferences.toml
 
 # vscode
 .vscode/
+
+# Overwritten at the end of every Pkg.test() run (see test/failure_digest.jl)
+test/last_failures.txt
