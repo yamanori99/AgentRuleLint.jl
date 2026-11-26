@@ -41,6 +41,13 @@ function _validate_check_keywords!(kwargs)
     return merge(nt, (; allow_paths = allow_paths))
 end
 
+"""
+    check(root; kwargs...) -> CheckResult
+
+Run the AgentRuleLint pipeline on `root`. Safe to call concurrently from multiple
+threads or tasks: each invocation uses its own policy resolution and built-in
+rule registry (no shared mutable linter state).
+"""
 function check(root::AbstractString; kwargs...)
     kwargs = _validate_check_keywords!(kwargs)
     try

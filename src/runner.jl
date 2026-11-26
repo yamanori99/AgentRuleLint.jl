@@ -102,7 +102,6 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         config_path = get(kwargs, :config_path, nothing),
         config_from = get(kwargs, :config_from, nothing),
     )
-    init_registry!(policy)
     paths_kw = get(kwargs, :paths, String[])
     diff_base = get(kwargs, :diff_base, nothing)
     allow_paths = validate_allow_paths_kw(_resolve_allow_paths_kw(get(kwargs, :allow_paths, nothing)), diff_base)
@@ -235,7 +234,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     assign_diagnostic_fingerprints!(all_diags, sources)
 
     all_diags = _unique_violations(all_diags)
-    all_diags = sort(all_diags; by = d -> (d.path, d.span, d.rule_id))
+    all_diags = sort(all_diags; by = diag_sort_key)
 
     vcount = count(is_violation_hit, all_diags)
     scount = count(d -> d.suppressed, all_diags)

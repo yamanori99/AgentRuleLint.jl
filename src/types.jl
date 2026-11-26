@@ -58,6 +58,12 @@ struct CheckResult
     violation_count::Int
 end
 
+function Base.isequal(a::CheckResult, b::CheckResult)
+    return all(f -> isequal(getfield(a, f), getfield(b, f)), fieldnames(CheckResult))
+end
+
+Base.:(==)(a::CheckResult, b::CheckResult) = isequal(a, b)
+
 struct ConfigError <: Exception
     msg::String
 end
@@ -199,7 +205,7 @@ end
 """Per-file lint context. `tree` is the shared `GreenNode` for `.jl` head sources (`nothing` otherwise)."""
 struct FileContext
     parsed::ParsedFile
-    tree::Union{Nothing, JuliaSyntax.GreenNode}
+    tree::Union{Nothing, JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}}
     expects::Vector{ExpectLine}
     expect_errors::Vector{Violation}
 end
