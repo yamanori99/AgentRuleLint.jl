@@ -40,6 +40,12 @@ function _line_has_tracked_src_target(line::AbstractString)
     return any(marker -> occursin(marker, line), REPO_SRC_MARKERS)
 end
 
+function _open_arg_slice(line::AbstractString, arg_start::Int, pos::Int)
+    end_idx = prevind(line, pos)
+    end_idx < arg_start && return ""
+    return line[arg_start:end_idx]
+end
+
 function _open_positional_args(line::AbstractString)
     m = match(r"\bopen\s*\(", line)
     m === nothing && return String[]
@@ -69,15 +75,15 @@ function _open_positional_args(line::AbstractString)
         elseif c == ')'
             depth -= 1
             if depth == 0
-                push!(args, strip(line[arg_start:(pos - 1)]))
+                push!(args, strip(_open_arg_slice(line, arg_start, pos)))
                 break
             end
             pos = nextind(line, pos)
         elseif c == ';' && depth == 1
-            push!(args, strip(line[arg_start:(pos - 1)]))
+            push!(args, strip(_open_arg_slice(line, arg_start, pos)))
             break
         elseif c == ',' && depth == 1
-            push!(args, strip(line[arg_start:(pos - 1)]))
+            push!(args, strip(_open_arg_slice(line, arg_start, pos)))
             arg_start = nextind(line, pos)
             pos = arg_start
         else
@@ -248,6 +254,19 @@ end
         end
         @test !isempty(
             offenders_in_text("fixture_open_write.jl", "open($realistic2; write=true)"),
+        )
+    end
+    cjk_path = "joinpath(pkgdir(AgentRuleLint), \"src\", \"日本語.jl\")"
+    @testset "open args with UTF-8 path segments" begin
+        @test isempty(offenders_in_text("fixture_open_utf8.jl", "open($cjk_path)"))
+        @test isempty(
+            offenders_in_text(
+                "fixture_open_utf8.jl",
+                "open(joinpath(pkgdir(AgentRuleLint), \"src\", \"syntax\", \"parser.jl\"), \"r\") # 読み込み",
+            ),
+        )
+        @test !isempty(
+            offenders_in_text("fixture_open_utf8.jl", "open($cjk_path, \"w\")"),
         )
     end
 end
