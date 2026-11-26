@@ -1,4 +1,4 @@
-AGENTRULELINT FAIL v0.1.0-DEV base=.AgentRuleLintConfig.toml
+AGENTRULELINT FAIL v<VERSION> base=.AgentRuleLintConfig.toml
 pos=utf8-codepoint-1based violations=84 rules=6
 
 RULE [AgentRuleLint] analysis-incomplete level=forbid count=2 ceiling=-

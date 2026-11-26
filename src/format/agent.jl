@@ -16,7 +16,7 @@ function format_agent(
     rule_hits = length(groups)
     status = result.exit_code == 0 ? "OK" : "FAIL"
     headline =
-        "AGENTRULELINT $status v$(pkgversion(AgentRuleLint)) base=$base pos=utf8-codepoint-1based violations=$(result.violation_count) rules=$rule_hits"
+        "AGENTRULELINT $status v$(AGENTRULELINT_VERSION) base=$base pos=utf8-codepoint-1based violations=$(result.violation_count) rules=$rule_hits"
     for ln in wrap_prose_lines("", "", headline, width)
         println(buf, ln)
     end

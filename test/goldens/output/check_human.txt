@@ -1,4 +1,4 @@
-AgentRuleLint v0.1.0-DEV (policy bundle base: .AgentRuleLintConfig.toml, pos:
+AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLintConfig.toml, pos:
 utf8-line-col)
 
 ┌ Error: [AgentRuleLint] analysis-incomplete [forbid] (2 violations, ceiling 0)

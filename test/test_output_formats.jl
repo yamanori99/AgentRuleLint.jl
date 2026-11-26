@@ -168,7 +168,7 @@ end
         io = IOContext(IOBuffer(), :color => false)
         out = AgentRuleLint.format_human(res; root = ROOT, io = io, output_width = 100)
         expected = read(HUMAN_GOLDEN_PATH, String)
-        @test out == expected
+        @test _golden_normalize_text(out) == _golden_normalize_text(expected)
     end
 
     @testset "human COLUMNS=60 code lines never wrap" begin

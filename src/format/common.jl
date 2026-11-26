@@ -86,7 +86,7 @@ function human_policy_banner(result::CheckResult)
     else
         "policy bundle base: $(string(cs.kind))"
     end
-    return "AgentRuleLint v$(pkgversion(AgentRuleLint)) ($base, pos: utf8-line-col)"
+    return "AgentRuleLint v$(AGENTRULELINT_VERSION) ($base, pos: utf8-line-col)"
 end
 
 function _src_visible_body(src::AbstractString)
