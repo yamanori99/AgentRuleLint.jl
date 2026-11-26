@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   test:
-    name: Pkg.test (${{ matrix.julia-version }}, ${{ matrix.os }})
+    name: Daily Pkg.test (${{ matrix.julia-version }}, ${{ matrix.os }})
     continue-on-error: ${{ matrix.julia-version == '~1.14.0-0' }}
     strategy:
       fail-fast: false
@@ -26,7 +26,6 @@ jobs:
           - "~1.14.0-0"
     permissions:
       contents: read
-      actions: write # julia-depot-cache save on main push (no-op on schedule)
     runs-on: ${{ matrix.os }}
     timeout-minutes: 60
     steps:
@@ -55,10 +54,9 @@ jobs:
         run: julia --startup-file=no --project=. --color=yes -e 'using Pkg; Pkg.test()'
 
   mutation:
-    name: Mutation (Julia 1.13, ubuntu-latest, x64)
+    name: Daily mutation (Julia 1.13, ubuntu-latest, x64)
     permissions:
       contents: read
-      actions: write # julia-depot-cache save on main push (no-op on schedule)
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
