@@ -11,7 +11,7 @@ function active_violations(vs::Vector{Violation})
 end
 
 function diag_sort_key(d::Violation)
-    return (d.path, d.span, d.rule_id, d.fingerprint)
+    return (d.path, d.span, d.rule_id, d.message, d.fingerprint)
 end
 
 function violations_by_rule(vs::Vector{Violation})

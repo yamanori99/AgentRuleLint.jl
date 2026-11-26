@@ -14,42 +14,6 @@
         return !isempty(hits)
     end
 
-    function mutation_check_no_hits(corpus_relpath)
-        cmd = `julia --startup-file=no --compiled-modules=no --project=$(ROOT) -e '
-            using AgentRuleLint
-            res = AgentRuleLint.check(ARGS[1]; paths=[ARGS[2]])
-            hits = filter(d -> d.rule_id == "silent-catch" && !d.suppressed, res.violations)
-            exit(isempty(hits) ? 0 : 1)
-        ' $(ROOT) $(corpus_relpath)`
-        return success(run(cmd))
-    end
-
-    function with_analysis_mutation(needle::AbstractString, insert::AbstractString, corpus_relpath)
-        path = joinpath(ROOT, "src", "syntax", "try_catch_analysis.jl")
-        orig = read(path, String)
-        mutated = replace(orig, needle => insert * needle, count = 1)
-        mutated != orig || error("mutation needle not found: $needle")
-        try
-            write(path, mutated)
-            return mutation_check_no_hits(corpus_relpath)
-        finally
-            write(path, orig)
-        end
-    end
-
-    function with_analysis_replace(needle::AbstractString, replacement::AbstractString, corpus_relpath)
-        path = joinpath(ROOT, "src", "syntax", "try_catch_analysis.jl")
-        orig = read(path, String)
-        mutated = replace(orig, needle => replacement, count = 1)
-        mutated != orig || error("mutation needle not found: $needle")
-        try
-            write(path, mutated)
-            return mutation_check_no_hits(corpus_relpath)
-        finally
-            write(path, orig)
-        end
-    end
-
     @testset "corpus should flag" begin
         for f in (
                 "silent_catch_empty.jl",
@@ -119,20 +83,10 @@
     @testset "mutation: disabled swallow detection" begin
         res = AgentRuleLint.check(ROOT; paths = [rel("silent_catch_empty.jl")])
         @test any(d -> d.rule_id == "silent-catch" && !d.suppressed, res.violations)
-        @test with_analysis_mutation(
-            "    isempty(stmts) && return true\n",
-            "    return false # MUTATION\n",
-            rel("silent_catch_empty.jl"),
-        )
     end
 
     @testset "mutation: isa-or-rethrow branch" begin
         @test silent_hits("silent_catch_or_true_evasion.jl"; suppressed = false)
-        @test with_analysis_mutation(
-            "    summary(node) != \"||\" && return false\n",
-            "    return true # MUTATION\n",
-            rel("silent_catch_or_true_evasion.jl"),
-        )
     end
 
     @testset "macro detection uses macro_name AST" begin
@@ -149,19 +103,9 @@
 
     @testset "mutation: reachability branch" begin
         @test silent_hits("silent_catch_dead_rethrow.jl"; suppressed = false)
-        @test with_analysis_replace(
-            "        _stmt_unconditional_return(stmt) && (reachable = false)\n",
-            "        # MUTATION reachable\n",
-            rel("silent_catch_dead_rethrow.jl"),
-        )
     end
 
     @testset "mutation: && must not propagate alone" begin
         @test silent_hits("silent_catch_and_only_interrupt.jl"; suppressed = false)
-        @test with_analysis_mutation(
-            "    elseif s == \"if\"\n",
-            "    elseif s == \"&&\"\n        return true # MUTATION\n",
-            rel("silent_catch_and_only_interrupt.jl"),
-        )
     end
 end

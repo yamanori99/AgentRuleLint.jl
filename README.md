@@ -47,7 +47,8 @@ Place `.AgentRuleLintConfig.toml` at the repository root.
 - **Test-strength checks**: detect weakened assertions, hollowed test
   inputs, and shrinking test coverage in diffs.
 - **Local and CI modes**: run diff-scoped or full-repository checks in a
-  single Julia process.
+  single Julia process. `check` is reentrant: multiple threads or tasks may call
+  it concurrently on the same process.
 
 **In this dev tree:** built-in `expect-audit` and declarative
 `[[project_rules]]` (`project/<id>`) are implemented; other built-in slugs
