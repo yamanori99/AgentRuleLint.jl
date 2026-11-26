@@ -1,5 +1,4 @@
-AGENTRULELINT FAIL v0.1.0-DEV base=builtin pos=utf8-codepoint-1based
-violations=34 rules=2
+AGENTRULELINT FAIL v<VERSION> base=builtin pos=utf8-codepoint-1based violations=34 rules=2
 
 RULE [AgentRuleLint] expect-audit level=forbid count=20 ceiling=-
 intent: Keep suppression comments auditable and fail-closed.

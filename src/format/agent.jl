@@ -4,6 +4,7 @@ function format_agent(
         max_hits::Union{Nothing, Int} = nothing,
         io::IO = stdout,
         output_width::Union{Nothing, Int} = nothing,
+        agentrulelint_version::Union{Nothing, AbstractString} = nothing,
     )
     width = resolve_output_width(io; output_width = output_width)
     hit_cap = something(max_hits, result.max_hits_per_rule)
@@ -15,11 +16,10 @@ function format_agent(
     groups = violations_by_rule(active)
     rule_hits = length(groups)
     status = result.exit_code == 0 ? "OK" : "FAIL"
+    ver = something(agentrulelint_version, string(AGENTRULELINT_VERSION))
     headline =
-        "AGENTRULELINT $status v$(pkgversion(AgentRuleLint)) base=$base pos=utf8-codepoint-1based violations=$(result.violation_count) rules=$rule_hits"
-    for ln in wrap_prose_lines("", "", headline, width)
-        println(buf, ln)
-    end
+        "AGENTRULELINT $status v$ver base=$base pos=utf8-codepoint-1based violations=$(result.violation_count) rules=$rule_hits"
+    println(buf, headline)
     println(buf)
     for (rid, all_ds) in groups
         lvl = all_ds[1].level
