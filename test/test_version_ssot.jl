@@ -62,6 +62,16 @@ end
         end
     end
 
+    @testset "formatters omit public agentrulelint_version keyword" begin
+        res_ty = (AgentRuleLint.CheckResult,)
+        for fname in (:format_human, :format_agent)
+            f = getfield(AgentRuleLint, fname)
+            m = which(f, res_ty)
+            @test m !== nothing
+            @test :agentrulelint_version ∉ Base.kwarg_decl(m)
+        end
+    end
+
     @testset "config version pin validation uses AGENTRULELINT_VERSION" begin
         # Smoke: mismatch against a different major.minor must fail closed.
         bad = VersionNumber(99, 0, 0)

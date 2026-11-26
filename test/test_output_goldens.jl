@@ -186,28 +186,28 @@ end
             root = ROOT,
             io = plain_io,
             output_width = width,
-            agentrulelint_version = short_v,
+            _agentrulelint_version = short_v,
         )
         human_long = AgentRuleLint.format_human(
             res;
             root = ROOT,
             io = plain_io,
             output_width = width,
-            agentrulelint_version = long_v,
+            _agentrulelint_version = long_v,
         )
         agent_short = AgentRuleLint.format_agent(
             res;
             root = ROOT,
             io = plain_io,
             output_width = width,
-            agentrulelint_version = short_v,
+            _agentrulelint_version = short_v,
         )
         agent_long = AgentRuleLint.format_agent(
             res;
             root = ROOT,
             io = plain_io,
             output_width = width,
-            agentrulelint_version = long_v,
+            _agentrulelint_version = long_v,
         )
         norm_short_h = replace(human_short, short_v => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
         norm_long_h = replace(human_long, long_v => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)

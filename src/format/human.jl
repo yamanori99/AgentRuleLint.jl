@@ -27,7 +27,7 @@ function format_human(
         root::AbstractString = pwd(),
         io::IO = stdout,
         output_width::Union{Nothing, Int} = nothing,
-        agentrulelint_version::Union{Nothing, AbstractString} = nothing,
+        _agentrulelint_version::Union{Nothing, AbstractString} = nothing, # test-only: override the displayed version (see test_output_goldens.jl)
     )
     width = resolve_output_width(io; output_width = output_width)
     buf = IOBuffer()
@@ -38,8 +38,8 @@ function format_human(
     max_hits = result.max_hits_per_rule
     cfg_label = result.config_source.path
 
-    ver = something(agentrulelint_version, string(AGENTRULELINT_VERSION))
-    banner = human_policy_banner(result; version = ver)
+    ver = something(_agentrulelint_version, string(AGENTRULELINT_VERSION))
+    banner = human_policy_banner(result, ver)
     println(buf, banner)
     println(buf)
 
