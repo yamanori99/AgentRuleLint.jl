@@ -1,6 +1,9 @@
-const REENTRANT_SAMPLE = joinpath("test", "corpus", "expect_standalone.jl")
-const REENTRANT_PATHS = [REENTRANT_SAMPLE]
-const REENTRANT_PARALLEL = 4
+# Corpus slice: project rule (repo config) + shell-safety preset (minimal config only).
+const REENTRANT_PATHS = [
+    joinpath("test", "corpus", "expect_standalone.jl"),
+    joinpath("test", "corpus", "shell_cmd_pkill.jl"),
+]
+const REENTRANT_ASYNC_TASKS = 4
 const REENTRANT_MINIMAL_CFG = joinpath(
     ROOT,
     "test",
@@ -14,8 +17,10 @@ const REENTRANT_SPAWN_WORKER = joinpath(@__DIR__, "check_reentrant_spawn_worker.
 function _reentrant_seed_corpus!(tmp::AbstractString)
     dst = joinpath(tmp, "test", "corpus")
     mkpath(dst)
-    src = joinpath(ROOT, REENTRANT_SAMPLE)
-    cp(src, joinpath(dst, basename(REENTRANT_SAMPLE)); force = true)
+    for rel in REENTRANT_PATHS
+        src = joinpath(ROOT, rel)
+        cp(src, joinpath(dst, basename(rel)); force = true)
+    end
     return nothing
 end
 
@@ -38,8 +43,8 @@ function _reentrant_spawn_worker_cmd(check_roots::Vector{String})
                 "--threads=4",
                 "--compiled-modules=existing",
                 REENTRANT_SPAWN_WORKER,
-                string(REENTRANT_PARALLEL),
-                REENTRANT_SAMPLE,
+                string(length(REENTRANT_PATHS)),
+                REENTRANT_PATHS...,
                 String.(check_roots)...,
             ],
         ),
@@ -47,7 +52,8 @@ function _reentrant_spawn_worker_cmd(check_roots::Vector{String})
 end
 
 function _assert_spawn_worker_roots(check_roots::Vector{String})
-    isempty(check_roots) && return true
+    length(check_roots) >= 2 ||
+        error("spawn worker needs ≥2 roots (repo, no config, minimal)")
     isfile(REENTRANT_SPAWN_WORKER) ||
         error("missing spawn worker script: $REENTRANT_SPAWN_WORKER")
     cmd = _reentrant_spawn_worker_cmd(check_roots)
@@ -59,13 +65,13 @@ end
 
 function _assert_async_parallel(seq::AgentRuleLint.CheckResult, root::AbstractString)
     nt = (; paths = REENTRANT_PATHS)
-    n = REENTRANT_PARALLEL
-    async_results = Vector{AgentRuleLint.CheckResult}(undef, n)
-    @sync for i in 1:n
-        @async async_results[i] = AgentRuleLint.check(root; nt...)
+    n = REENTRANT_ASYNC_TASKS
+    tasks = Vector{Task}(undef, n)
+    for i in 1:n
+        tasks[i] = @async AgentRuleLint.check(root; nt...)
     end
-    for r in async_results
-        @test r == seq
+    for t in tasks
+        @test fetch(t) == seq
     end
     return nothing
 end
