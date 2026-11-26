@@ -256,8 +256,46 @@ end
         ub_strict = AgentRuleLint.explain_rule("unsafe-boundary/strict"; root = ROOT)
         @test occursin("@assume_effects", ub_strict)
         @test occursin("unsafe-boundary/strict", ub_strict)
+        @test occursin("Flag `@inbounds`", ub_strict)
+        @test occursin("undefined behavior", ub_strict)
+        @test occursin("core `unsafe-boundary`", ub_strict)
         expect = AgentRuleLint.explain_rule("expect-audit"; root = ROOT)
         @test occursin("Syntax:", expect)
         @test occursin("runic: off", expect)
+    end
+
+    @testset "preset intent/do_not fallback when config omits text" begin
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "unsafe_inbounds.jl")])
+        strict = filter(
+            d -> d.rule_id == "unsafe-boundary" && !d.suppressed,
+            res.violations,
+        )
+        @test any(d -> occursin("@inbounds", d.message), strict)
+        agent = AgentRuleLint.format_agent(res; root = ROOT)
+        @test occursin("RULE [AgentRuleLint] unsafe-boundary", agent)
+        @test occursin("intent: Keep runtime", agent)
+        ub_explain = AgentRuleLint.explain_rule("unsafe-boundary/strict"; root = ROOT)
+        @test occursin("Flag `@inbounds`", ub_explain)
+        @test occursin("Rely on core `unsafe-boundary`", ub_explain)
+
+        dir = mktempdir()
+        try
+            ver = string(pkgversion(AgentRuleLint))
+            write(
+                joinpath(dir, ".AgentRuleLintConfig.toml"),
+                """
+                agentrulelint_version = \"=$(ver)\"
+                presets = [\"shell-safety\"]
+
+                [rules.\"shell-safety/process-pattern\"]
+                level = \"deny\"
+                """,
+            )
+            shell = AgentRuleLint.explain_rule("shell-safety/process-pattern"; root = dir)
+            @test occursin("Reject hazardous shell patterns", shell)
+            @test occursin("Split or dynamically assemble command strings", shell)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
     end
 end

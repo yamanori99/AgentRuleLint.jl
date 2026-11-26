@@ -3,10 +3,10 @@ origin: [AgentRuleLint]
 level: deny
 
 intent:
-
+Tracked manifests must match Project.toml.
 
 do_not:
-
+Drift project resolve sections away from the manifest.
 anchor_line:
 Project table key or manifest header field (e.g. [deps], project_hash).
 detail:

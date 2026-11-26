@@ -110,7 +110,7 @@ function _assert_check_goldens(golden_dir::AbstractString, root::AbstractString;
             output_width = OUTPUT_GOLDEN_WIDTH,
         ),
     )
-    json = _golden_json_without_header(AgentRuleLint.format_json(res))
+    json = _golden_json_without_header(AgentRuleLint.format_json(res; root = root))
     @test human ==
         _golden_normalize_text(read(joinpath(golden_dir, "check_human.txt"), String))
     @test agent ==

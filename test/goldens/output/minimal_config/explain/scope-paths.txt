@@ -3,10 +3,10 @@ origin: [AgentRuleLint]
 level: forbid
 
 intent:
-
+Reject diff changes outside a trusted path allowlist.
 
 do_not:
-
+Edit files outside --allow-paths scope passed from CI or a human wrapper.
 detail:
 Group: integrity. Level: forbid (no inline expects).
 

@@ -35,6 +35,8 @@ your shell (or `pkg> app add https://github.com/yamanori99/AgentRuleLint.jl` in
 the Pkg REPL).
 
 Place `.AgentRuleLintConfig.toml` at the repository root.
+The opt-in preset id `unsafe-boundary/strict` adds `@inbounds` / `@generated` /
+`@assume_effects` checks on top of the core built-in rule `unsafe-boundary`.
 
 ## Planned scope
 

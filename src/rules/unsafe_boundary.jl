@@ -555,13 +555,21 @@ function diagnose_unsafe_boundary_strict(
         eff_level::Symbol,
     )
     ub = _unsafe_boundary_allow_cfg(policy)
-    intent = isempty(strict_cfg.intent) ? _UNSAFE_BOUNDARY_STRICT_INTENT : strict_cfg.intent
-    do_not = isempty(strict_cfg.do_not) ? _UNSAFE_BOUNDARY_STRICT_DO_NOT : strict_cfg.do_not
+    if policy.unsafe_boundary.active
+        cfg = policy.unsafe_boundary
+        rule_id = "unsafe-boundary"
+        intent = isempty(cfg.intent) ? _UNSAFE_BOUNDARY_INTENT : cfg.intent
+        do_not = isempty(cfg.do_not) ? _UNSAFE_BOUNDARY_DO_NOT : cfg.do_not
+    else
+        rule_id = UNSAFE_BOUNDARY_STRICT_PRESET_ID
+        intent = isempty(strict_cfg.intent) ? _UNSAFE_BOUNDARY_STRICT_INTENT : strict_cfg.intent
+        do_not = isempty(strict_cfg.do_not) ? _UNSAFE_BOUNDARY_STRICT_DO_NOT : strict_cfg.do_not
+    end
     return _diagnose_unsafe_boundary_macros(
         fc,
         ub,
         eff_level,
-        UNSAFE_BOUNDARY_STRICT_PRESET_ID,
+        rule_id,
         _UNSAFE_MACRO_SUFFIXES_STRICT,
         intent,
         do_not;

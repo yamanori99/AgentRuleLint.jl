@@ -286,7 +286,7 @@ utf8-line-col)
 │       ~~~~~~~~~~~~
 └ @ AgentRuleLint (run `agentrulelint explain test-integrity` for details)
 
-┌ Warning: [AgentRuleLint] unsafe-boundary [warn] (18 violations, ceiling 0)
+┌ Warning: [AgentRuleLint] unsafe-boundary [warn] (20 violations, ceiling 0)
 │   intent: Keep runtime evaluation and FFI inside reviewed boundaries in this
 │           package.
 │   do_not: Add allow_globs or allow_modules rather than hiding eval, ccall, or
@@ -296,6 +296,10 @@ utf8-line-col)
 │     ccall boundary escape
 │     >     ccall(:getpid, Cint, ())
 │           ~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_assume_effects_macro.jl:2:5-2:35
+│     unsafe boundary escape (@assume_effects)
+│     >     @assume_effects :foldable foo()
+│           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 │   test/corpus/unsafe_ccall.jl:2:5-2:35
 │     ccall boundary escape
 │     >     ccall(:exit, Cvoid, (Cint,), 0)
@@ -320,6 +324,10 @@ utf8-line-col)
 │     unsafe boundary escape (@eval)
 │     >     return @eval $(esc(x))
 │                  ~~~~~~~~~~~~~~~
+│   test/corpus/unsafe_inbounds.jl:2:5-2:25
+│     unsafe boundary escape (@inbounds)
+│     >     @inbounds return A[i]
+│           ~~~~~~~~~~~~~~~~~~~~~
 │   test/corpus/unsafe_indirect_eval.jl:2:9-2:29
 │     indirect eval via getfield
 │     >     f = getfield(Base, :eval)
@@ -366,5 +374,5 @@ utf8-line-col)
 │                      ~~~~
 └ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
 
-Summary: 82 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED
+Summary: 84 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED
 (exit 1)

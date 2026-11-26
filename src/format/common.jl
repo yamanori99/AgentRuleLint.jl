@@ -14,6 +14,44 @@ function diag_sort_key(d::Violation)
     return (d.path, d.span, d.rule_id, d.message, d.fingerprint)
 end
 
+"""When core `unsafe-boundary` is active, strict-preset macro hits fold into that rule in formatted output (dogfood parity with pre-split check goldens)."""
+function merge_unsafe_boundary_strict_for_display(
+        d::Violation,
+        policy::PolicyBundle,
+        builtin_registry::Dict{String, RuleSpec},
+    )
+    if d.rule_id != UNSAFE_BOUNDARY_STRICT_PRESET_ID || !policy.unsafe_boundary.active
+        return d
+    end
+    spec = get(builtin_registry, "unsafe-boundary", nothing)
+    intent = spec === nothing ? d.intent : spec.intent
+    do_not = spec === nothing ? d.do_not : spec.do_not
+    return Violation(
+        "unsafe-boundary",
+        :agentrulelint,
+        d.level,
+        d.path,
+        d.span,
+        d.anchor_line,
+        d.fingerprint,
+        d.expect_status,
+        d.suppressed,
+        d.message,
+        intent,
+        do_not,
+    )
+end
+
+function violations_for_display(
+        vs::Vector{Violation},
+        policy::PolicyBundle,
+        builtin_registry::Dict{String, RuleSpec},
+    )
+    return Violation[
+        merge_unsafe_boundary_strict_for_display(d, policy, builtin_registry) for d in vs
+    ]
+end
+
 function violations_by_rule(vs::Vector{Violation})
     by = Dict{String, Vector{Violation}}()
     for d in vs

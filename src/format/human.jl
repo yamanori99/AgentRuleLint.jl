@@ -33,7 +33,9 @@ function format_human(
     policy = resolve_policy(root)
     builtin_registry = build_builtin_registry(policy)
     ceilings = load_ceilings(root, policy)
-    groups = violations_by_rule(active_violations(result.violations))
+    active = active_violations(result.violations)
+    active = violations_for_display(active, policy, builtin_registry)
+    groups = violations_by_rule(active)
     max_hits = result.max_hits_per_rule
     cfg_label = result.config_source.path
 

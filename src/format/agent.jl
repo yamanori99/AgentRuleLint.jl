@@ -9,9 +9,14 @@ function format_agent(
     hit_cap = something(max_hits, result.max_hits_per_rule)
     buf = IOBuffer()
     policy = resolve_policy(root)
+    builtin_registry = build_builtin_registry(policy)
     ceilings = load_ceilings(root, policy)
     base = config_source_base_label(result.config_source)
-    active = active_violations(result.violations)
+    active = violations_for_display(
+        active_violations(result.violations),
+        policy,
+        builtin_registry,
+    )
     groups = violations_by_rule(active)
     rule_hits = length(groups)
     status = result.exit_code == 0 ? "OK" : "FAIL"

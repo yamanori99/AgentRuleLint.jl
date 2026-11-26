@@ -5,6 +5,7 @@ const _UNSAFE_BOUNDARY_STRICT_DO_NOT =
 
 const _UNSAFE_BOUNDARY_STRICT_EXPLAIN_ANCHOR = """
 `@inbounds`, `@generated`, or `@assume_effects` (including qualified `Base.@assume_effects`).
+Wrong `@inbounds` is undefined behavior; on many hot paths bounds checks are nearly free.
 """
 
 const _UNSAFE_BOUNDARY_STRICT_EXPLAIN_CONFIG = """

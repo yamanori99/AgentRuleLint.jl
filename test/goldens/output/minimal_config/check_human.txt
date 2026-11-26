@@ -163,8 +163,10 @@ utf8-line-col)
 details)
 
 ┌ Error: [AgentRuleLint] silent-catch [deny] (14 violations, ceiling 0)
-│   intent: 
-│   do_not: 
+│   intent: Surface try/catch blocks that hide failures instead of rethrowing or
+│           throwing on unhandled paths.
+│   do_not: Use empty catch bodies, log-only handlers, or partial branches
+│           without rethrow to silence errors.
 │
 │   test/corpus/expect_above_catch.jl:1:1-1:3
 │     catch block swallows exceptions without rethrow or throw on unhandled
@@ -236,8 +238,9 @@ details)
 └ @ AgentRuleLint (run `agentrulelint explain silent-catch` for details)
 
 ┌ Error: [AgentRuleLint] test-integrity [deny] (5 violations, ceiling 0)
-│   intent: 
-│   do_not: 
+│   intent: Keep tests from being hollowed out or silently disabled.
+│   do_not: Replace assertions with trivially true forms, broaden throws, skip
+│           without reason, or drop covered tests.
 │
 │   test/corpus/test_integrity_broad_throws.jl:1:1-1:41
 │     @test_throws uses overly broad exception type (ErrorException)

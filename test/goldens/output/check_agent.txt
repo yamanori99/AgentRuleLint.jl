@@ -1,5 +1,5 @@
 AGENTRULELINT FAIL v0.1.0-DEV base=.AgentRuleLintConfig.toml
-pos=utf8-codepoint-1based violations=82 rules=6
+pos=utf8-codepoint-1based violations=84 rules=6
 
 RULE [AgentRuleLint] analysis-incomplete level=forbid count=2 ceiling=-
 intent: Fail closed when static analysis cannot finish (constant-fold budget).
@@ -8148,18 +8148,21 @@ HIT test/corpus/test_integrity_const_fold.jl:2:1-2:15 | @test ALWAYS_OK
 HIT test/corpus/test_integrity_trivial_true.jl:1:1-1:10 | @test true
 HIT test/corpus/test_integrity_trivial_true.jl:2:1-2:12 | @test 1 == 1
 
-RULE [AgentRuleLint] unsafe-boundary level=warn count=18 ceiling=-
+RULE [AgentRuleLint] unsafe-boundary level=warn count=20 ceiling=-
 intent: Keep runtime evaluation and FFI inside reviewed boundaries in this
         package.
 do_not: Add allow_globs or allow_modules rather than hiding eval, ccall, or
         unsafe_* calls.
 HIT test/corpus/unsafe_allow_module.jl:3:5-3:28 | ccall(:getpid, Cint, ())
+HIT test/corpus/unsafe_assume_effects_macro.jl:2:5-2:35 | @assume_effects
+                                                          :foldable foo()
 HIT test/corpus/unsafe_ccall.jl:2:5-2:35 | ccall(:exit, Cvoid, (Cint,), 0)
 HIT test/corpus/unsafe_default_kwarg.jl:2:20-2:33 | unsafe_load(p)
 HIT test/corpus/unsafe_eval_runtime.jl:2:12-2:18 | eval(x)
 HIT test/corpus/unsafe_evasion_const_eval.jl:1:11-1:19 | Core.eval
 HIT test/corpus/unsafe_evasion_const_eval.jl:4:12-4:15 | E(x)
 HIT test/corpus/unsafe_evasion_const_eval.jl:8:12-8:26 | @eval $(esc(x))
+HIT test/corpus/unsafe_inbounds.jl:2:5-2:25 | @inbounds return A[i]
 HIT test/corpus/unsafe_indirect_eval.jl:2:9-2:29 | getfield(Base, :eval)
 HIT test/corpus/unsafe_intrinsic_call.jl:2:12-2:25 | unsafe_load(p)
 HIT test/corpus/unsafe_meta_parse.jl:2:12-2:24 | Meta.parse(s)

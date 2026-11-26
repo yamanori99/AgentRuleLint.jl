@@ -3,10 +3,10 @@ origin: [AgentRuleLint]
 level: warn
 
 intent:
-
+Keep runtime evaluation and FFI inside reviewed boundaries.
 
 do_not:
-
+Hide eval, ccall, or unsafe_* outside allow_modules / allow_globs.
 anchor_line:
 the `@eval`, `ccall`, `@ccall`, qualified `Base.Meta.parse` / `Core.Meta.parse`,
 `invokelatest`, `unsafe_*` call, value alias (`const E = Core.eval`), value argument

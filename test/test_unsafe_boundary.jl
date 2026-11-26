@@ -123,9 +123,17 @@
     end
 
     @testset "strict macros absent without preset" begin
-        for file in _UNSAFE_STRICT_POSITIVE
-            @test isempty(_unsafe_hits(repo_root, file))
-            @test isempty(_unsafe_strict_hits(repo_root, file))
+        root = mktempdir()
+        try
+            cp(repo_root, root; force = true)
+            isfile(joinpath(root, ".AgentRuleLintConfig.toml")) &&
+                rm(joinpath(root, ".AgentRuleLintConfig.toml"))
+            for file in _UNSAFE_STRICT_POSITIVE
+                @test isempty(_unsafe_hits(root, file))
+                @test isempty(_unsafe_strict_hits(root, file))
+            end
+        finally
+            rm(root, recursive = true, force = true)
         end
     end
 
@@ -134,6 +142,33 @@
         try
             cp(repo_root, root; force = true)
             write(joinpath(root, ".AgentRuleLintConfig.toml"), _minimal_config_with_unsafe_strict())
+            for file in _UNSAFE_STRICT_POSITIVE
+                hits = _unsafe_hits(root, file)
+                @test !isempty(hits)
+            end
+        finally
+            rm(root, recursive = true, force = true)
+        end
+    end
+
+    @testset "strict preset without rules.unsafe-boundary uses preset rule_id" begin
+        root = mktempdir()
+        try
+            cp(repo_root, root; force = true)
+            v = string(pkgversion(AgentRuleLint))
+            write(
+                joinpath(root, ".AgentRuleLintConfig.toml"),
+                """
+                agentrulelint_version = \"=$(v)\"
+                default_format = \"human\"
+                presets = [\"unsafe-boundary/strict\"]
+                [rules.expect-audit]
+                level = \"forbid\"
+                on_allow_rule = \"warn\"
+                [rules.\"unsafe-boundary/strict\"]
+                level = \"deny\"
+                """,
+            )
             for file in _UNSAFE_STRICT_POSITIVE
                 hits = _unsafe_strict_hits(root, file)
                 @test !isempty(hits)
@@ -337,7 +372,21 @@
                         msg_needle = needle,
                         rule_id = strict ? AgentRuleLint.UNSAFE_BOUNDARY_STRICT_PRESET_ID :
                             "unsafe-boundary",
-                        config_toml = strict ? _minimal_config_with_unsafe_strict() : nothing,
+                        config_toml = if strict
+                            v = string(pkgversion(AgentRuleLint))
+                            """
+                            agentrulelint_version = \"=$(v)\"
+                            default_format = \"human\"
+                            presets = [\"unsafe-boundary/strict\"]
+                            [rules.expect-audit]
+                            level = \"forbid\"
+                            on_allow_rule = \"warn\"
+                            [rules.\"unsafe-boundary/strict\"]
+                            level = \"deny\"
+                            """
+                        else
+                            nothing
+                        end,
                     )
                     @test found_before
                     @test missed_after

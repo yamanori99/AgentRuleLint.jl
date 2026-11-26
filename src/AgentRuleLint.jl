@@ -178,13 +178,13 @@ function _emit(result::CheckResult, fmt::Symbol, opts; root::AbstractString = pw
     out_path = opts[:output]
     if out_path === nothing
         io = IOContext(stdout, :color => stdout isa Base.TTY)
-        text = fmt == :json ? format_json(result) :
+        text = fmt == :json ? format_json(result; root = root) :
             fmt == :agent ? format_agent(result; root = root, io = io) :
             format_human(result; root = root, io = io)
         return print(text)
     end
     plain_io = IOContext(IOBuffer(), :color => false)
-    text = fmt == :json ? format_json(result) :
+    text = fmt == :json ? format_json(result; root = root) :
         fmt == :agent ? format_agent(result; root = root, io = plain_io) :
         format_human(result; root = root, io = plain_io)
     return write(out_path, text)
