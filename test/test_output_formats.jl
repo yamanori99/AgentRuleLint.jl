@@ -231,7 +231,7 @@ end
             "unsafe-boundary" => [
                 "Base.Meta.parse",
                 "getfield",
-                "@assume_effects",
+                "`@eval`",
             ],
             "scope-paths" => ["--allow-paths", "--diff <base>", "level = \"forbid\""],
             "protected-paths" => [
@@ -252,6 +252,10 @@ end
         @test occursin("[rules.unsafe-boundary]", ub)
         @test occursin("Remaining gaps:", ub)
         @test occursin("`Expr` escapes", ub)
+        @test !occursin("@assume_effects", ub)
+        ub_strict = AgentRuleLint.explain_rule("unsafe-boundary/strict"; root = ROOT)
+        @test occursin("@assume_effects", ub_strict)
+        @test occursin("unsafe-boundary/strict", ub_strict)
         expect = AgentRuleLint.explain_rule("expect-audit"; root = ROOT)
         @test occursin("Syntax:", expect)
         @test occursin("runic: off", expect)

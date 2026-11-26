@@ -137,6 +137,15 @@ end
 
 ShellSafetyConfig() = ShellSafetyConfig(false, :deny, "", "")
 
+struct UnsafeBoundaryStrictConfig
+    active::Bool
+    level::Symbol
+    intent::String
+    do_not::String
+end
+
+UnsafeBoundaryStrictConfig() = UnsafeBoundaryStrictConfig(false, :warn, "", "")
+
 struct ProjectRule
     id::String
     level::Symbol
@@ -172,6 +181,7 @@ struct PolicyBundle
     on_allow_rule::Symbol
     shell_safety::ShellSafetyConfig
     unsafe_boundary::UnsafeBoundaryConfig
+    unsafe_boundary_strict::UnsafeBoundaryStrictConfig
     config_path::String
     config_source::ConfigSource
     project_toml_policy::String

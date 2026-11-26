@@ -18,7 +18,8 @@ const _RULE_ANCHOR_RX = Dict(
     # Suppression anchors on the guarded construct (`try`), not on `catch` (placement above catch is forbidden).
     "silent-catch" => r"^try\b",
     "unsafe-boundary" =>
-        r"^(@eval\b|@inbounds\b|@generated\b|ccall\b|@ccall\b|Meta\.parse|invokelatest|getfield\(|getproperty\(|unsafe_\w+)",
+        r"^(@eval\b|ccall\b|@ccall\b|Meta\.parse|invokelatest|getfield\(|getproperty\(|unsafe_\w+)",
+    "unsafe-boundary/strict" => r"^(@inbounds\b|@generated\b|@assume_effects\b)",
     "test-integrity" => r"^@test",
     "shell-safety/process-pattern" => r"^(run\(|open\(|read\(|pipeline\(|\bCmd\(|`)",
 )

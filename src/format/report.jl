@@ -167,6 +167,8 @@ end
 
 """First built-in rule id under a known preset name, or `nothing`."""
 function _preset_rule_id_hint(needle::AbstractString)
+    needle == "shell-safety" && return SHELL_SAFETY_PRESET_ID
+    needle == UNSAFE_BOUNDARY_STRICT_PRESET_ID && return UNSAFE_BOUNDARY_STRICT_PRESET_ID
     needle in KNOWN_PRESET_NAMES || return nothing
     prefix = needle * "/"
     for def in RULE_DEFS

@@ -40,6 +40,35 @@ on `InternalError`; the CLI prints that backtrace (Phase 3 /
 
 ### Changed
 
+#### `silent-catch` default level is `warn` (was `deny`)
+
+With no `.AgentRuleLintConfig.toml`, `silent-catch` now defaults to **`warn`**.
+Restore the previous built-in default with explicit config:
+
+```toml
+[rules.silent-catch]
+level = "deny"
+```
+
+This repository’s dogfood config keeps `level = "deny"`.
+
+#### `@inbounds`, `@generated`, `@assume_effects` are opt-in (`unsafe-boundary/strict`)
+
+Core **`unsafe-boundary`** keeps `eval`/`@eval`, `Meta.parse`, `ccall`/`@ccall`,
+`invokelatest`, `unsafe_*`, and alias/escape tracking. Strict macro checks moved to
+preset **`unsafe-boundary/strict`** (same mechanism as `shell-safety`):
+
+```toml
+presets = ["unsafe-boundary/strict"]
+
+[rules."unsafe-boundary/strict"]
+level = "warn"
+```
+
+Restore pre-0.1.0 macro coverage by enabling that preset (and optionally lowering
+or raising `level`). This repo enables the preset via dogfood config (protected
+path; see PR description).
+
 #### `explain` works for built-in rules that are not enabled
 
 `agentrulelint explain <id>` resolves every built-in / preset id from `RULE_DEFS_BY_ID`,

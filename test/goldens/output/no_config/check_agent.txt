@@ -78,7 +78,7 @@ HIT test/corpus/expect_whitespace_reason.jl:1:1-1:49 | # agentrulelint-expect:
 HIT test/corpus/trailing_expect.jl:1:1-1:58 | x = 1 # agentrulelint-expect:
                                               expect-audit reason="inline"
 
-RULE [AgentRuleLint] silent-catch level=deny count=14 ceiling=-
+RULE [AgentRuleLint] silent-catch level=warn count=14 ceiling=-
 intent: Surface try/catch blocks that hide failures instead of rethrowing or
         throwing on unhandled paths.
 do_not: Use empty catch bodies, log-only handlers, or partial branches without

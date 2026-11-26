@@ -30,6 +30,7 @@ function builtin_explain_extras(id::AbstractString)
     id == ANALYSIS_INCOMPLETE_RULE && return analysis_incomplete_explain_extra()
     id == EXPECT_AUDIT_ID && return expect_audit_explain_extra()
     id == "unsafe-boundary" && return unsafe_boundary_explain_extra()
+    id == UNSAFE_BOUNDARY_STRICT_PRESET_ID && return unsafe_boundary_strict_explain_extra()
     id == SHELL_SAFETY_PRESET_ID && return shell_safety_explain_extra()
     id == SILENT_CATCH_ID && return silent_catch_explain_extra()
     id == MANIFEST_SYNC_RULE && return manifest_sync_explain_extra()
@@ -63,6 +64,14 @@ function init_registry!(policy::PolicyBundle)
     end
     if policy.unsafe_boundary.active && get(policy.rules, "unsafe-boundary", nothing) === nothing
         register_builtin!(rule_def_to_spec(UNSAFE_BOUNDARY_RULE_DEF))
+    end
+    if policy.unsafe_boundary_strict.active
+        spec = get(
+            policy.rules,
+            UNSAFE_BOUNDARY_STRICT_PRESET_ID,
+            rule_def_to_spec(UNSAFE_BOUNDARY_STRICT_RULE_DEF),
+        )
+        register_builtin!(spec)
     end
     if get(policy.rules, EXPECT_AUDIT_ID, nothing) === nothing
         register_builtin!(rule_def_to_spec(EXPECT_AUDIT_RULE_DEF))

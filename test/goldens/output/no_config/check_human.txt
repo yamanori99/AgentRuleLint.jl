@@ -86,7 +86,7 @@ AgentRuleLint v0.1.0-DEV (policy bundle base: builtin, pos: utf8-line-col)
 │       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 └ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
 
-┌ Error: [AgentRuleLint] silent-catch [deny] (14 violations, ceiling 0)
+┌ Warning: [AgentRuleLint] silent-catch [warn] (14 violations, ceiling 0)
 │   intent: Surface try/catch blocks that hide failures instead of rethrowing or
 │           throwing on unhandled paths.
 │   do_not: Use empty catch bodies, log-only handlers, or partial branches
