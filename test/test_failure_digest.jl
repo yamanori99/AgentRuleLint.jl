@@ -55,4 +55,50 @@ end
         n_fail_lines = count(l -> startswith(l, "FAIL  "), split(text, '\n'))
         @test n_fail_lines == 50
     end
+
+    @testset "digest builder failure prints unavailable" begin
+        old_hook = _FAILURE_DIGEST_FORMAT_HOOK[]
+        out_path = joinpath(ROOT, "test", "last_failures_digest_probe.txt")
+        try
+            _FAILURE_DIGEST_FORMAT_HOOK[] = () -> error("digest-probe-boom")
+            ts = _digest_probe_testset("probe-unavailable") do
+                @test 1 == 2
+            end
+            emit_failure_digest(ts; path = out_path)
+            text = read(out_path, String)
+            @test occursin("digest unavailable: digest-probe-boom", text)
+            @test startswith(text, FAILURE_DIGEST_MARKER)
+        finally
+            _FAILURE_DIGEST_FORMAT_HOOK[] = old_hook
+            isfile(out_path) && rm(out_path)
+        end
+    end
+
+    @testset "digest builder failure does not mask suite error" begin
+        old_hook = _FAILURE_DIGEST_FORMAT_HOOK[]
+        suite_err = ErrorException("suite-probe-error")
+        out_path = joinpath(ROOT, "test", "last_failures_mask_probe.txt")
+        try
+            _FAILURE_DIGEST_FORMAT_HOOK[] = () -> error("digest-probe-boom")
+            ts = _digest_probe_testset("probe-mask") do
+                @test true
+            end
+            outcome = try
+                try
+                    throw(suite_err)
+                catch err
+                    err isa InterruptException && rethrow()
+                    emit_failure_digest(ts; path = out_path)
+                    rethrow()
+                end
+                :no_error
+            catch err
+                err == suite_err ? :rethrown : :wrong_error
+            end
+            @test outcome == :rethrown
+        finally
+            _FAILURE_DIGEST_FORMAT_HOOK[] = old_hook
+            isfile(out_path) && rm(out_path)
+        end
+    end
 end

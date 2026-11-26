@@ -42,10 +42,12 @@ runic --check --diff .
 # trailing newline on every tracked file
 git ls-files -z | xargs -0 -I{} sh -c 'test -s "{}" && [ -n "$(tail -c1 "{}" | tr -d "\n")" ] && exit 1 || exit 0'
 git diff --check
-JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
+set -o pipefail; JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
 ```
 
 Confirm `Pkg.test()` runs **Aqua** and `test/test_runic_invariance.jl` and that they pass. Do not set `HOME` or `JULIA_DEPOT_PATH` persistently in the shell (per-command prefixes only).
+
+Check the command's exit status; a non-zero status means the suite failed, even if you only read the digest.
 
 Always `tee` the suite as above. On failure, read the digest at the end of the
 log or `test/last_failures.txt` (marker

@@ -122,8 +122,10 @@ When proposing corpus entries, strip secrets, tokens, and customer paths. Prefer
 git clone https://github.com/yamanori99/AgentRuleLint.jl.git
 cd AgentRuleLint.jl
 julia +1.13 --project=. -e 'using Pkg; Pkg.instantiate()'
-julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
+set -o pipefail; julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
 ```
+
+Check the command's exit status; a non-zero status means the suite failed, even if you only read the digest.
 
 Always capture `Pkg.test()` with `tee` as above. Failures print mid-run; the
 end of the log has a block starting with

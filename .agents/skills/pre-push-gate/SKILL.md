@@ -30,10 +30,12 @@ Read `.github/actions-lint.env` and pin sources before bumping tool versions.
 ## When the package tree exists
 
 ```bash
-JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
+set -o pipefail; JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
 ```
 
 Confirm **Aqua** runs and `test/test_runic_invariance.jl` executes.
+
+Check the command's exit status; a non-zero status means the suite failed, even if you only read the digest.
 
 On failure, read the digest (`=== AgentRuleLint test failure digest ===` at the
 end of the log, or `test/last_failures.txt`), or

@@ -5,6 +5,9 @@ const FAILURE_DIGEST_MARKER = "=== AgentRuleLint test failure digest ==="
 const FAILURE_DIGEST_MAX = 50
 const FAILURE_DIGEST_PATH = joinpath(ROOT, "test", "last_failures.txt")
 
+# Test-only: when set, invoked at the start of `format_failure_digest` (see test_failure_digest.jl).
+const _FAILURE_DIGEST_FORMAT_HOOK = Ref{Union{Nothing, Function}}(nothing)
+
 struct FailureDigestEntry
     kind::String
     testset_path::String
@@ -87,11 +90,24 @@ function collect_failure_digest_entries!(
     return out
 end
 
+function _digest_exception_first_line(err)
+    return _digest_first_line(sprint(showerror, err))
+end
+
+function format_digest_unavailable(err)
+    io = IOBuffer()
+    println(io, FAILURE_DIGEST_MARKER)
+    println(io, "digest unavailable: ", _digest_exception_first_line(err))
+    return String(take!(io))
+end
+
 function format_failure_digest(
         ts::Test.AbstractTestSet;
         root::AbstractString = ROOT,
         max_entries::Int = FAILURE_DIGEST_MAX,
     )
+    hook = _FAILURE_DIGEST_FORMAT_HOOK[]
+    hook !== nothing && hook()
     entries = FailureDigestEntry[]
     collect_failure_digest_entries!(entries, ts, String[], root)
     io = IOBuffer()
@@ -122,7 +138,9 @@ function emit_failure_digest(
         write(path, text)
     catch err
         err isa InterruptException && rethrow()
-        @warn "could not emit failure digest" path exception = (err, catch_backtrace())
+        text = format_digest_unavailable(err)
+        print(text)
+        write(path, text)
     end
     return nothing
 end
