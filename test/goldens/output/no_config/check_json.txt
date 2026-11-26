@@ -35,4 +35,3 @@
 {"anchor_line":2,"expect_status":"none","fingerprint":"v1:963cb6d5ce65515491de2bdae94a72a76c183007","level":"warn","message":"catch binding uses a leading-underscore name but does not rethrow or throw","origin":"agentrulelint","path":"test/corpus/silent_catch_underscore_nothing.jl","rule_id":"silent-catch","span":{"end_col":14,"end_line":2,"start_col":1,"start_line":2},"suppressed":false,"type":"diagnostic"}
 {"anchor_line":1,"expect_status":"unfulfilled","fingerprint":"v1:72caa312d4d311dda16e2a087613a38d17fc096b","level":"forbid","message":"trailing inline expect","origin":"agentrulelint","path":"test/corpus/trailing_expect.jl","rule_id":"expect-audit","span":{"end_col":58,"end_line":1,"start_col":1,"start_line":1},"suppressed":false,"type":"diagnostic"}
 {"complete":true,"exit_code":1,"rules":2,"suppressed":2,"type":"summary","violations":34}
-

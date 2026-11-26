@@ -72,4 +72,3 @@
 {"anchor_line":8,"expect_status":"none","fingerprint":"v1:e00bb004ba4422a106d5fc3ec321b6f02383dd01","level":"warn","message":"boundary value alias (invokelatest)","origin":"agentrulelint","path":"test/corpus/unsafe_value_alias.jl","rule_id":"unsafe-boundary","span":{"end_col":20,"end_line":8,"start_col":9,"start_line":8},"suppressed":false,"type":"diagnostic"}
 {"anchor_line":13,"expect_status":"none","fingerprint":"v1:91ecb537330407801b65988dcb31289f9ac57a23","level":"warn","message":"boundary value reference (eval)","origin":"agentrulelint","path":"test/corpus/unsafe_value_alias.jl","rule_id":"unsafe-boundary","span":{"end_col":19,"end_line":13,"start_col":16,"start_line":13},"suppressed":false,"type":"diagnostic"}
 {"complete":true,"exit_code":1,"rules":6,"suppressed":2,"type":"summary","violations":71}
-
