@@ -1,4 +1,4 @@
-AgentRuleLint v0.1.0-DEV (policy bundle base: builtin, pos: utf8-line-col)
+AgentRuleLint v<VERSION> (policy bundle base: builtin, pos: utf8-line-col)
 
 ┌ Error: [AgentRuleLint] expect-audit [forbid] (20 violations, ceiling 0)
 │   intent: Keep suppression comments auditable and fail-closed.

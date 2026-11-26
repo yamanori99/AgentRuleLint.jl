@@ -102,6 +102,24 @@ end
         @test occursin("\"version\"", replace(js, " " => ""))
     end
 
+    @testset "json formatter uses CheckResult only" begin
+        corpus = joinpath("test", "corpus", "split_string.jl")
+        res = AgentRuleLint.check(ROOT; paths = [corpus], config_from = "HEAD")
+        json_here = AgentRuleLint.format_json(res)
+
+        remote = mktempdir()
+        try
+            mkpath(joinpath(remote, "shadow"))
+            json_there = cd(joinpath(remote, "shadow")) do
+                AgentRuleLint.format_json(res)
+            end
+            @test json_here == json_there
+        finally
+            rm(remote; recursive = true, force = true)
+        end
+
+    end
+
     @testset "json diagnostic sort order" begin
         cs = AgentRuleLint.ConfigSource()
         z = AgentRuleLint.Violation(
@@ -168,7 +186,7 @@ end
         io = IOContext(IOBuffer(), :color => false)
         out = AgentRuleLint.format_human(res; root = ROOT, io = io, output_width = 100)
         expected = read(HUMAN_GOLDEN_PATH, String)
-        @test out == expected
+        @test _golden_normalize_text(out) == _golden_normalize_text(expected)
     end
 
     @testset "human COLUMNS=60 code lines never wrap" begin
@@ -277,6 +295,11 @@ end
         ub_explain = AgentRuleLint.explain_rule("unsafe-boundary/strict"; root = ROOT)
         @test occursin("Flag `@inbounds`", ub_explain)
         @test occursin("Rely on core `unsafe-boundary`", ub_explain)
+        @test occursin("do_not:", ub_explain)
+        @test occursin("intent:\nFlag `@inbounds`", ub_explain)
+        @test occursin("do_not:\nRely on core `unsafe-boundary`", ub_explain)
+        @test occursin("intent: Keep runtime", agent)
+        @test occursin("do_not: Add allow_globs", agent)
 
         dir = mktempdir()
         try

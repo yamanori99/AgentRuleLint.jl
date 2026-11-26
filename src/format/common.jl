@@ -112,7 +112,10 @@ function human_ceiling_display(ceilings::CeilingEntry, rule_id::String)
     return string(total)
 end
 
-function human_policy_banner(result::CheckResult)
+function human_policy_banner(
+        result::CheckResult;
+        version::AbstractString = string(AGENTRULELINT_VERSION),
+    )
     cs = result.config_source
     base = if cs.kind == :git_ref && !isempty(cs.ref)
         sha = isempty(cs.sha) ? "?" : cs.sha
@@ -124,7 +127,7 @@ function human_policy_banner(result::CheckResult)
     else
         "policy bundle base: $(string(cs.kind))"
     end
-    return "AgentRuleLint v$(pkgversion(AgentRuleLint)) ($base, pos: utf8-line-col)"
+    return "AgentRuleLint v$version ($base, pos: utf8-line-col)"
 end
 
 function _src_visible_body(src::AbstractString)

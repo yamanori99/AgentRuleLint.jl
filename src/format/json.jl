@@ -14,21 +14,18 @@ function _json_val(v)
     return _json_str(string(v))
 end
 
-function format_json(result::CheckResult; root::AbstractString = pwd())
-    policy = resolve_policy(root)
-    builtin_registry = build_builtin_registry(policy)
-    display_vs = violations_for_display(result.violations, policy, builtin_registry)
+function format_json(result::CheckResult)
     lines = String[]
     header = Dict{String, Any}(
         "type" => "header",
-        "version" => string(pkgversion(AgentRuleLint)),
+        "version" => string(AGENTRULELINT_VERSION),
         "julia_version" => string(VERSION),
         "parser" => parser_rev_string(),
         "config_source" => config_source_dict(result.config_source),
         "position_encoding" => "utf8-codepoint-1based",
     )
     push!(lines, _json_val(header))
-    for d in sort(display_vs; by = diag_sort_key)
+    for d in sort(result.violations; by = diag_sort_key)
         rec = Dict{String, Any}(
             "type" => "diagnostic",
             "rule_id" => d.rule_id,
@@ -54,7 +51,7 @@ function format_json(result::CheckResult; root::AbstractString = pwd())
         "complete" => result.complete,
         "violations" => result.violation_count,
         "suppressed" => result.suppressed_count,
-        "rules" => length(unique(d.rule_id for d in active_violations(display_vs))),
+        "rules" => length(unique(d.rule_id for d in active_violations(result.violations))),
         "exit_code" => result.exit_code,
     )
     push!(lines, _json_val(summary))

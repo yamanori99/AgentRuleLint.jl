@@ -27,6 +27,7 @@ function format_human(
         root::AbstractString = pwd(),
         io::IO = stdout,
         output_width::Union{Nothing, Int} = nothing,
+        agentrulelint_version::Union{Nothing, AbstractString} = nothing,
     )
     width = resolve_output_width(io; output_width = output_width)
     buf = IOBuffer()
@@ -39,14 +40,9 @@ function format_human(
     max_hits = result.max_hits_per_rule
     cfg_label = result.config_source.path
 
-    banner = human_policy_banner(result)
-    if visible_textwidth(banner) <= width
-        println(buf, banner)
-    else
-        for ln in wrap_prose_lines("", "", banner, width)
-            println(buf, ln)
-        end
-    end
+    ver = something(agentrulelint_version, string(AGENTRULELINT_VERSION))
+    banner = human_policy_banner(result; version = ver)
+    println(buf, banner)
     println(buf)
 
     for (rule_id, ds) in groups

@@ -48,7 +48,7 @@ function format_report(fingerprint::AbstractString, diagnostic::Violation, sourc
     buf = IOBuffer()
     header = Dict{String, Any}(
         "type" => "header",
-        "agentrulelint_version" => string(pkgversion(AgentRuleLint)),
+        "agentrulelint_version" => string(AGENTRULELINT_VERSION),
         "julia_version" => string(VERSION),
         "parser" => parser_rev_string(),
         "position_encoding" => "utf8-codepoint-1based",
