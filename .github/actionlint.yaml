@@ -1,0 +1,5 @@
+# xcode-27 is a hosted label (runner-images); actionlint's catalog may lag docs.
+paths:
+  .github/workflows/Daily.yml:
+    ignore:
+      - 'label "xcode-27" is unknown'
