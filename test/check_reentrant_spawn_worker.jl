@@ -1,10 +1,13 @@
 # Child worker: true multi-threaded `Threads.@spawn` check (see test_check_reentrant.jl).
-if length(ARGS) < 2
-    error("usage: check_reentrant_spawn_worker.jl <check_root> <parallel_count>")
+if length(ARGS) < 3
+    error(
+        "usage: check_reentrant_spawn_worker.jl <parallel_count> <paths_rel...> <check_root>...",
+    )
 end
 
-const CHECK_ROOT = ARGS[1]
-const PARALLEL_COUNT = parse(Int, ARGS[2])
+const PARALLEL_COUNT = parse(Int, ARGS[1])
+const CORPUS_PATHS = [ARGS[2]]
+const CHECK_ROOTS = ARGS[3:end]
 
 using AgentRuleLint
 
@@ -15,15 +18,17 @@ if Threads.nthreads() < 2
     )
 end
 
-const CORPUS_PATHS = [joinpath("test", "corpus")]
-
-seq = AgentRuleLint.check(CHECK_ROOT; paths = CORPUS_PATHS)
-
-for _ in 1:PARALLEL_COUNT
-    t = Threads.@spawn AgentRuleLint.check(CHECK_ROOT; paths = CORPUS_PATHS)
-    got = fetch(t)
-    got == seq ||
-        error("spawned check result differs from sequential baseline (reentrancy / shared state bug)")
+for check_root in CHECK_ROOTS
+    seq = AgentRuleLint.check(check_root; paths = CORPUS_PATHS)
+    for _ in 1:PARALLEL_COUNT
+        t = Threads.@spawn AgentRuleLint.check(check_root; paths = CORPUS_PATHS)
+        got = fetch(t)
+        got == seq ||
+            error(
+            "spawned check on $(check_root) differs from sequential baseline " *
+                "(reentrancy / shared state bug)",
+        )
+    end
 end
 
 exit(0)
