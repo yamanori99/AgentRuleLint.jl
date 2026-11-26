@@ -19,9 +19,8 @@ const PACKAGE_SRC_MARKERS = (
     r"dirname\(\s*pathof\(\s*AgentRuleLint\s*\)\s*\)",
 )
 
-const WRITE_OPS = (
+const DESTRUCTIVE_WRITE_OPS = (
     r"\bwrite\s*\(",
-    r"\bopen\s*\(",
     r"\bcp\s*\(",
     r"\bmv\s*\(",
 )
@@ -39,9 +38,32 @@ function _line_has_tracked_src_target(line::AbstractString)
     return any(marker -> occursin(marker, line), REPO_SRC_MARKERS)
 end
 
+function _open_mode_string_writes(mode::AbstractString)
+    return occursin('w', mode) || occursin('a', mode) || occursin('+', mode)
+end
+
+function _open_looks_write(line::AbstractString)
+    occursin(r"\bopen\s*\(", line) || return false
+    occursin(r"\b(write|append|truncate|create)\s*=\s*true\b", line) && return true
+    # Heuristic: mode is a trailing string arg (nested `joinpath(...)` breaks `[^)]*` scans).
+    for m in eachmatch(r",\s*\"([^\"]+)\"\s*[\),;]", line)
+        cap = m.captures
+        length(cap) < 1 && continue
+        mode = cap[1]
+        mode === nothing && continue
+        _open_mode_string_writes(mode) && return true
+    end
+    return false
+end
+
+function _line_has_destructive_write_op(line::AbstractString)
+    any(op -> occursin(op, line), DESTRUCTIVE_WRITE_OPS) && return true
+    return _open_looks_write(line)
+end
+
 function _line_writes_tracked_src(line::AbstractString)
     startswith(strip(line), "#") && return false
-    any(op -> occursin(op, line), WRITE_OPS) || return false
+    _line_has_destructive_write_op(line) || return false
     return _line_has_tracked_src_target(line)
 end
 
@@ -69,7 +91,9 @@ end
 
 function _joinpath_var_writes(var::AbstractString, line::AbstractString)
     occursin(Regex("\\bwrite\\s*\\(\\s*joinpath\\s*\\(\\s*$var\\b"), line) && return true
-    occursin(Regex("\\bopen\\s*\\(\\s*joinpath\\s*\\(\\s*$var\\b"), line) && return true
+    if occursin(Regex("\\bopen\\s*\\(\\s*joinpath\\s*\\(\\s*$var\\b"), line)
+        return _open_looks_write(line)
+    end
     occursin(Regex("\\bcp\\s*\\([^,]+,\\s*joinpath\\s*\\(\\s*$var\\b"), line) && return true
     occursin(Regex("\\bmv\\s*\\([^,]+,\\s*joinpath\\s*\\(\\s*$var\\b"), line) && return true
     return false
@@ -91,7 +115,9 @@ function _path_var_writes_to_src(lines::Vector{String})
         for j in (i + 1):min(i + 12, length(lines))
             nj = lines[j]
             occursin(Regex("\\bwrite\\s*\\(\\s*$var\\s*,"), nj) && push!(hits, (j, nj))
-            occursin(Regex("\\bopen\\s*\\(\\s*$var\\s*,"), nj) && push!(hits, (j, nj))
+            if occursin(Regex("\\bopen\\s*\\(\\s*$var\\s*,"), nj) && _open_looks_write(nj)
+                push!(hits, (j, nj))
+            end
             occursin(Regex("\\bcp\\s*\\([^,]+,\\s*$var"), nj) && push!(hits, (j, nj))
             occursin(Regex("\\bmv\\s*\\([^,]+,\\s*$var"), nj) && push!(hits, (j, nj))
         end
@@ -145,6 +171,25 @@ end
     @testset "temp tree src is not flagged" begin
         sample = "write(joinpath(tmp, \"src\", \"rules\", \"x.jl\"), data)"
         @test isempty(offenders_in_text("fixture_temp.jl", sample))
+    end
+    path = "joinpath(pkgdir(AgentRuleLint), \"src\", \"x.jl\")"
+    @testset "open read-only under pkgdir src" begin
+        @test isempty(offenders_in_text("fixture_open_read.jl", "open($path)"))
+        @test isempty(offenders_in_text("fixture_open_read.jl", "open($path, \"r\")"))
+        @test isempty(
+            offenders_in_text(
+                "fixture_open_read.jl",
+                "open($path) do io; read(io, String); end",
+            ),
+        )
+    end
+    @testset "open write modes under pkgdir src" begin
+        for mode in ("w", "a", "r+")
+            @test !isempty(offenders_in_text("fixture_open_write.jl", "open($path, \"$mode\")"))
+        end
+        @test !isempty(
+            offenders_in_text("fixture_open_write.jl", "open($path; write=true)"),
+        )
     end
 end
 
