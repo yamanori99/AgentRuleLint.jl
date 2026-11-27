@@ -1,5 +1,3 @@
-
-
 """Code portion of a source line (before an end-of-line `#` comment)."""
 function code_prefix_on_line(line::AbstractString)
     idx = findfirst('#', line)

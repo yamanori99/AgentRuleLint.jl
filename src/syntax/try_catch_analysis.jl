@@ -1,5 +1,3 @@
-
-
 struct TryCatchSite
     try_pos::Int
     try_line::Int

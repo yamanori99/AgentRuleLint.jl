@@ -1,4 +1,3 @@
-
 const _CMD_WRAPPER_CALLEES = Set(["run", "open", "read", "pipeline", "Cmd"])
 
 """True for `Cmd` or a dotted constructor whose leaf is `Cmd` (e.g. `Base.Cmd`)."""
