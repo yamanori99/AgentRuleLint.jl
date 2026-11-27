@@ -287,13 +287,17 @@ jobs:
 
       - name: Fetch base ref for diff
         shell: bash
-        run: git fetch origin "${{ github.base_ref }}"
+        run: |
+          set -euo pipefail
+          : "${GITHUB_BASE_REF:?GITHUB_BASE_REF unset (pull_request only)}"
+          git fetch origin "${GITHUB_BASE_REF}"
 
       - name: AgentRuleLint check (dogfood)
         shell: bash
         run: |
           set -euo pipefail
+          : "${GITHUB_BASE_REF:?GITHUB_BASE_REF unset (pull_request only)}"
           julia --startup-file=no --project=. -m AgentRuleLint check \
-            --diff "origin/${{ github.base_ref }}" \
-            --config-from "origin/${{ github.base_ref }}" \
+            --diff "origin/${GITHUB_BASE_REF}" \
+            --config-from "origin/${GITHUB_BASE_REF}" \
             --format human
