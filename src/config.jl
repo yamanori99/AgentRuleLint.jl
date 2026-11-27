@@ -361,34 +361,13 @@ function _inject_builtin_rules!(rules::Dict{String, RuleSpec})
         rules[ANALYSIS_INCOMPLETE_RULE] = rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF)
     end
     if get(rules, PROTECTED_PATHS_RULE, nothing) === nothing
-        rules[PROTECTED_PATHS_RULE] = RuleSpec(
-            PROTECTED_PATHS_RULE,
-            :agentrulelint,
-            :forbid,
-            "Protect designated policy, lockfiles, and workflow paths from silent edits.",
-            "Edit protected files, weaken compat, or rename paths to evade review.",
-            Dict{Symbol, String}(),
-        )
+        rules[PROTECTED_PATHS_RULE] = rule_def_to_spec(PROTECTED_PATHS_RULE_DEF)
     end
-    if get(rules, "ceiling-ratchet", nothing) === nothing
-        rules["ceiling-ratchet"] = RuleSpec(
-            "ceiling-ratchet",
-            :agentrulelint,
-            :forbid,
-            "Keep violation and expect ceilings monotonic (down only).",
-            "Raise ceilings or leave stale slack after counts decrease.",
-            Dict{Symbol, String}(),
-        )
+    if get(rules, CEILING_RATCHET_RULE, nothing) === nothing
+        rules[CEILING_RATCHET_RULE] = rule_def_to_spec(CEILING_RATCHET_RULE_DEF)
     end
-    if get(rules, "scope-paths", nothing) === nothing
-        rules["scope-paths"] = RuleSpec(
-            "scope-paths",
-            :agentrulelint,
-            :forbid,
-            "Reject diff changes outside a trusted path allowlist.",
-            "Edit files outside --allow-paths scope passed from CI or a human wrapper.",
-            Dict{Symbol, String}(),
-        )
+    if get(rules, SCOPE_PATHS_RULE, nothing) === nothing
+        rules[SCOPE_PATHS_RULE] = rule_def_to_spec(SCOPE_PATHS_RULE_DEF)
     end
     return nothing
 end
