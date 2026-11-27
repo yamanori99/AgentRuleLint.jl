@@ -57,7 +57,7 @@ function mutation_verify_detected(cmd::Cmd; dir::AbstractString)
     code == _MUTATION_VERIFY_DETECTED_EXIT && return true
     error(
         "verify subprocess crashed with exit $code " *
-        "(expected 0=not detected or $(_MUTATION_VERIFY_DETECTED_EXIT)=detected): $cmd",
+            "(expected 0=not detected or $(_MUTATION_VERIFY_DETECTED_EXIT)=detected): $cmd",
     )
 end
 
