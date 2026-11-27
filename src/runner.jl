@@ -137,7 +137,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     )
     all_diags = dedupe_analysis_incomplete!(all_diags)
 
-    used_total = Set{Int}()
+    used_by_path = Dict{String, Set{Int}}()
     for (fc, rel) in zip(contexts, rel_files)
         path_diags = Violation[]
         idxs = Int[]
@@ -155,11 +155,12 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         for (j, di) in enumerate(idxs)
             all_diags[di] = path_diags[j]
         end
-        union!(used_total, used)
+        used_by_path[rel] = used
     end
 
     for fc in contexts
-        append!(all_diags, unused_expect_diagnostics(fc.expects, used_total, fc, policy, all_diags))
+        used = used_by_path[fc.parsed.path]
+        append!(all_diags, unused_expect_diagnostics(fc.expects, used, fc, policy, all_diags))
     end
 
     append!(all_diags, run_manifest_sync(root, policy; diff_base = diff_base, paths = paths_kw))

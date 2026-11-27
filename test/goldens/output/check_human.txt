@@ -18,7 +18,7 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-
 │       ~~~~~~~~~
 └ @ AgentRuleLint (run `agentrulelint explain analysis-incomplete` for details)
 
-┌ Error: [AgentRuleLint] expect-audit [forbid] (26 violations, ceiling 0)
+┌ Error: [AgentRuleLint] expect-audit [forbid] (31 violations, ceiling 0)
 │   intent: Keep suppression comments auditable and fail-closed.
 │   do_not: Use inline or block comment expects to hide violations.
 │
@@ -34,6 +34,10 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-
 │     forbid rule suppression
 │     > # agentrulelint-expect: expect-audit reason="crlf"
 │       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/crlf_expect.jl:1:1-1:50
+│     unused expect
+│     > # agentrulelint-expect: expect-audit reason="crlf"
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 │   test/corpus/expect_above_catch.jl:3:1-3:69
 │     expect forbidden above catch
 │     >     # agentrulelint-expect: silent-catch reason="forbidden placement"
@@ -46,8 +50,16 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-
 │     expect not anchored to rule target syntax
 │     > # agentrulelint-expect: silent-catch reason="must anchor to try or catc…
 │       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_anchor_mismatch.jl:1:1-1:73
+│     unused expect
+│     > # agentrulelint-expect: silent-catch reason="must anchor to try or catc…
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 │   test/corpus/expect_anchor_mismatch_suppress.jl:1:1-1:71
 │     expect not anchored to rule target syntax
+│     > # agentrulelint-expect: no-internal-codename reason="must not suppress"
+│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+│   test/corpus/expect_anchor_mismatch_suppress.jl:1:1-1:71
+│     unused expect
 │     > # agentrulelint-expect: no-internal-codename reason="must not suppress"
 │       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 │   test/corpus/expect_blank_line.jl:1:1-1:79
@@ -90,19 +102,7 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-
 │     expect inside runic:off region forbidden
 │     > # agentrulelint-expect: project/no-internal-codename reason="must not s…
 │       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-│   test/corpus/expect_text_anchor_mismatch.toml:1:1-1:71
-│     expect not anchored to rule target syntax
-│     > # agentrulelint-expect: no-internal-codename reason="must not suppress"
-│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-│   test/corpus/expect_text_blank_line.yml:1:1-1:79
-│     blank line breaking expect attachment (unused)
-│     > # agentrulelint-expect: project/no-internal-codename reason="should not…
-│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-│   test/corpus/expect_text_malformed.toml:1:1-1:62
-│     empty reason
-│     > # agentrulelint-expect: project/no-internal-codename reason=""
-│       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-│ ... (+6 omitted)
+│ ... (+11 omitted)
 └ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
 
 ┌ Error: [Project] project/no-internal-codename [deny] (17 violations, ceiling …
@@ -373,4 +373,4 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-
 │                      ~~~~
 └ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
 
-Summary: 84 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED (exit 1)
+Summary: 89 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED (exit 1)
