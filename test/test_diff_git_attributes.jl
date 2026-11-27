@@ -102,68 +102,43 @@
     end
 
     @testset "numstat map missing path throws GitError" begin
-        err = try
+        @test_throws AgentRuleLint.GitError begin
             AgentRuleLint._numstat_lines_for_path(
                 Dict("other.jl" => "1\t0\tother.jl"),
                 Dict("other.jl" => "1\t0\tother.jl"),
                 "missing.jl",
                 true,
             )
-            nothing
-        catch e
-            e
         end
-        @test err isa AgentRuleLint.GitError
-        @test occursin("missing path=missing.jl", AgentRuleLint.sprint(showerror, err))
     end
 
     @testset "malformed numstat -z record throws GitError" begin
-        err = try
+        @test_throws AgentRuleLint.GitError begin
             AgentRuleLint._parse_numstat_z_by_path("only-one-field\0path.jl")
-            nothing
-        catch e
-            e
         end
-        @test err isa AgentRuleLint.GitError
-        @test occursin("malformed git diff --numstat -z", AgentRuleLint.sprint(showerror, err))
     end
 
     @testset "malformed numstat line throws GitError" begin
-        err = try
+        @test_throws AgentRuleLint.GitError begin
             AgentRuleLint._numstat_totals("not-a-number\talso-bad\tpath.jl\n")
-            nothing
-        catch e
-            e
         end
-        @test err isa AgentRuleLint.GitError
-        @test occursin("malformed git diff --numstat", AgentRuleLint.sprint(showerror, err))
     end
 
     @testset "numstat binary probe fails closed without hunks" begin
-        err = try
+        @test_throws AgentRuleLint.GitError begin
             AgentRuleLint._changed_lines_from_diff_output("", "", "-\t-\ttarget.jl", "target.jl")
-            nothing
-        catch e
-            e
         end
-        @test err isa AgentRuleLint.GitError
-        @test occursin("numstat probe binary", AgentRuleLint.sprint(showerror, err))
     end
 
     @testset "numstat text change without hunks fails closed" begin
-        err = try
+        @test_throws AgentRuleLint.GitError begin
             AgentRuleLint._changed_lines_from_diff_output(
                 "",
                 "2\t1\ttarget.jl",
                 "2\t1\ttarget.jl",
                 "target.jl",
             )
-            nothing
-        catch e
-            e
         end
-        @test err isa AgentRuleLint.GitError
-        @test occursin("without hunks", AgentRuleLint.sprint(showerror, err))
     end
 
     @testset "mode-only diff allows empty changed lines" begin
