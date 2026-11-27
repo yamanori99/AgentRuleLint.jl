@@ -115,3 +115,83 @@ jobs:
             echo "mutation_shard result was $SHARD_RESULT (expected success)" >&2
             exit 1
           fi
+
+  # Issue #120: early signal when JuliaLang/julia master JuliaSyntax breaks tests (not required for merge).
+  juliasyntax-master:
+    name: Pkg.test (daily, JuliaSyntax master) - Julia 1.13 - ubuntu-latest - x64
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: julia-actions/setup-julia@da908477b5db94c10ffce8cfea9f2b3b9d5db687 # v3.0.3
+        with:
+          version: "1.13"
+
+      - uses: ./.github/actions/julia-depot-cache # zizmor: ignore[self-repository]
+        with:
+          cache-scratchspaces: false
+
+      - name: Report JuliaSyntax pin vs JuliaLang/julia master
+        id: pin-master
+        shell: bash
+        run: |
+          set -euo pipefail
+          pin="$(julia --startup-file=no -e 'using TOML; println(TOML.parsefile("Project.toml")["sources"]["JuliaSyntax"]["rev"])')"
+          master="$(git ls-remote https://github.com/JuliaLang/julia refs/heads/master | awk '{print $1}')"
+          if [[ -z "${master}" ]]; then
+            echo "juliasyntax-master-ci: git ls-remote returned no master sha" >&2
+            exit 1
+          fi
+          echo "juliasyntax-master-ci: pinned repo-rev=${pin}"
+          echo "juliasyntax-master-ci: JuliaLang/julia master=${master}"
+          echo "master_sha=${master}" >> "${GITHUB_OUTPUT}"
+
+      - name: Instantiate main project
+        shell: bash
+        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+      - name: Resolve JuliaSyntax from julia master
+        shell: bash
+        env:
+          JULIASYNTAX_MASTER_COMMIT: ${{ steps.pin-master.outputs.master_sha }}
+        run: |
+          set -euo pipefail
+          master_commit="${JULIASYNTAX_MASTER_COMMIT}"
+          if [[ -z "${master_commit}" ]]; then
+            echo "juliasyntax-master-ci: missing JULIASYNTAX_MASTER_COMMIT from report step" >&2
+            exit 1
+          fi
+          worktree="$(mktemp -d)"
+          trap 'rm -rf "${worktree}"' EXIT
+          git -C "${worktree}" init -q
+          git -C "${worktree}" remote add origin https://github.com/JuliaLang/julia
+          git -C "${worktree}" fetch --depth 1 --filter=blob:none origin "${master_commit}"
+          expected_tree="$(git -C "${worktree}" rev-parse "FETCH_HEAD:JuliaSyntax")"
+          export JULIASYNTAX_EXPECTED_TREE="${expected_tree}"
+          julia --startup-file=no .github/juliasyntax-master-resolve.jl
+
+      # Ephemeral runner-only commit after resolve rewrites Project.toml/Manifest.toml (#137 test_src_untouched).
+      # contents: read and checkout persist-credentials: false — this commit cannot be pushed.
+      - name: Record ephemeral JuliaSyntax resolve in local git
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add Project.toml Manifest.toml
+          git -c user.name=ci -c user.email=ci@localhost commit -m "ephemeral daily ci: JuliaSyntax at JuliaLang/julia master (runner only, not pushed)"
+
+      - name: Instantiate main project
+        shell: bash
+        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+      - name: Instantiate Runic test env
+        shell: bash
+        run: julia --startup-file=no --project=test/runic_env -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+      - name: Run tests
+        shell: bash
+        run: julia --startup-file=no --project=. --color=yes -e 'using Pkg; Pkg.test()'
