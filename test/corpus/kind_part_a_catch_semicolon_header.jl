@@ -1,10 +1,10 @@
-# `catch e; …` header (semicolon separators are direct `;` children in the catch body block).
-# Part A skips `K";"` in `_block_statements`; the old `SemicolonWs` summary never matched at this pin.
-# runic: off
+# Catch body uses `;` separators (`K";"` children). Part A skips them in `_block_statements`;
+# the old `SemicolonWs` summary never matched at the pinned JuliaSyntax revision.
 function swallow_catch_semicolon_header()
+    # agentrulelint-expect: silent-catch reason="semicolon-separated catch body (Part A gap corpus)"
     try
         risky()
-    catch e; return nothing
+    catch e
+        x = 1; return nothing
     end
 end
-# runic: on

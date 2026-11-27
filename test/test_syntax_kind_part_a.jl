@@ -62,7 +62,8 @@
         rel = joinpath("test", "corpus", "kind_part_a_catch_semicolon_header.jl")
         root = normpath(joinpath(@__DIR__, ".."))
         res = AgentRuleLint.check(root; paths = [rel])
-        hits = filter(d -> d.rule_id == "silent-catch" && !d.suppressed, res.violations)
+        hits = filter(d -> d.rule_id == "silent-catch", res.violations)
         @test !isempty(hits)
+        @test any(d -> d.suppressed && d.expect_status == :fulfilled, hits)
     end
 end
