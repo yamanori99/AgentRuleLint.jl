@@ -2,6 +2,9 @@
 
 const _MUTATION_JULIA = joinpath(Sys.BINDIR, Base.julia_exename())
 
+"""Child exit when violations match; distinct from Julia's default `1` on load/crash."""
+const _MUTATION_HITS_EXIT = 42
+
 function _mutation_child_cmd(project::AbstractString, script::AbstractString)
     return Cmd(
         [
@@ -18,8 +21,9 @@ function _mutation_child_cmd(project::AbstractString, script::AbstractString)
 end
 
 """
-Run `script` in a child Julia with `project`; return `proc.exitcode` (crashes and
-load errors are nonzero and are not treated as detector outcomes).
+Run `script` in a child Julia with `project`; return `proc.exitcode`.
+Successful no-hit checks use 0; hit scripts use `_MUTATION_HITS_EXIT` (42).
+Julia's default exit 1 on crash/load error must not be asserted as a hit.
 """
 function _mutation_child_exitcode(
         project::AbstractString,

@@ -41,7 +41,7 @@ end
                 "write(joinpath($(repr(root)), \".AgentRuleLintConfig.toml\"), \"agentrulelint_version=\\\"\" * v * \"\\\"\\npresets=[\\\"shell-safety\\\"]\\n[rules.expect-audit]\\nlevel=\\\"forbid\\\"\\n\")",
                 "r = AgentRuleLint.check($(repr(root)); paths=[\"bad.jl\"])",
                 "h = filter(d -> d.rule_id==\"shell-safety/process-pattern\" && occursin($(repr(needle)), d.message), r.violations)",
-                "exit(isempty(h) ? 0 : 1)",
+                "exit(isempty(h) ? 0 : $(_MUTATION_HITS_EXIT))",
             ],
             '\n',
         )
