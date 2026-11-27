@@ -8,6 +8,7 @@ run_source_mutation(;
     replace_count = typemax(Int),
     verify = root -> begin
         cmd = _julia_project_cmd(root, "test/mutation/diff_hardening_detector.jl")
-        return detector_disabled(cmd; dir = root)
+        proc = run(ignorestatus(setenv(cmd; dir = root)))
+        return proc.exitcode == 0
     end,
 )
