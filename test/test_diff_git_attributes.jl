@@ -101,6 +101,33 @@
         end
     end
 
+    @testset "numstat map missing path throws GitError" begin
+        err = try
+            AgentRuleLint._numstat_lines_for_path(
+                Dict("other.jl" => "1\t0\tother.jl"),
+                Dict("other.jl" => "1\t0\tother.jl"),
+                "missing.jl",
+                true,
+            )
+            nothing
+        catch e
+            e
+        end
+        @test err isa AgentRuleLint.GitError
+        @test occursin("missing path=missing.jl", AgentRuleLint.sprint(showerror, err))
+    end
+
+    @testset "malformed numstat -z record throws GitError" begin
+        err = try
+            AgentRuleLint._parse_numstat_z_by_path("only-one-field\0path.jl")
+            nothing
+        catch e
+            e
+        end
+        @test err isa AgentRuleLint.GitError
+        @test occursin("malformed git diff --numstat -z", AgentRuleLint.sprint(showerror, err))
+    end
+
     @testset "malformed numstat line throws GitError" begin
         err = try
             AgentRuleLint._numstat_totals("not-a-number\talso-bad\tpath.jl\n")
@@ -158,6 +185,71 @@
         """
         lines = AgentRuleLint._changed_lines_from_diff_output(body, "0\t0\tnew.jl", "", "new.jl")
         @test isempty(lines)
+    end
+
+    @testset "unicode path with space uses batched numstat keys" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            rel = "café x.jl"
+            write(joinpath(dir, rel), "1\n")
+            git_commit_all!(dir, "base")
+            write(joinpath(dir, rel), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
+            git_commit_all!(dir, "change")
+            cd(dir) do
+                scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                lines = AgentRuleLint.diff_changed_lines(scope, rel)
+                @test 1 in lines
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                @test any(d -> d.rule_id == "project/diff-literal" && d.path == rel, res.violations)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "rename with edit reports changed lines" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, "src.jl"), "v = 1\n")
+            git_commit_all!(dir, "base")
+            run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
+            write(joinpath(dir, "dst.jl"), "v = 1\nx = \"FORBIDDEN_DIFF_TOKEN\"\n")
+            git_commit_all!(dir, "rename-edit")
+            cd(dir) do
+                scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                lines = AgentRuleLint.diff_changed_lines(scope, "dst.jl")
+                @test !isempty(lines)
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                lit = filter(d -> d.rule_id == "project/diff-literal", res.violations)
+                @test any(d -> d.path == "dst.jl", lit)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "batched numstat with gitattributes -diff on modified file" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, "target.jl"), "x = 1\n")
+            git_commit_all!(dir, "base")
+            write(joinpath(dir, ".gitattributes"), "*.jl -diff\n")
+            write(joinpath(dir, "target.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
+            git_commit_all!(dir, "attrs")
+            cd(dir) do
+                scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                lines = AgentRuleLint.diff_changed_lines(scope, "target.jl")
+                @test 1 in lines
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
     end
 
     @testset "mode-only change in temp repo" begin
