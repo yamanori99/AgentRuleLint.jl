@@ -91,3 +91,11 @@ Migrate notes:
 
 Rules whose config omits `intent`/`do_not` now show the built-in text in `explain`,
 human, and agent output (previously empty).
+
+#### Deterministic `agent` and piped `human` line layout
+
+`agent` output no longer word-wraps to terminal width or `ENV["COLUMNS"]`; each
+field stays on one line and long text is truncated at a fixed cap. Piped or
+redirected `human` output likewise does not wrap (`COLUMNS` is ignored). Interactive
+TTY `human` still wraps at the terminal width (capped at 80). Exit codes and
+violation counts are unchanged.

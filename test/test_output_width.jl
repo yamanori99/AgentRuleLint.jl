@@ -20,12 +20,15 @@ function assert_max_textwidth(text::AbstractString, limit::Int; skip_status_head
     return nothing
 end
 
-function corpus_human_text(columns::Int)
+function with_columns(f, columns::Union{Nothing, Int})
     old = get(ENV, "COLUMNS", nothing)
-    ENV["COLUMNS"] = string(columns)
     try
-        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
-        return AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
+        if columns === nothing
+            pop!(ENV, "COLUMNS", nothing)
+        else
+            ENV["COLUMNS"] = string(columns)
+        end
+        return f()
     finally
         if old === nothing
             pop!(ENV, "COLUMNS", nothing)
@@ -35,12 +38,35 @@ function corpus_human_text(columns::Int)
     end
 end
 
+function corpus_human_text(columns::Union{Nothing, Int})
+    return with_columns(
+        () -> begin
+            res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
+            AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
+        end,
+        columns,
+    )
+end
+
+function corpus_agent_text(columns::Union{Nothing, Int})
+    return with_columns(
+        () -> begin
+            res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
+            AgentRuleLint.format_agent(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
+        end,
+        columns,
+    )
+end
+
 @testset "output width" begin
-    @testset "corpus human respects COLUMNS and 80 cap" begin
-        out60 = corpus_human_text(60)
-        assert_max_textwidth(out60, 60; skip_status_headers = true)
-        out200 = corpus_human_text(200)
-        assert_max_textwidth(out200, 80; skip_status_headers = true)
+    @testset "non-TTY human output is identical across COLUMNS" begin
+        outs = [corpus_human_text(c) for c in (nothing, 40, 200)]
+        @test all(o -> o == outs[1], outs)
+    end
+
+    @testset "agent output is identical across COLUMNS" begin
+        outs = [corpus_agent_text(c) for c in (nothing, 40, 200)]
+        @test all(o -> o == outs[1], outs)
     end
 
     @testset "long do_not wraps with aligned prefix" begin
@@ -177,10 +203,16 @@ end
         end
     end
 
-    @testset "agent format width (single violation fixture)" begin
+    @testset "agent format truncates to line cap without wrapping" begin
         res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "split_string.jl")])
         out = AgentRuleLint.format_agent(res; root = ROOT, io = IOBuffer(), output_width = 60)
         assert_max_textwidth(out, 60; skip_status_headers = true)
+        for line in split(out, '\n'; keepempty = false)
+            startswith(line, "intent: ") && continue
+            startswith(line, "do_not: ") && continue
+            occursin(r"^HIT .+ \| ", line) || continue
+            @test !occursin(r"^ +", line)
+        end
     end
 
 end

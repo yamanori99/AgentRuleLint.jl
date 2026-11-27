@@ -77,8 +77,8 @@ end
 
 """Normalize human/agent text for cross-environment comparison.
 
-Pinned with `output_width=$(OUTPUT_GOLDEN_WIDTH)` so body wrapping does not depend on
-TTY/`COLUMNS`. Agent and human status headers are never width-wrapped. Strip ANSI
+Pinned with `output_width=$(OUTPUT_GOLDEN_WIDTH)` for human body wrapping. Agent
+lines truncate at that cap without wrapping. Strip ANSI
 in case a caller enables color. Paths in these formats are repo-relative, so no
 absolute-path rewrite is needed. Package version is replaced with
 `OUTPUT_GOLDEN_VERSION_PLACEHOLDER` so goldens stay stable across bumps

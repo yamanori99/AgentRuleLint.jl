@@ -190,30 +190,15 @@ end
         @test _golden_normalize_text(out) == _golden_normalize_text(expected)
     end
 
-    @testset "human COLUMNS=60 code lines never wrap" begin
+    @testset "human non-TTY ignores COLUMNS for code gutter" begin
+        res = human_fixture_result([joinpath("test", "corpus")])
+        plain = IOContext(IOBuffer(), :color => false)
+        out_narrow = AgentRuleLint.format_human(res; root = ROOT, io = plain)
         old = get(ENV, "COLUMNS", nothing)
         ENV["COLUMNS"] = "60"
         try
-            res = human_fixture_result([joinpath("test", "corpus")])
-            out = AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
-            for line in split(out, '\n'; keepempty = false)
-                occursin("> ", line) || continue
-                plain = AgentRuleLint.strip_ansi(line)
-                @test Base.Unicode.textwidth(plain) <= 60
-                src_idx = findfirst("> ", plain)
-                src_idx === nothing && continue
-                src = strip(plain[(src_idx.stop + 1):end])
-                # underline is the next matching companion; length checked via ~ lines below
-                @test !isempty(src)
-            end
-            for line in split(out, '\n'; keepempty = false)
-                occursin('~', line) || continue
-                plain = AgentRuleLint.strip_ansi(line)
-                @test Base.Unicode.textwidth(plain) <= 60
-                m = match(r"~+", plain)
-                m === nothing && continue
-                @test length(m.match) >= 1
-            end
+            out_cols = AgentRuleLint.format_human(res; root = ROOT, io = plain)
+            @test out_narrow == out_cols
         finally
             old === nothing ? pop!(ENV, "COLUMNS", nothing) : (ENV["COLUMNS"] = old)
         end

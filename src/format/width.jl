@@ -12,26 +12,70 @@ function visible_textwidth(s::AbstractString)
     return Base.Unicode.textwidth(strip_ansi(s))
 end
 
+function _unwrap_io(io::IO)
+    while io isa IOContext
+        io = io.io
+    end
+    return io
+end
+
+function output_stream_is_tty(io::IO)
+    return _unwrap_io(io) isa Base.TTY
+end
+
 """
-    output_displaysize(io::IO=stdout) -> Int
+    tty_column_width(io::IO=stdout) -> Int
 
 Return `min(cols, OUTPUT_WIDTH_CAP)` where `cols` is the column count from
-`displaysize(io)` (TTY, else `ENV["COLUMNS"]`, else 80).
+`displaysize(io)` on a TTY (undefined on non-TTY streams).
 """
-function output_displaysize(io::IO = stdout)
+function tty_column_width(io::IO = stdout)
     _, cols = displaysize(io)
     return min(cols, OUTPUT_WIDTH_CAP)
 end
 
 """
-    resolve_output_width(io; output_width=nothing) -> Int
+    resolve_human_output_width(io; output_width=nothing) -> Int
 
-Default width from `output_displaysize(io)`. Pass `output_width` only in tests
-or other explicit callers that must pin width without a TTY/`COLUMNS`.
+When `output_width` is set, use it (tests and explicit pin). Otherwise wrap only
+on a TTY at `tty_column_width`; piped/file/agent-tool streams do not wrap and
+`ENV["COLUMNS"]` is ignored (returns `typemax(Int)`).
 """
-function resolve_output_width(io::IO = stdout; output_width::Union{Nothing, Int} = nothing)
+function resolve_human_output_width(io::IO = stdout; output_width::Union{Nothing, Int} = nothing)
     output_width !== nothing && return output_width
-    return output_displaysize(io)
+    output_stream_is_tty(io) || return typemax(Int)
+    return tty_column_width(io)
+end
+
+"""
+    resolve_agent_line_cap(; output_width=nothing) -> Int
+
+Agent/json output never wraps; long fields truncate on one line at this cap.
+Default is `OUTPUT_WIDTH_CAP`. Pass `output_width` only in tests.
+"""
+function resolve_agent_line_cap(; output_width::Union{Nothing, Int} = nothing)
+    return something(output_width, OUTPUT_WIDTH_CAP)
+end
+
+function println_capped_line(buf::IO, text::AbstractString, cap::Int)
+    if visible_textwidth(text) <= cap
+        println(buf, text)
+    else
+        println(buf, _truncate_chars(text, cap, with_ellipsis = true))
+    end
+    return nothing
+end
+
+function println_capped_labeled(
+        buf::IO,
+        margin::AbstractString,
+        label::AbstractString,
+        text::AbstractString,
+        cap::Int,
+    )
+    prefix = string(margin, label)
+    println_capped_line(buf, string(prefix, text), cap)
+    return nothing
 end
 
 function _prose_budget(prefix::AbstractString, width::Int)

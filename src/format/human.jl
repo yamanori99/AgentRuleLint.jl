@@ -29,7 +29,7 @@ function format_human(
         output_width::Union{Nothing, Int} = nothing,
         _agentrulelint_version::Union{Nothing, AbstractString} = nothing, # test-only: override the displayed version (see test_output_goldens.jl)
     )
-    width = resolve_output_width(io; output_width = output_width)
+    width = resolve_human_output_width(io; output_width = output_width)
     buf = IOBuffer()
     ceilings = result.ceilings
     groups = violations_by_rule(active_violations(result.violations))
