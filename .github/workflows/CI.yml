@@ -258,3 +258,57 @@ jobs:
       - name: Run mutation harnesses
         shell: bash
         run: julia --startup-file=no --project=. test/mutation/run_all.jl
+
+  # Non-required until #70: fails on protected-path / policy diffs by design (#71).
+  dogfood:
+    name: AgentRuleLint (dogfood)
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: julia-actions/setup-julia@da908477b5db94c10ffce8cfea9f2b3b9d5db687 # v3.0.3
+        with:
+          version: "1.13"
+
+      - uses: ./.github/actions/julia-depot-cache # zizmor: ignore[self-repository]
+        with:
+          cache-scratchspaces: false
+
+      - name: Checkout base linter worktree
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${GITHUB_BASE_REF:?GITHUB_BASE_REF unset (pull_request only)}"
+          git fetch origin "${GITHUB_BASE_REF}"
+          if [[ -e .linter-base ]]; then
+            git worktree remove -f .linter-base
+          fi
+          git worktree add .linter-base "origin/${GITHUB_BASE_REF}"
+          linter_sha="$(git -C .linter-base rev-parse HEAD)"
+          base_tip="$(git rev-parse "origin/${GITHUB_BASE_REF}")"
+          echo "dogfood linter commit: ${linter_sha}"
+          echo "dogfood base tip: ${base_tip}"
+          [[ "${linter_sha}" == "${base_tip}" ]]
+
+      - name: Instantiate base linter project
+        shell: bash
+        run: julia --startup-file=no --project=.linter-base -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
+      - name: AgentRuleLint check (dogfood)
+        shell: bash
+        run: |
+          set -euo pipefail
+          : "${GITHUB_BASE_REF:?GITHUB_BASE_REF unset (pull_request only)}"
+          base_sha="$(git merge-base "origin/${GITHUB_BASE_REF}" HEAD)"
+          echo "dogfood merge-base: ${base_sha}"
+          julia --startup-file=no --project=.linter-base -m AgentRuleLint check \
+            --diff "${base_sha}" \
+            --config-from "origin/${GITHUB_BASE_REF}" \
+            --format human
