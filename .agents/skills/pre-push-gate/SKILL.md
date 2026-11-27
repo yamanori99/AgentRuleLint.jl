@@ -25,12 +25,26 @@ Read `.github/actions-lint.env` before bumping tool versions.
 
 ## When the package tree exists
 
-Dogfood (same as CI, before tests):
+Dogfood (match the CI `dogfood` job: base-branch linter, not the working tree's `src/`):
 
 ```bash
+set -euo pipefail
+git fetch origin main
+if [[ -e .linter-base ]]; then
+  git worktree remove -f .linter-base
+fi
+git worktree add --detach .linter-base origin/main
+JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=.linter-base -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 set -o pipefail
-JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -m AgentRuleLint check --diff "$(git merge-base origin/main HEAD)" --config-from origin/main --format agent 2>&1 | tee /tmp/agentrulelint-dogfood.log
+JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=.linter-base -m AgentRuleLint check \
+  --diff "$(git merge-base origin/main HEAD)" \
+  --config-from origin/main \
+  --format agent 2>&1 | tee /tmp/agentrulelint-dogfood.log
+git worktree remove -f .linter-base
 ```
+
+`.linter-base/` is listed in `.gitignore` and is not part of the PR diff; dogfood
+uses `--diff` only.
 
 Read the **entire** `tee` output (or `/tmp/agentrulelint-dogfood.log`). Do **not**
 use `tail`; the closing summary line does not repeat every `HIT` with path and
@@ -43,7 +57,7 @@ finding before push.
 set -o pipefail; JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
 ```
 
-Confirm Aqua and `test/test_runic_invariance.jl`. The command’s exit status is
+Confirm Aqua and `test/test_runic_invariance.jl`. The command's exit status is
 the suite result. Then:
 
 ```bash
