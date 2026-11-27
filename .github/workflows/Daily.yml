@@ -162,15 +162,6 @@ jobs:
             echo "juliasyntax-master-ci: missing JULIASYNTAX_MASTER_COMMIT from report step" >&2
             exit 1
           fi
-          master_now="$(git ls-remote https://github.com/JuliaLang/julia refs/heads/master | awk '{print $1}')"
-          if [[ -z "${master_now}" ]]; then
-            echo "juliasyntax-master-ci: git ls-remote returned no master sha" >&2
-            exit 1
-          fi
-          if [[ "${master_now}" != "${master_commit}" ]]; then
-            echo "juliasyntax-master-ci: master moved between report and resolve (report=${master_commit}, now=${master_now})" >&2
-            exit 1
-          fi
           worktree="$(mktemp -d)"
           trap 'rm -rf "${worktree}"' EXIT
           git -C "${worktree}" init -q

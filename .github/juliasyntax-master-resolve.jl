@@ -23,7 +23,7 @@ sources = get(proj, "sources", Dict{String, Any}())
 entry = get(sources, PKG, nothing)
 entry isa Dict{String, Any} || error("Project.toml [sources] missing JuliaSyntax table")
 haskey(entry, "url") || error("JuliaSyntax [sources] must have url (julia git subdir)")
-entry["rev"] = "master"
+entry["rev"] = MASTER_COMMIT
 sources[PKG] = entry
 proj["sources"] = sources
 open(joinpath(ROOT, "Project.toml"), "w") do io
@@ -53,22 +53,19 @@ manifest_tree isa AbstractString && !isempty(manifest_tree) ||
     error("resolved JuliaSyntax manifest entry missing git-tree-sha1")
 manifest_rev = get(entry, "repo-rev", nothing)
 
+manifest_rev isa AbstractString && !isempty(manifest_rev) ||
+    error("resolved JuliaSyntax manifest entry missing repo-rev")
 println("juliasyntax-master-ci: commit=$(MASTER_COMMIT)")
 println("juliasyntax-master-ci: expected JuliaSyntax tree=$(EXPECTED_TREE)")
 println("juliasyntax-master-ci: manifest git-tree-sha1=$(manifest_tree)")
-if manifest_tree != EXPECTED_TREE
+println("juliasyntax-master-ci: manifest repo-rev=$(manifest_rev)")
+if manifest_rev != MASTER_COMMIT
     error(
-        "JuliaSyntax manifest git-tree-sha1 does not match commit $(MASTER_COMMIT) " *
-            "(master may have moved between report and resolve; expected tree $(EXPECTED_TREE), got $(manifest_tree))",
+        "JuliaSyntax manifest repo-rev $(manifest_rev) does not match commit $(MASTER_COMMIT)",
     )
 end
-if manifest_rev isa AbstractString && !isempty(manifest_rev) && manifest_rev != "master"
-    if manifest_rev != MASTER_COMMIT
-        error(
-            "JuliaSyntax manifest repo-rev $(manifest_rev) does not match pinned master commit $(MASTER_COMMIT)",
-        )
-    end
-    println("juliasyntax-master-ci: manifest repo-rev=$(manifest_rev)")
-elseif manifest_rev == "master"
-    println("juliasyntax-master-ci: manifest repo-rev=master (tree match confirms commit)")
+if manifest_tree != EXPECTED_TREE
+    error(
+        "JuliaSyntax manifest git-tree-sha1 $(manifest_tree) does not match expected tree $(EXPECTED_TREE) for commit $(MASTER_COMMIT)",
+    )
 end
