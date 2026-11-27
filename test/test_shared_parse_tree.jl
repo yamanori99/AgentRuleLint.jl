@@ -36,3 +36,27 @@
     extras = setdiff(keys(counts), Set(jl_files))
     @test isempty(extras)
 end
+
+@testset "shared head parse tree with unsafe-boundary/strict preset" begin
+    counts = Dict{String, Int}()
+    unnamed = Ref(0)
+    observer = function (meta)
+        fn = meta.filename
+        if fn === nothing
+            unnamed[] += 1
+            return
+        end
+        key = replace(String(fn), '\\' => '/')
+        counts[key] = get(counts, key, 0) + 1
+        return
+    end
+    corpus = joinpath("test", "corpus")
+    AgentRuleLint.with_parse_source_observer(observer) do
+        AgentRuleLint.check(ROOT; paths = [corpus])
+    end
+    @test unnamed[] == 0
+    for (rel, n) in counts
+        endswith(lowercase(rel), ".jl") || continue
+        @test n == 1
+    end
+end

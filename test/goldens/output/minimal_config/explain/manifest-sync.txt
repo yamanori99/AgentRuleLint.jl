@@ -3,10 +3,10 @@ origin: [AgentRuleLint]
 level: deny
 
 intent:
-
+Tracked Manifest.toml files must stay consistent with Project.toml (integrity).
 
 do_not:
-
+Edit [deps] or other resolve sections without updating the tracked manifest.
 anchor_line:
 Project table key or manifest header field (e.g. [deps], project_hash).
 detail:

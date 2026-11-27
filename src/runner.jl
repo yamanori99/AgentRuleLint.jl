@@ -239,6 +239,11 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     vcount = count(is_violation_hit, all_diags)
     scount = count(d -> d.suppressed, all_diags)
     exit = vcount > 0 ? 1 : 0
+    empty_ceilings = CeilingEntry(
+        Dict{String, Dict{String, Int}}(),
+        Dict{String, Dict{String, Int}}(),
+    )
+    display_ceilings = working_ceil_present ? load_ceilings(root, policy) : empty_ceilings
     result = CheckResult(
         all_diags,
         true,
@@ -247,7 +252,8 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         policy.default_format,
         policy.max_hits_per_rule,
         scount,
-        vcount,
+        vcount;
+        ceilings = display_ceilings,
     )
     return result, contexts
 end

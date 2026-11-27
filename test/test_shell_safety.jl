@@ -154,16 +154,22 @@ end
             ("ssh", r"\\bssh\\b.*\\s--\\s" => "ssh_OFF", "shell_ssh_remote.jl", "ssh"),
             ("sh -c", "_shell_dash_c_label(cmd)" => "nothing", "shell_sh_dash_c.jl", "sh -c"),
         ]
+        rule_rel = "src/rules/shell_safety.jl"
+        rule_path = joinpath(shared_tmp, rule_rel)
         try
             for (label, pair, corpus, needle) in cases
                 @testset "$label" begin
-                    @test _shell_active_hits(scratch, corpus, needle)
-                    write(joinpath(shared_tmp, "bad.jl"), read(joinpath(CORPUS, corpus), String))
                     patched = replace(orig, pair)
-                    write(joinpath(shared_tmp, "src", "rules", "shell_safety.jl"), orig)
-                    write(joinpath(shared_tmp, "src", "rules", "shell_safety.jl"), patched)
-                    script = _shell_mutation_script(shared_tmp, needle)
-                    @test _mutation_child_ok(shared_tmp, script; dir = repo_root)
+                    try
+                        @test _shell_active_hits(scratch, corpus, needle)
+                        write(joinpath(shared_tmp, "bad.jl"), read(joinpath(CORPUS, corpus), String))
+                        write(rule_path, patched)
+                        script = _shell_mutation_script(shared_tmp, needle)
+                        code = _mutation_child_exitcode(shared_tmp, script; dir = repo_root)
+                        @test code == 0
+                    finally
+                        write(rule_path, orig)
+                    end
                 end
             end
         finally

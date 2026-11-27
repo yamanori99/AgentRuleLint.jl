@@ -6,7 +6,7 @@
         ids = [d.id for d in AgentRuleLint.RULE_DEFS]
         @test ids == sort(ids)
         @test length(ids) == length(unique(ids))
-        @test length(AgentRuleLint.RULE_DEFS) == 10
+        @test length(AgentRuleLint.RULE_DEFS) == 11
     end
 
     @testset "every RuleDef has source, test, and coverage" begin

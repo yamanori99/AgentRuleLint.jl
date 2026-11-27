@@ -1,6 +1,7 @@
 agentrulelint_version = "=0.1.0"
 default_format = "human"
 max_hits_per_rule = 20
+presets = ["unsafe-boundary/strict"]
 
 [rules.expect-audit]
 level = "forbid"
@@ -28,6 +29,9 @@ allow_modules = []
 allow_globs = []
 intent = "Keep runtime evaluation and FFI inside reviewed boundaries in this package."
 do_not = "Add allow_globs or allow_modules rather than hiding eval, ccall, or unsafe_* calls."
+
+[rules."unsafe-boundary/strict"]
+level = "warn"
 
 [[project_rules]]
 id = "no-internal-codename"

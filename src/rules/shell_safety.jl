@@ -1,8 +1,3 @@
-const _SHELL_SAFETY_INTENT =
-    "Reject hazardous process patterns in statically known shell/Cmd literals (pkill, killall, remote shells, sudo)."
-const _SHELL_SAFETY_DO_NOT =
-    "Split command names (\"pk\" * \"ill\"), alias binaries, or build Cmd from runtime values to evade folding."
-
 const _SHELL_HAZARD_PATTERNS = [
     (r"\bpkill\b", "pkill"),
     (r"\bkillall\b", "killall"),
@@ -82,8 +77,8 @@ const SHELL_SAFETY_RULE_DEF = RuleDef(
     SHELL_SAFETY_PRESET_ID,
     :preset,
     :deny,
-    "Reject hazardous shell patterns in statically known Cmd literals.",
-    "Split or dynamically assemble command strings to bypass constant folding.",
+    "Reject hazardous process patterns in statically known shell/Cmd literals (pkill, killall, remote shells, sudo).",
+    "Split command names (\"pk\" * \"ill\"), alias binaries, or build Cmd from runtime values to evade folding.",
     Dict{Symbol, String}(),
     "shell_safety.jl",
     "test_shell_safety.jl",
@@ -96,8 +91,8 @@ function diagnose_shell_safety(fc::FileContext, policy::PolicyBundle, eff_level:
     tree === nothing && return Violation[]
     collected = collect_cmd_string_literals(tree, source)
     cfg = policy.shell_safety
-    intent = isempty(cfg.intent) ? _SHELL_SAFETY_INTENT : cfg.intent
-    do_not = isempty(cfg.do_not) ? _SHELL_SAFETY_DO_NOT : cfg.do_not
+    intent = isempty(cfg.intent) ? SHELL_SAFETY_RULE_DEF.intent : cfg.intent
+    do_not = isempty(cfg.do_not) ? SHELL_SAFETY_RULE_DEF.do_not : cfg.do_not
     diags = Violation[]
     seen = Set{Tuple{Int, Int}}()
     for fold in collected.folds
