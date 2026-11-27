@@ -16,7 +16,7 @@ end
     root = mktempdir()
     try
         write(
-            joinpath(root, ".AgentRuleLintConfig.toml"),
+            joinpath(root, ".AgentRuleLint.jl.toml"),
             """
             agentrulelint_version = \"=$(AgentRuleLint.AGENTRULELINT_VERSION)\"
             [rules.expect-audit]
@@ -27,7 +27,7 @@ end
         pol = AgentRuleLint.resolve_policy(root)
         @test pol.on_allow_rule == :forbid
         write(
-            joinpath(root, ".AgentRuleLintConfig.toml"),
+            joinpath(root, ".AgentRuleLint.jl.toml"),
             """
             agentrulelint_version = \"=$(AgentRuleLint.AGENTRULELINT_VERSION)\"
             [rules.expect-audit]

@@ -11,7 +11,7 @@ Split command names ("pk" * "ill"), alias binaries, or build Cmd from runtime va
 anchor_line:
 `run(`, `open(`, `read(`, `pipeline(`, backtick Cmd, or `Cmd(`.
 config:
-Opt-in via `presets = ["shell-safety"]` in `.AgentRuleLintConfig.toml`.
+Opt-in via `presets = ["shell-safety"]` in `.AgentRuleLint.jl.toml`.
 `[rules."shell-safety/process-pattern"]` without `presets = ["shell-safety"]` is ConfigError.
 detail:
 Uses the Syntax-layer constant folder and `collect_cmd_string_literals` to find `pkill`,

@@ -37,7 +37,7 @@
 
     function assert_attrs_literal_and_protected!(dir, attr_line::String)
         init_git_repo!(dir)
-        write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+        write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
         write(joinpath(dir, "target.jl"), "x = 1\n")
         git_commit_all!(dir, "base")
         write(joinpath(dir, ".gitattributes"), attr_line)
@@ -81,7 +81,7 @@
             dir = abspath(mktempdir())
             try
                 init_git_repo!(dir)
-                write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+                write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
                 write(joinpath(dir, "keep.jl"), "1\n")
                 git_commit_all!(dir, "base")
                 write(joinpath(dir, rel), content)
@@ -166,7 +166,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
             rel = "café x.jl"
             write(joinpath(dir, rel), "1\n")
             git_commit_all!(dir, "base")
@@ -188,7 +188,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
             write(joinpath(dir, "src.jl"), "v = 1\n")
             git_commit_all!(dir, "base")
             run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
@@ -211,7 +211,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
             write(joinpath(dir, "target.jl"), "x = 1\n")
             git_commit_all!(dir, "base")
             write(joinpath(dir, ".gitattributes"), "*.jl -diff\n")
@@ -231,7 +231,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
             write(joinpath(dir, "target.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
             git_commit_all!(dir, "base")
             chmod(joinpath(dir, "target.jl"), 0o755)

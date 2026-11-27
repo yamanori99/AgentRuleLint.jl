@@ -39,7 +39,7 @@ end
         formatted = runic_format_str(src)
         tmp = mktempdir()
         write(joinpath(tmp, f), src)
-        write(joinpath(tmp, ".AgentRuleLintConfig.toml"), read(joinpath(root, ".AgentRuleLintConfig.toml"), String))
+        write(joinpath(tmp, ".AgentRuleLint.jl.toml"), read(joinpath(root, ".AgentRuleLint.jl.toml"), String))
         before = AgentRuleLint.run_check(tmp; paths = [f]).violations
         write(joinpath(tmp, f), formatted)
         after = AgentRuleLint.run_check(tmp; paths = [f]).violations

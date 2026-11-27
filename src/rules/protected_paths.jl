@@ -4,7 +4,8 @@ const CEILINGS_REL_PATH = CEILINGS_REL
 
 const AUTO_PROTECTED_EXACT = Set(
     [
-        ".AgentRuleLintConfig.toml",
+        CONFIG_FILENAME,
+        LEGACY_CONFIG_FILENAME,
         ".JETLSConfig.toml",
         ".gitattributes",
         ".gitmodules",
@@ -30,7 +31,7 @@ end
 
 function auto_protected_reason(path::AbstractString)
     p = normalize_path(path)
-    p == ".AgentRuleLintConfig.toml" &&
+    (p == CONFIG_FILENAME || p == LEGACY_CONFIG_FILENAME) &&
         return "AgentRuleLint policy must not be weakened by agents."
     p == ".gitattributes" &&
         return "`.gitattributes` controls git diff and merge behavior and must not be weakened."
@@ -262,7 +263,7 @@ Group: integrity. Level: forbid (no inline expects).
 
 Runs only with `--diff <base>`. Reports nothing on a full-tree `check` without `--diff`.
 
-Auto-protected paths include `.AgentRuleLintConfig.toml`, `.agentrulelint/**`
+Auto-protected paths include `$CONFIG_FILENAME`, legacy `$LEGACY_CONFIG_FILENAME` (rename required), `.agentrulelint/**`
 (except `.agentrulelint/ceilings.toml` when the diff is monotonic non-increasing),
 `.gitattributes`, `.gitmodules`, `.JETLSConfig.toml`, `Manifest*.toml`, `JuliaManifest.toml`,
 `LocalPreferences.toml`, and every repo-relative `Project.toml`.

@@ -59,7 +59,7 @@
             level = \"deny\"
             warn_counts_as_handling = true
             """
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), cfg)
             write(
                 joinpath(root, "log_ok.jl"),
                 """

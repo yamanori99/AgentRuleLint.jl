@@ -3,7 +3,7 @@ using AgentRuleLint
 dir = abspath(mktempdir())
 err_path = tempname()
 try
-    write(joinpath(dir, ".AgentRuleLintConfig.toml"), "agentrulelint_version = \"=99.99.99\"\n")
+    write(joinpath(dir, ".AgentRuleLint.jl.toml"), "agentrulelint_version = \"=99.99.99\"\n")
     code = cd(dir) do
         open(err_path, "w") do err_io
             redirect_stderr(err_io) do

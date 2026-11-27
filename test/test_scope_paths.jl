@@ -152,7 +152,7 @@ SCOPE_RULE = "scope-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             mkpath(joinpath(dir, "src"))
             write(joinpath(dir, "src", "ok.jl"), "1\n")
             git_commit_all!(dir, "base")
@@ -171,7 +171,7 @@ SCOPE_RULE = "scope-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "secret.txt"), "a\n")
             git_commit_all!(dir, "base")
             write(joinpath(dir, "secret.txt"), "b\n")
@@ -191,7 +191,7 @@ SCOPE_RULE = "scope-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, ".JETLSConfig.toml"), "1\n")
             git_commit_all!(dir, "base")
             mv(joinpath(dir, ".JETLSConfig.toml"), joinpath(dir, "moved.toml"))

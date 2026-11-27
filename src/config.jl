@@ -1,7 +1,41 @@
 using TOML
 
-const CONFIG_FILENAME = ".AgentRuleLintConfig.toml"
+const CONFIG_FILENAME = ".AgentRuleLint.jl.toml"
+const LEGACY_CONFIG_FILENAME = ".AgentRuleLintConfig.toml"
+const CONFIG_FILE_HEADER =
+    "# AgentRuleLint.jl — https://github.com/yamanori99/AgentRuleLint.jl\n"
 const CEILINGS_REL = ".agentrulelint/ceilings.toml"
+
+function legacy_config_rename_error()::ConfigError
+    return ConfigError(
+        "found $LEGACY_CONFIG_FILENAME; rename to $CONFIG_FILENAME with: git mv $LEGACY_CONFIG_FILENAME $CONFIG_FILENAME",
+    )
+end
+
+function reject_legacy_config_file!(root::AbstractString)
+    root = abspath(String(root))
+    isfile(joinpath(root, LEGACY_CONFIG_FILENAME)) && throw(legacy_config_rename_error())
+    return nothing
+end
+
+function reject_legacy_config_at_ref!(root::AbstractString, commit_sha::AbstractString)
+    git_tree_path_exists(root, commit_sha, LEGACY_CONFIG_FILENAME) &&
+        throw(legacy_config_rename_error())
+    return nothing
+end
+
+function render_init_config()::String
+    ver = AGENTRULELINT_VERSION
+    return string(
+        CONFIG_FILE_HEADER,
+        """
+        agentrulelint_version = \"=$(ver)\"
+
+        [rules.protected-paths]
+        level = \"forbid\"
+        """,
+    )
+end
 
 const TOP_LEVEL_CONFIG_KEYS = Set(
     [
@@ -597,7 +631,11 @@ end
 
 function load_policy_from_ref(root::AbstractString, ref::AbstractString)
     root = abspath(String(root))
-    cfg_text, sha = git_show_file(ref, CONFIG_FILENAME, root)
+    sha = git_resolve_commit_sha(root, ref)
+    reject_legacy_config_at_ref!(root, sha)
+    git_tree_path_exists(root, sha, CONFIG_FILENAME) ||
+        throw(ConfigError("config not found: $CONFIG_FILENAME (at $ref)"))
+    cfg_text = git_show_blob_at_commit(root, sha, CONFIG_FILENAME)
     raw = load_toml_string(cfg_text, "$CONFIG_FILENAME@$ref")
     cs = ConfigSource(:git_ref, CONFIG_FILENAME, String(ref), sha)
     cfg_path = joinpath(root, CONFIG_FILENAME)
@@ -640,6 +678,7 @@ function resolve_policy(root::AbstractString; config_path = nothing, config_from
     if config_from !== nothing
         return load_policy_from_ref(root, config_from)
     end
+    reject_legacy_config_file!(root)
     cfg = something(config_path, joinpath(abspath(root), CONFIG_FILENAME))
     if isfile(cfg)
         return load_policy(root; config_path = cfg)

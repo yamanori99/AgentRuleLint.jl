@@ -57,18 +57,18 @@
     @testset "config exit_severity" begin
         root = mktempdir()
         try
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), _pin_config("exit_severity = \"forbid\"\n"))
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), _pin_config("exit_severity = \"forbid\"\n"))
             pol = AgentRuleLint.resolve_policy(root)
             @test pol.exit_severity == :forbid
             relp = joinpath("test", "corpus", "unsafe_allow_module.jl")
             res = AgentRuleLint.check(
                 ROOT;
                 paths = [relp],
-                config_path = joinpath(root, ".AgentRuleLintConfig.toml"),
+                config_path = joinpath(root, ".AgentRuleLint.jl.toml"),
             )
             @test res.exit_code == 0
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 _pin_config("exit_severity = \"nope\"\n"),
             )
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.resolve_policy(root)
@@ -98,7 +98,7 @@
         root = mktempdir()
         old = pwd()
         try
-            cfg = joinpath(root, ".AgentRuleLintConfig.toml")
+            cfg = joinpath(root, ".AgentRuleLint.jl.toml")
             write(cfg, _pin_config())
             cd(ROOT)
             mktemp() do path, io
@@ -132,7 +132,7 @@
         root = mktempdir()
         old = pwd()
         try
-            cfg = joinpath(root, ".AgentRuleLintConfig.toml")
+            cfg = joinpath(root, ".AgentRuleLint.jl.toml")
             write(
                 cfg,
                 string(
@@ -177,7 +177,7 @@
     @testset "config threshold has no CLI override note" begin
         root = mktempdir()
         try
-            cfg = joinpath(root, ".AgentRuleLintConfig.toml")
+            cfg = joinpath(root, ".AgentRuleLint.jl.toml")
             write(
                 cfg,
                 string(
@@ -213,7 +213,7 @@
     @testset "CLI overrides config" begin
         root = mktempdir()
         try
-            cfg = joinpath(root, ".AgentRuleLintConfig.toml")
+            cfg = joinpath(root, ".AgentRuleLint.jl.toml")
             write(
                 cfg,
                 string(

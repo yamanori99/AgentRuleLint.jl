@@ -320,7 +320,7 @@ end
         old = pwd()
         try
             v = string(pkgversion(AgentRuleLint))
-            cfg = joinpath(root, ".AgentRuleLintConfig.toml")
+            cfg = joinpath(root, ".AgentRuleLint.jl.toml")
             write(
                 cfg,
                 """

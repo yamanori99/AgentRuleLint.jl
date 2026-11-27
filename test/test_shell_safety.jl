@@ -28,7 +28,7 @@ const _SHELL_POSITIVE = String[
 ]
 
 function _shell_hits(root::AbstractString, relpath::AbstractString)
-    res = AgentRuleLint.check(root; config_path = joinpath(root, ".AgentRuleLintConfig.toml"), paths = [relpath])
+    res = AgentRuleLint.check(root; config_path = joinpath(root, ".AgentRuleLint.jl.toml"), paths = [relpath])
     return filter(d -> d.rule_id == "shell-safety/process-pattern" && !d.suppressed, res.violations)
 end
 
@@ -38,7 +38,7 @@ end
             [
                 "using AgentRuleLint",
                 "v = string(pkgversion(AgentRuleLint))",
-                "write(joinpath($(repr(root)), \".AgentRuleLintConfig.toml\"), \"agentrulelint_version=\\\"\" * v * \"\\\"\\npresets=[\\\"shell-safety\\\"]\\n[rules.expect-audit]\\nlevel=\\\"forbid\\\"\\n\")",
+                "write(joinpath($(repr(root)), \".AgentRuleLint.jl.toml\"), \"agentrulelint_version=\\\"\" * v * \"\\\"\\npresets=[\\\"shell-safety\\\"]\\n[rules.expect-audit]\\nlevel=\\\"forbid\\\"\\n\")",
                 "r = AgentRuleLint.check($(repr(root)); paths=[\"bad.jl\"])",
                 "h = filter(d -> d.rule_id==\"shell-safety/process-pattern\" && occursin($(repr(needle)), d.message), r.violations)",
                 "exit(isempty(h) ? 0 : $(_MUTATION_HITS_EXIT))",
@@ -50,7 +50,7 @@ end
     function _shell_active_hits(root::AbstractString, corpus::AbstractString, needle::AbstractString)
         write(joinpath(root, "bad.jl"), read(joinpath(CORPUS, corpus), String))
         write(
-            joinpath(root, ".AgentRuleLintConfig.toml"),
+            joinpath(root, ".AgentRuleLint.jl.toml"),
             _shell_config("presets = [\"shell-safety\"]\n\n"),
         )
         hits = _shell_hits(root, "bad.jl")
@@ -62,7 +62,7 @@ end
     @testset "inactive without presets" begin
         root = mktempdir()
         try
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), _shell_config())
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), _shell_config())
             write(joinpath(root, "bad.jl"), read(joinpath(CORPUS, "shell_pkill_backtick.jl"), String))
             @test isempty(_shell_hits(root, "bad.jl"))
         finally
@@ -74,7 +74,7 @@ end
         root = mktempdir()
         try
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 _shell_config("""[rules."shell-safety/process-pattern"]\nlevel = "deny"\n"""),
             )
             write(joinpath(root, "bad.jl"), read(joinpath(CORPUS, "shell_pkill_backtick.jl"), String))
@@ -87,7 +87,7 @@ end
     @testset "active with presets = [\"shell-safety\"]" begin
         root = mktempdir()
         try
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
             write(joinpath(root, "bad.jl"), read(joinpath(CORPUS, "shell_pkill_backtick.jl"), String))
             @test !isempty(_shell_hits(root, "bad.jl"))
         finally
@@ -98,7 +98,7 @@ end
     @testset "golden hits" begin
         root = mktempdir()
         try
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
             for file in _SHELL_POSITIVE
                 write(joinpath(root, file), read(joinpath(CORPUS, file), String))
                 @test !isempty(_shell_hits(root, file))
@@ -111,7 +111,7 @@ end
     @testset "adversarial split not folded" begin
         root = mktempdir()
         try
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
             write(joinpath(root, "evade.jl"), read(joinpath(CORPUS, "shell_adversarial_split.jl"), String))
             @test isempty(_shell_hits(root, "evade.jl"))
         finally
@@ -122,7 +122,7 @@ end
     @testset "clean ls allowed" begin
         root = mktempdir()
         try
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
             write(joinpath(root, "ok.jl"), read(joinpath(CORPUS, "shell_clean_ls.jl"), String))
             @test isempty(_shell_hits(root, "ok.jl"))
         finally
@@ -133,7 +133,7 @@ end
     @testset "long options with c are not -c" begin
         root = mktempdir()
         try
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), _shell_config("presets = [\"shell-safety\"]\n\n"))
             write(joinpath(root, "ok.jl"), read(joinpath(CORPUS, "shell_bash_rcfile.jl"), String))
             @test isempty(_shell_hits(root, "ok.jl"))
         finally

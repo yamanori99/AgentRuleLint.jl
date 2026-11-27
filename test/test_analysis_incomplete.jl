@@ -47,7 +47,7 @@
         try
             v = string(pkgversion(AgentRuleLint))
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 """
                 agentrulelint_version = \"=$(v)\"
                 [rules.expect-audit]
@@ -167,7 +167,7 @@
         try
             v = string(pkgversion(AgentRuleLint))
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 """
                 agentrulelint_version = \"=$(v)\"
                 [rules.analysis-incomplete]
