@@ -3,10 +3,10 @@ origin: [AgentRuleLint]
 level: forbid
 
 intent:
-Keep suppression comments auditable.
+Keep suppression comments auditable and fail-closed.
 
 do_not:
-Hide violations with unapproved expects.
+Use inline or block comment expects to hide violations.
 syntax:
 Syntax: `# agentrulelint-expect: <rule-id> reason="..."` (ASCII, standalone line only; non-empty reason).
 suppression:

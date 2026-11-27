@@ -1,21 +1,9 @@
-# Same three ids as `main`'s `BUILTIN_DOC_DEFAULTS`. Text comes from `RuleDef`
-# (no duplicated table). Widening this set is an intentional output change and
-# belongs in a separate PR that updates the no_config / minimal_config goldens.
-const BUILTIN_DOC_FILL_IDS = Set(
-    [
-        "expect-audit",
-        "protected-paths",
-        SHELL_SAFETY_PRESET_ID,
-    ]
-)
+"""Fill empty intent/do_not from `RuleDef` when the config omits them.
 
-"""Fill empty intent/do_not from `RuleDef` for the historical three-id set only.
-
-Config values win when present. Other rule ids keep empty intent/do_not when the
-config omits them (behavior-neutral vs `main`).
+Config values win when present. Preset and built-in `RuleDef` text is the
+fallback for `explain` and registry-backed formatters.
 """
 function fill_builtin_docs!(spec::RuleSpec)
-    spec.id in BUILTIN_DOC_FILL_IDS || return spec
     def = get(RULE_DEFS_BY_ID, spec.id, nothing)
     def === nothing && return spec
     intent = isempty(spec.intent) ? def.intent : spec.intent
@@ -28,6 +16,7 @@ function builtin_explain_extras(id::AbstractString)
     id == ANALYSIS_INCOMPLETE_RULE && return analysis_incomplete_explain_extra()
     id == EXPECT_AUDIT_ID && return expect_audit_explain_extra()
     id == "unsafe-boundary" && return unsafe_boundary_explain_extra()
+    id == UNSAFE_BOUNDARY_STRICT_PRESET_ID && return unsafe_boundary_strict_explain_extra()
     id == SHELL_SAFETY_PRESET_ID && return shell_safety_explain_extra()
     id == SILENT_CATCH_ID && return silent_catch_explain_extra()
     id == MANIFEST_SYNC_RULE && return manifest_sync_explain_extra()
@@ -67,6 +56,14 @@ function build_builtin_registry(policy::PolicyBundle)
     end
     if policy.unsafe_boundary.active && get(policy.rules, "unsafe-boundary", nothing) === nothing
         _register_builtin!(rules, rule_def_to_spec(UNSAFE_BOUNDARY_RULE_DEF))
+    end
+    if policy.unsafe_boundary_strict.active
+        spec = get(
+            policy.rules,
+            UNSAFE_BOUNDARY_STRICT_PRESET_ID,
+            rule_def_to_spec(UNSAFE_BOUNDARY_STRICT_RULE_DEF),
+        )
+        _register_builtin!(rules, spec)
     end
     if get(policy.rules, EXPECT_AUDIT_ID, nothing) === nothing
         _register_builtin!(rules, rule_def_to_spec(EXPECT_AUDIT_RULE_DEF))

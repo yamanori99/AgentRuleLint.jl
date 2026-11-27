@@ -31,9 +31,7 @@ function format_human(
     )
     width = resolve_output_width(io; output_width = output_width)
     buf = IOBuffer()
-    policy = resolve_policy(root)
-    builtin_registry = build_builtin_registry(policy)
-    ceilings = load_ceilings(root, policy)
+    ceilings = result.ceilings
     groups = violations_by_rule(active_violations(result.violations))
     max_hits = result.max_hits_per_rule
     cfg_label = result.config_source.path
@@ -54,15 +52,8 @@ function format_human(
         else
             println(buf, _truncate_chars(header, width, with_ellipsis = true))
         end
-        intent = d0.intent
-        do_not = d0.do_not
-        if isempty(intent) && haskey(builtin_registry, rule_id)
-            spec = builtin_registry[rule_id]
-            intent = spec.intent
-            do_not = spec.do_not
-        end
-        println_wrapped_labeled(buf, "│   ", "intent: ", intent, width)
-        println_wrapped_labeled(buf, "│   ", "do_not: ", do_not, width)
+        println_wrapped_labeled(buf, "│   ", "intent: ", d0.intent, width)
+        println_wrapped_labeled(buf, "│   ", "do_not: ", d0.do_not, width)
         println(buf, "│")
 
         limit = min(total, max_hits)

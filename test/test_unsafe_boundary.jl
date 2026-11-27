@@ -4,12 +4,15 @@
         "unsafe_eval_runtime.jl",
         "unsafe_meta_parse.jl",
         "unsafe_indirect_eval.jl",
-        "unsafe_inbounds.jl",
         "unsafe_intrinsic_call.jl",
         "unsafe_evasion_const_eval.jl",
         "unsafe_qualified_names.jl",
         "unsafe_value_alias.jl",
         "unsafe_default_kwarg.jl",
+    ]
+
+    _UNSAFE_STRICT_POSITIVE = String[
+        "unsafe_inbounds.jl",
         "unsafe_assume_effects_macro.jl",
     ]
 
@@ -25,6 +28,12 @@
             d -> d.rule_id == "unsafe-boundary" && !d.suppressed,
             res.violations,
         )
+    end
+
+    function _unsafe_strict_hits(root::AbstractString, relpath::AbstractString)
+        res = AgentRuleLint.check(root; paths = [joinpath("test", "corpus", relpath)])
+        rid = AgentRuleLint.UNSAFE_BOUNDARY_STRICT_PRESET_ID
+        return filter(d -> d.rule_id == rid && !d.suppressed, res.violations)
     end
 
     function _minimal_config_with_unsafe(extra::AbstractString = "")
@@ -43,18 +52,39 @@
         """
     end
 
+    function _minimal_config_with_unsafe_strict(extra::AbstractString = "")
+        v = string(pkgversion(AgentRuleLint))
+        globs = occursin("allow_globs", extra) ? "" : "allow_globs = []\n"
+        mods = occursin("allow_modules", extra) ? "" : "allow_modules = []\n"
+        return """
+        agentrulelint_version = \"=$(v)\"
+        default_format = \"human\"
+        presets = [\"unsafe-boundary/strict\"]
+        [rules.expect-audit]
+        level = \"forbid\"
+        on_allow_rule = \"warn\"
+        [rules.unsafe-boundary]
+        level = \"deny\"
+        $mods$globs$extra
+        [rules.\"unsafe-boundary/strict\"]
+        level = \"deny\"
+        """
+    end
+
     function _mutation_detector_subprocess(
             repo_root::AbstractString,
             source_relpath::AbstractString,
             patched::AbstractString;
             corpus::AbstractString,
             msg_needle::AbstractString,
+            rule_id::AbstractString = "unsafe-boundary",
+            config_toml::Union{Nothing, AbstractString} = nothing,
         )
         script = root -> join(
             [
                 "using AgentRuleLint",
                 "r = AgentRuleLint.check($(repr(root)); paths=[joinpath(\"test\", \"corpus\", $corpus)])",
-                "h = filter(d -> d.rule_id == \"unsafe-boundary\" && occursin($(repr(msg_needle)), d.message), r.violations)",
+                "h = filter(d -> d.rule_id == $(repr(rule_id)) && occursin($(repr(msg_needle)), d.message), r.violations)",
                 "exit(isempty(h) ? 0 : 1)",
             ],
             '\n',
@@ -62,6 +92,9 @@
         tmp = mktempdir()
         try
             cp(repo_root, tmp; force = true)
+            if config_toml !== nothing
+                write(joinpath(tmp, ".AgentRuleLintConfig.toml"), config_toml)
+            end
             base_cmd = `julia --compiled-modules=no --startup-file=no --project=$(tmp) -e $(script(tmp))`
             before_ok = success(run(ignorestatus(setenv(base_cmd; dir = repo_root))))
             write(joinpath(tmp, source_relpath), patched)
@@ -86,6 +119,88 @@
         for file in _UNSAFE_NEGATIVE
             hits = _unsafe_hits(repo_root, file)
             @test isempty(hits)
+        end
+    end
+
+    @testset "strict macros absent without preset" begin
+        root = mktempdir()
+        try
+            cp(repo_root, root; force = true)
+            isfile(joinpath(root, ".AgentRuleLintConfig.toml")) &&
+                rm(joinpath(root, ".AgentRuleLintConfig.toml"))
+            for file in _UNSAFE_STRICT_POSITIVE
+                @test isempty(_unsafe_hits(root, file))
+                @test isempty(_unsafe_strict_hits(root, file))
+            end
+        finally
+            rm(root, recursive = true, force = true)
+        end
+    end
+
+    @testset "strict preset macro corpus" begin
+        root = mktempdir()
+        try
+            cp(repo_root, root; force = true)
+            write(joinpath(root, ".AgentRuleLintConfig.toml"), _minimal_config_with_unsafe_strict())
+            for file in _UNSAFE_STRICT_POSITIVE
+                hits = _unsafe_hits(root, file)
+                @test !isempty(hits)
+            end
+        finally
+            rm(root, recursive = true, force = true)
+        end
+    end
+
+    @testset "strict preset without rules.unsafe-boundary uses preset rule_id" begin
+        root = mktempdir()
+        try
+            cp(repo_root, root; force = true)
+            v = string(pkgversion(AgentRuleLint))
+            write(
+                joinpath(root, ".AgentRuleLintConfig.toml"),
+                """
+                agentrulelint_version = \"=$(v)\"
+                default_format = \"human\"
+                presets = [\"unsafe-boundary/strict\"]
+                [rules.expect-audit]
+                level = \"forbid\"
+                on_allow_rule = \"warn\"
+                [rules.\"unsafe-boundary/strict\"]
+                level = \"deny\"
+                """,
+            )
+            for file in _UNSAFE_STRICT_POSITIVE
+                hits = _unsafe_strict_hits(root, file)
+                @test !isempty(hits)
+            end
+        finally
+            rm(root, recursive = true, force = true)
+        end
+    end
+
+    @testset "strict rule table without preset is ConfigError" begin
+        root = mktempdir()
+        try
+            v = string(pkgversion(AgentRuleLint))
+            write(
+                joinpath(root, ".AgentRuleLintConfig.toml"),
+                """
+                agentrulelint_version = \"=$(v)\"
+                default_format = \"human\"
+                [rules.expect-audit]
+                level = \"forbid\"
+                on_allow_rule = \"warn\"
+                [rules.unsafe-boundary]
+                level = \"deny\"
+                allow_modules = []
+                allow_globs = []
+                [rules.\"unsafe-boundary/strict\"]
+                level = \"warn\"
+                """,
+            )
+            @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
+        finally
+            rm(root, recursive = true, force = true)
         end
     end
 
@@ -189,7 +304,8 @@
                 "macros",
                 unsafe_src,
                 unsafe_orig,
-                "_unsafe_macro_label(mname)" => "\"\"",
+                "macro_label = _unsafe_macro_label(mname, ctx.macro_suffixes)" =>
+                    "macro_label = \"\"",
                 "unsafe_inbounds.jl",
                 "@inbounds",
             ),
@@ -247,12 +363,30 @@
                     end
                 else
                     patched = replace(orig, pair)
+                    strict = label == "macros"
                     found_before, missed_after = _mutation_detector_subprocess(
                         repo_root,
                         "src/rules/unsafe_boundary.jl",
                         patched;
                         corpus = repr(corpus),
                         msg_needle = needle,
+                        rule_id = strict ? AgentRuleLint.UNSAFE_BOUNDARY_STRICT_PRESET_ID :
+                            "unsafe-boundary",
+                        config_toml = if strict
+                            v = string(pkgversion(AgentRuleLint))
+                            """
+                            agentrulelint_version = \"=$(v)\"
+                            default_format = \"human\"
+                            presets = [\"unsafe-boundary/strict\"]
+                            [rules.expect-audit]
+                            level = \"forbid\"
+                            on_allow_rule = \"warn\"
+                            [rules.\"unsafe-boundary/strict\"]
+                            level = \"deny\"
+                            """
+                        else
+                            nothing
+                        end,
                     )
                     @test found_before
                     @test missed_after

@@ -44,8 +44,9 @@ const PROJECT_RULE_KEYS = Set(
 const VALID_RULE_LEVELS = Set([:forbid, :deny, :allow, :warn])
 const VALID_ON_ALLOW_RULE = Set([:forbid, :deny, :warn, :allow])
 const VALID_OUTPUT_FORMATS = Set([:human, :json, :agent])
-const KNOWN_PRESET_NAMES = Set(["shell-safety"])
+const KNOWN_PRESET_NAMES = Set(["shell-safety", "unsafe-boundary/strict"])
 const SHELL_SAFETY_PRESET_ID = "shell-safety/process-pattern"
+const UNSAFE_BOUNDARY_STRICT_PRESET_ID = "unsafe-boundary/strict"
 
 function _reject_unknown_keys!(dict::Dict, allowed::Set{String}, label::String)
     for k in keys(dict)
@@ -220,6 +221,16 @@ function _validate_shell_safety_preset!(presets::Vector{String}, rules::Dict{Str
     )
 end
 
+function _validate_unsafe_boundary_strict_preset!(presets::Vector{String}, rules::Dict{String, RuleSpec})
+    haskey(rules, UNSAFE_BOUNDARY_STRICT_PRESET_ID) || return
+    UNSAFE_BOUNDARY_STRICT_PRESET_ID in presets && return
+    throw(
+        ConfigError(
+            "rules.$UNSAFE_BOUNDARY_STRICT_PRESET_ID requires presets = [\"unsafe-boundary/strict\"] (preset table without active preset)",
+        ),
+    )
+end
+
 function _load_shell_safety_config(presets::Vector{String}, rules::Dict{String, RuleSpec})
     active = "shell-safety" in presets
     !active && return ShellSafetyConfig()
@@ -228,6 +239,16 @@ function _load_shell_safety_config(presets::Vector{String}, rules::Dict{String, 
     intent = spec === nothing ? "" : spec.intent
     do_not = spec === nothing ? "" : spec.do_not
     return ShellSafetyConfig(true, level, intent, do_not)
+end
+
+function _load_unsafe_boundary_strict_config(presets::Vector{String}, rules::Dict{String, RuleSpec})
+    active = UNSAFE_BOUNDARY_STRICT_PRESET_ID in presets
+    !active && return UnsafeBoundaryStrictConfig()
+    spec = get(rules, UNSAFE_BOUNDARY_STRICT_PRESET_ID, nothing)
+    level = spec === nothing ? :warn : spec.level
+    intent = spec === nothing ? "" : spec.intent
+    do_not = spec === nothing ? "" : spec.do_not
+    return UnsafeBoundaryStrictConfig(true, level, intent, do_not)
 end
 
 function _parse_string_array(raw, label::AbstractString)
@@ -293,7 +314,8 @@ end
 function _load_rules_table(raw::Dict)
     rules = Dict{String, RuleSpec}()
     for (id, content) in _collect_rule_tables(raw)
-        id == SHELL_SAFETY_PRESET_ID || validate_kebab_rule_id(id, "rules.$id")
+        id in (SHELL_SAFETY_PRESET_ID, UNSAFE_BOUNDARY_STRICT_PRESET_ID) ||
+            validate_kebab_rule_id(id, "rules.$id")
         allowed = if id == "expect-audit"
             EXPECT_AUDIT_RULE_KEYS
         elseif id == "silent-catch"
@@ -317,7 +339,9 @@ function _load_rules_table(raw::Dict)
         end
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
-        origin = id == SHELL_SAFETY_PRESET_ID ? :preset : :agentrulelint
+        origin =
+            id in (SHELL_SAFETY_PRESET_ID, UNSAFE_BOUNDARY_STRICT_PRESET_ID) ? :preset :
+            :agentrulelint
         extra = Dict{Symbol, String}()
         if id == "silent-catch" && haskey(content, "warn_counts_as_handling")
             extra[:warn_counts_as_handling] = _parse_warn_counts_as_handling(
@@ -326,7 +350,7 @@ function _load_rules_table(raw::Dict)
             )
         end
         eff_level = id in INTEGRITY_FORBID_RULES ? :forbid : level
-        rules[id] = RuleSpec(id, origin, eff_level, intent, do_not, extra)
+        rules[id] = fill_builtin_docs!(RuleSpec(id, origin, eff_level, intent, do_not, extra))
     end
     return rules
 end
@@ -471,6 +495,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     rules = _load_rules_table(raw)
     _inject_builtin_rules!(rules)
     _validate_shell_safety_preset!(presets, rules)
+    _validate_unsafe_boundary_strict_preset!(presets, rules)
     pr_raw = get(raw, "project_rules", [])
     pr_raw isa AbstractVector || throw(ConfigError("project_rules must be an array"))
     project = _load_project_rules(pr_raw)
@@ -481,6 +506,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     end
     shell = _load_shell_safety_config(presets, rules)
     unsafe = _load_unsafe_boundary_config(raw, rules)
+    unsafe_strict = _load_unsafe_boundary_strict_config(presets, rules)
     ptp, pglobs = _protected_paths_config(raw, rules)
     return PolicyBundle(
         ver,
@@ -492,6 +518,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
         on_allow,
         shell,
         unsafe,
+        unsafe_strict,
         config_path,
         config_source,
         ptp,
@@ -590,51 +617,12 @@ end
 function default_policy(root::AbstractString)
     ver = AGENTRULELINT_VERSION
     rules = Dict{String, RuleSpec}(
-        # `ANALYSIS_INCOMPLETE_RULE_DEF` is defined later in the module; resolved at call time.
         ANALYSIS_INCOMPLETE_RULE => rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF),
-        "expect-audit" => RuleSpec(
-            "expect-audit",
-            :agentrulelint,
-            :forbid,
-            "Keep suppression comments auditable and fail-closed.",
-            "Use inline or block comment expects to hide violations.",
-            Dict{Symbol, String}(),
-        ),
-        "silent-catch" => RuleSpec(
-            "silent-catch",
-            :agentrulelint,
-            :deny,
-            "Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths.",
-            "Use empty catch bodies, log-only handlers, or partial branches without rethrow to silence errors.",
-            Dict{Symbol, String}(:warn_counts_as_handling => "false"),
-        ),
-        "ceiling-ratchet" => RuleSpec(
-            "ceiling-ratchet",
-            :agentrulelint,
-            :forbid,
-            "Keep violation and expect ceilings monotonic (down only).",
-            "Raise ceilings or leave stale slack after counts decrease.",
-            Dict{Symbol, String}(),
-        ),
-        "manifest-sync" => RuleSpec(
-            "manifest-sync",
-            :agentrulelint,
-            :deny,
-            "Tracked Manifest.toml files must stay consistent with Project.toml (integrity).",
-            "Edit [deps] or other resolve sections without updating the tracked manifest.",
-            Dict{Symbol, String}(
-                :group => "integrity",
-                :fix => "Run Pkg.resolve and commit Manifest.toml with project_hash updates.",
-            ),
-        ),
-        PROTECTED_PATHS_RULE => RuleSpec(
-            PROTECTED_PATHS_RULE,
-            :agentrulelint,
-            :forbid,
-            "Protect designated policy, lockfiles, and workflow paths from silent edits.",
-            "Edit protected files, weaken compat, or rename paths to evade review.",
-            Dict{Symbol, String}(),
-        ),
+        EXPECT_AUDIT_ID => rule_def_to_spec(EXPECT_AUDIT_RULE_DEF),
+        SILENT_CATCH_ID => rule_def_to_spec(SILENT_CATCH_RULE_DEF),
+        CEILING_RATCHET_RULE => rule_def_to_spec(CEILING_RATCHET_RULE_DEF),
+        MANIFEST_SYNC_RULE => rule_def_to_spec(MANIFEST_SYNC_RULE_DEF),
+        PROTECTED_PATHS_RULE => rule_def_to_spec(PROTECTED_PATHS_RULE_DEF),
     )
     cs = ConfigSource(:builtin, "", "", "")
     cfg = joinpath(abspath(root), CONFIG_FILENAME)
@@ -648,6 +636,7 @@ function default_policy(root::AbstractString)
         :warn,
         ShellSafetyConfig(),
         UnsafeBoundaryConfig(),
+        UnsafeBoundaryStrictConfig(),
         cfg,
         cs,
         DEFAULT_PROJECT_TOML_POLICY,

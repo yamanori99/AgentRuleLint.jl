@@ -19,8 +19,8 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLintConfig.toml, pos: ut
 └ @ AgentRuleLint (run `agentrulelint explain analysis-incomplete` for details)
 
 ┌ Error: [AgentRuleLint] expect-audit [forbid] (20 violations, ceiling 0)
-│   intent: Keep suppression comments auditable.
-│   do_not: Hide violations with unapproved expects.
+│   intent: Keep suppression comments auditable and fail-closed.
+│   do_not: Use inline or block comment expects to hide violations.
 │
 │   test/corpus/block_expect.jl:1:1-1:60
 │     block comment expect forbidden
@@ -162,8 +162,10 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLintConfig.toml, pos: ut
 details)
 
 ┌ Error: [AgentRuleLint] silent-catch [deny] (14 violations, ceiling 0)
-│   intent: 
-│   do_not: 
+│   intent: Surface try/catch blocks that hide failures instead of rethrowing or
+│           throwing on unhandled paths.
+│   do_not: Use empty catch bodies, log-only handlers, or partial branches
+│           without rethrow to silence errors.
 │
 │   test/corpus/expect_above_catch.jl:1:1-1:3
 │     catch block swallows exceptions without rethrow or throw on unhandled
@@ -235,8 +237,9 @@ details)
 └ @ AgentRuleLint (run `agentrulelint explain silent-catch` for details)
 
 ┌ Error: [AgentRuleLint] test-integrity [deny] (5 violations, ceiling 0)
-│   intent: 
-│   do_not: 
+│   intent: Keep tests from being hollowed out or silently disabled.
+│   do_not: Replace assertions with trivially true forms, broaden throws, skip
+│           without reason, or drop covered tests.
 │
 │   test/corpus/test_integrity_broad_throws.jl:1:1-1:41
 │     @test_throws uses overly broad exception type (ErrorException)
@@ -260,7 +263,7 @@ details)
 │       ~~~~~~~~~~~~
 └ @ AgentRuleLint (run `agentrulelint explain test-integrity` for details)
 
-┌ Warning: [AgentRuleLint] unsafe-boundary [warn] (20 violations, ceiling 0)
+┌ Warning: [AgentRuleLint] unsafe-boundary [warn] (18 violations, ceiling 0)
 │   intent: Keep runtime evaluation, metaprogramming escapes, and FFI calls
 │           inside reviewed module or path boundaries.
 │   do_not: Alias Core.eval to a local name, pass
@@ -272,10 +275,6 @@ details)
 │     ccall boundary escape
 │     >     ccall(:getpid, Cint, ())
 │           ~~~~~~~~~~~~~~~~~~~~~~~~
-│   test/corpus/unsafe_assume_effects_macro.jl:2:5-2:35
-│     unsafe boundary escape (@assume_effects)
-│     >     @assume_effects :foldable foo()
-│           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 │   test/corpus/unsafe_ccall.jl:2:5-2:35
 │     ccall boundary escape
 │     >     ccall(:exit, Cvoid, (Cint,), 0)
@@ -300,10 +299,6 @@ details)
 │     unsafe boundary escape (@eval)
 │     >     return @eval $(esc(x))
 │                  ~~~~~~~~~~~~~~~
-│   test/corpus/unsafe_inbounds.jl:2:5-2:25
-│     unsafe boundary escape (@inbounds)
-│     >     @inbounds return A[i]
-│           ~~~~~~~~~~~~~~~~~~~~~
 │   test/corpus/unsafe_indirect_eval.jl:2:9-2:29
 │     indirect eval via getfield
 │     >     f = getfield(Base, :eval)
@@ -350,5 +345,5 @@ details)
 │                      ~~~~
 └ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
 
-Summary: 73 violations across 6 rules (5 [AgentRuleLint], 1 [Preset]) — FAILED
+Summary: 71 violations across 6 rules (5 [AgentRuleLint], 1 [Preset]) — FAILED
 (exit 1)

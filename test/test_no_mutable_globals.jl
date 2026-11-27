@@ -4,7 +4,6 @@ const _SRC_ROOT = joinpath(ROOT, "src")
 const _MUTABLE_CONST_ALLOWLIST = Set(
     [
         "AUTO_PROTECTED_EXACT",
-        "BUILTIN_DOC_FILL_IDS",
         "EXPECT_AUDIT_RULE_KEYS",
         "INTEGRITY_FORBID_RULES",
         "KNOWN_PRESET_NAMES",
@@ -27,7 +26,8 @@ const _MUTABLE_CONST_ALLOWLIST = Set(
         "_JULIA_UNSAFE_CALLEES",
         "_RULE_ANCHOR_RX",
         "_SHELL_HAZARD_PATTERNS",
-        "_UNSAFE_MACRO_SUFFIXES",
+        "_UNSAFE_MACRO_SUFFIXES_CORE",
+        "_UNSAFE_MACRO_SUFFIXES_STRICT",
     ],
 )
 
