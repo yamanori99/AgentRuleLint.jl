@@ -10,30 +10,20 @@ run_source_mutation(;
     """,
     verify = root -> begin
         script = raw"""
-        using Test, AgentRuleLint
-        dir = mktempdir()
+        using AgentRuleLint
+        body = "@@ -10,3 +10,2 @@\n"
         try
-            run(Cmd(["git","-C",dir,"init","-q","-b","main"]))
-            run(Cmd(["git","-C",dir,"config","user.email","t@t"]))
-            run(Cmd(["git","-C",dir,"config","user.name","t"]))
-            function commit!(m)
-                run(Cmd(["git","-C",dir,"add","-A"]))
-                run(Cmd(["git","-C",dir,"-c","commit.gpgsign=false","commit","-q","-m",m]))
-            end
-            write(joinpath(dir,"src.jl"), "v=1\n")
-            commit!("base")
-            run(Cmd(["git","-C",dir,"mv","src.jl","dst.jl"]))
-            write(joinpath(dir,"dst.jl"), "v=1\nx=2\n")
-            commit!("rename-edit")
-            scope = AgentRuleLint.build_diff_scope(dir, "HEAD^")
-            lines = AgentRuleLint.diff_changed_lines(scope, "dst.jl")
-            AgentRuleLint.diff_path_status(scope, "dst.jl") == 'R' || exit(2)
-            length(lines) > 1 && exit(0)
+            AgentRuleLint._changed_lines_from_diff_output(
+                body,
+                "1\t0\ttarget.jl",
+                "1\t0\ttarget.jl",
+                "target.jl",
+            )
             exit(1)
-        catch
-            exit(2)
-        finally
-            rm(dir, recursive=true, force=true)
+        catch err
+            err isa AgentRuleLint.GitError || rethrow(err)
+            occursin("path=target.jl", err.msg) || exit(1)
+            exit(0)
         end
         """
         cmd = _julia_project_cmd(root, "-e", script)

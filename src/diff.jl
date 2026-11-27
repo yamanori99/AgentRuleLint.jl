@@ -78,7 +78,6 @@ function _git_diff_name_status_cmd(root::AbstractString, base::AbstractString)
             "diff",
             "-z",
             "-M",
-            "--find-copies-harder",
             "--no-ext-diff",
             "--no-textconv",
             "--text",
@@ -95,6 +94,16 @@ function _newline_delimited_line_count(payload::AbstractString)
     isempty(s) && return 0
     n = count('\n', s)
     return endswith(s, '\n') ? n : n + 1
+end
+
+"""Changed lines for a destination path present on disk (status `A` / `R` / `C`)."""
+function _whole_destination_changed_lines(root::AbstractString, path::AbstractString)
+    ap = joinpath(root, path)
+    if isfile(ap)
+        n = _newline_delimited_line_count(read(ap, String))
+        return Set{Int}(1:max(n, 1))
+    end
+    return Set{Int}()
 end
 
 function _parse_diff_name_status_z(parts::Vector{SubString{String}})
@@ -346,7 +355,6 @@ function _git_diff_numstat_cmd(
         "diff",
         "-z",
         "-M",
-        "--find-copies-harder",
         "--numstat",
         "--no-ext-diff",
         "--no-textconv",
@@ -376,7 +384,6 @@ function _git_diff_unified_cmd(
         "diff",
         "-U0",
         "-M",
-        "--find-copies-harder",
         "--no-color",
         "--no-ext-diff",
         "--no-textconv",
@@ -560,14 +567,20 @@ function build_diff_scope(root::AbstractString, base::AbstractString)
             push!(files, DiffFileContext(path, Set{Int}(), st))
             continue
         end
+        old_path = get(old_path_for, path, "")
         lines = if st == 'A'
-            ap = joinpath(root, path)
-            if isfile(ap)
-                n = _newline_delimited_line_count(read(ap, String))
-                Set{Int}(1:max(n, 1))
-            else
-                Set{Int}()
-            end
+            _whole_destination_changed_lines(root, path)
+        elseif st in ('R', 'C')
+            git_diff_changed_lines(
+                root,
+                base,
+                path;
+                numstat_text_map = text_map,
+                numstat_probe_map = probe_map,
+                path_status = st,
+                old_path = old_path,
+            )
+            _whole_destination_changed_lines(root, path)
         else
             git_diff_changed_lines(
                 root,
@@ -576,7 +589,7 @@ function build_diff_scope(root::AbstractString, base::AbstractString)
                 numstat_text_map = text_map,
                 numstat_probe_map = probe_map,
                 path_status = st,
-                old_path = get(old_path_for, path, ""),
+                old_path = old_path,
             )
         end
         push!(files, DiffFileContext(path, lines, st))

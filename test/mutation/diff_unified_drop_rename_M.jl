@@ -17,16 +17,24 @@ run_source_mutation(;
                 run(Cmd(["git","-C",dir,"add","-A"]))
                 run(Cmd(["git","-C",dir,"-c","commit.gpgsign=false","commit","-q","-m",m]))
             end
-            write(joinpath(dir,"src.jl"), "v=1\n")
+            ver = string(pkgversion(AgentRuleLint))
+            cfg =
+                "agentrulelint_version = \"=" * ver *
+                "\"\n[[project_rules]]\nid = \"diff-literal\"\nlevel = \"deny\"\npaths = [\"**\"]\nforbid_literals = [\"FORBIDDEN_DIFF_TOKEN\"]\nintent = \"\"\ndo_not = \"\"\n"
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir,"src.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
             commit!("base")
             run(Cmd(["git","-C",dir,"mv","src.jl","dst.jl"]))
-            write(joinpath(dir,"dst.jl"), "v=1\nextra\n")
+            write(joinpath(dir,"dst.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\nedit\n")
             commit!("edit")
-            scope = AgentRuleLint.build_diff_scope(dir, "HEAD^")
-            lines = AgentRuleLint.diff_changed_lines(scope, "dst.jl")
-            AgentRuleLint.diff_path_status(scope, "dst.jl") == 'R' || exit(2)
-            length(lines) > 1 && exit(0)
-            exit(1)
+            res = AgentRuleLint.check(dir; diff_base="HEAD^")
+            res.exit_code == 1 || exit(1)
+            any(
+                d -> d.rule_id == "project/diff-literal" && d.path == "dst.jl" &&
+                    d.span.start_line == 1,
+                res.violations,
+            ) || exit(1)
+            exit(0)
         finally
             rm(dir, recursive=true, force=true)
         end
