@@ -102,14 +102,16 @@ jobs:
     name: Mutation tests (daily) - Julia 1.13 - ubuntu-latest - x64
     needs: [mutation_shard]
     if: always()
+    permissions: {}
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - name: Require all mutation shards successful
         shell: bash
+        env:
+          SHARD_RESULT: ${{ needs.mutation_shard.result }}
         run: |
-          result="${{ needs.mutation_shard.result }}"
-          if [ "$result" != "success" ]; then
-            echo "mutation_shard result was $result (expected success)" >&2
+          if [ "$SHARD_RESULT" != "success" ]; then
+            echo "mutation_shard result was $SHARD_RESULT (expected success)" >&2
             exit 1
           fi
