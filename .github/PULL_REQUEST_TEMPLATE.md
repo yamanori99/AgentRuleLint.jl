@@ -4,7 +4,9 @@
 
 ## Test plan
 
-- [ ] Local pre-push gate (Runic, trailing newlines, `git diff --check`, `Pkg.test()`)
+Canonical local gate: [`.agents/skills/pre-push-gate/SKILL.md`](../.agents/skills/pre-push-gate/SKILL.md) (`julia +1.13`).
+
+- [ ] Pre-push gate: Runic, trailing newlines, `git diff --check`, JETLS (`--exit-severity=hint`), `Pkg.test()` (`pipefail` + `tee`), `test/mutation/run_all.jl` (all PASS), `git merge-tree --write-tree origin/main HEAD`
 - [ ] CI green on this head (or only `protected-paths` red per interim procedure)
 
 ## Protected paths changed

@@ -8,37 +8,40 @@ AgentRuleLint writes **JSONL**: one JSON object per line, always in this order:
 2. `diagnostic` (zero or more, sorted by `path`, `span`, `rule_id`, `fingerprint`)
 3. `summary`
 
-The header record uses the field name **`version`** (package version string), not a separate legacy key.
+`format_json` (`src/format/json.jl`) header keys: `type` (`"header"`),
+`version`, `julia_version`, `parser`, `config_source`, `position_encoding`
+(`"utf8-codepoint-1based"`). `parser` is `JuliaSyntax@<major>.<minor>` from
+`VERSION` (#76), not a JuliaSyntax git rev.
 
 ### Unstable fields in 0.1.0
 
-Consumers should tolerate unknown keys. These fields may change wording or structure before 1.0:
+Consumers should tolerate unknown keys. Schemas become the versioned contract
+in #111 (planned).
 
-| Record | Field | Note |
-| --- | --- | --- |
-| header | `parser` | JuliaSyntax revision string |
-| diagnostic | `message` | Human-readable text may be refined |
-
-Stable identifiers for automation: `rule_id`, `fingerprint`, `span`, `expect_status`, `suppressed`, and summary counts.
+`message` wording may change before 1.0. Stable for automation: `rule_id`,
+`fingerprint`, `span`, `expect_status`, `suppressed`, and summary counts.
 
 Validate output against `schemas/check-jsonl.schema.json` (array-of-lines shape for batch validators).
 
-## Human and agent (`ceiling=`)
+## Human and agent (`ceiling`)
 
-Both **human** and **agent** rule headers include `count=` (active hits for that rule in the current run) and `ceiling=` (sum of per-path violation counts stored under `[violations."<rule_id>"]` in `.agentrulelint/ceilings.toml`).
+**Human** rule headers print `ceiling N` via `human_ceiling_display` (numeric,
+including **`ceiling 0`** when the stored sum is zero). **Agent** prints
+`ceiling=N` when that sum is `> 0`, otherwise **`ceiling=-`**.
 
-When the ceilings file is missing, empty for that rule, or sums to zero, formatters print **`ceiling=-`**. That does not imply a numeric limit of zero; it means no stored ratchet baseline is available. Ceiling **enforcement** (`ceiling-ratchet`) is not wired in `run_check` on this branch.
+Ceiling **enforcement** (`ceiling-ratchet`) runs in `run_check` / `_run_check_pipeline`
+when a working-tree (and, with `--diff`, base) ceilings file is in play.
 
 ## `agentrulelint explain`
 
-`explain <rule-id>` prints text only for rules that exist in the loaded policy or the per-call built-in registry from `build_builtin_registry`:
+`explain <rule-id>` resolves built-in ids from `RULE_DEFS_BY_ID` even when the
+current config does not enable them (#83); inactive built-ins print
+`status: not enabled in this config` and `level: … (default when enabled)`.
+Project ids use `project/<slug>` from `[[project_rules]]`.
 
-- Tables under `[[rules]]` / `[rules.*]` in `.AgentRuleLintConfig.toml`
-- Built-ins registered from policy (including the default `expect-audit` fallback when omitted from config)
-- `project/<slug>` ids from `[[project_rules]]`
+**Unknown ids exit 2.** Known preset *names* that are not rule ids get a
+`did you mean` hint. Levels shown are policy values when the rule is enabled,
+otherwise the `RuleDef` default.
 
-**Unknown ids exit 2.** Rules that are planned but not registered on this branch (for example `silent-catch`) are not listed and cannot be explained until their rule PR adds registry entries and config.
-
-Levels shown are the effective values from policy (`RuleSpec.level` or `ProjectRule.level`), not hard-coded severities.
-
-Explain anchor/example lines for built-ins live on the rule definition (`RuleSpec.extra`, filled at registration time for rules that define them, such as `expect-audit`).
+Explain extra blocks (anchor, config, detail) live on the `RuleDef` extras,
+attached at explain time.

@@ -29,6 +29,11 @@ limited to:
   attacker-controlled policy while appearing to use base policy.
 - Circumventing **`# agentrulelint-expect:` (`expect-audit`)** or **ceiling ratchet (`ceiling-ratchet`)** in
   ways that hide violations in CI.
+- **`analysis-incomplete`**: exhausting the constant-fold budget so later findings are dropped.
+- **`scope-paths` / `--allow-paths`**: widening or forging the trusted path allowlist so out-of-scope diffs pass.
+- **`test-integrity`**: hollowing tests so the suite stays green while coverage of the invariant is gone.
+- **`unsafe-boundary`**: hiding `eval` / `ccall` / `unsafe_*` (aliases, split strings, `Expr(:call, …)`).
+- **CLI presentation flags** that hide agent guidance or change the verdict without stating the override on the verdict line.
 - Composite action / pinned-environment bypass that runs unreviewed code with
   repository write implications.
 - Information disclosure via diagnostic output when that crosses a documented

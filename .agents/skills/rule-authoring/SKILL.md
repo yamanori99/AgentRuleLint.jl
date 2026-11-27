@@ -17,31 +17,33 @@ Canonical rule IDs are **kebab-case slugs only**:
 
 Never use numeric `JA*` or `JP*` codes. Never reuse a retired slug.
 
-## Rule shape
+## Workflow (current tree)
 
-Each rule documents:
+One `RuleDef` per rule in `src/rules/<name>.jl`. Register it in the sorted
+`RULE_DEFS` tuple in `src/rules/builtin_rules.jl` (explicit includes; no glob).
+`intent` and `do_not` live **only** on that `RuleDef` (config may override at
+load; explain parity is `test/test_rule_def_explain_parity.jl`). Completeness
+(source, test, coverage paths) is `test/test_rule_registration.jl`.
 
-- **intent** — what invariant it protects
-- **do_not** — patterns and evasions that must fail
-- **fix** — how to correct a violation
-- **anchor line** — where diagnostics attach in source
+Ship a **positive** corpus file and an **evasion** corpus file. Add a **mutation**
+case that proves the detector is live (Pkg.test subprocess and/or
+`test/mutation/`). Update Runic invariance in `test/test_runic_invariance.jl`
+when formatting-sensitive behavior changes.
+
+`do_not` names the **category** of forbidden action, not a list of bypass
+techniques; technique lists belong in corpus files and test comments.
 
 Rules are **pure functions**: no pull-request code execution, no `eval`, no I/O or git access inside rule logic.
 
+`fix`, `may`, and `docs_url` are planned `RuleDef` fields in #110, not present today.
+
 ## Corpus
 
-Ship **golden** (must pass) and **adversarial** (must fail) examples. Adversarial cases cover evasion patterns (concatenation, indirect names, comment tricks).
+Golden examples must pass; adversarial examples must fail (concatenation, indirect names, comment tricks).
 
-Add or update **Runic invariance** coverage in `test/test_runic_invariance.jl` when formatting-sensitive behavior changes.
+## Non-goals
 
-## Non-goals (do not implement as rules)
-
-| ID | Non-goal |
-| --- | --- |
-| NG1 | Runtime test execution inside the linter |
-| NG2 | Network or registry access during `check` |
-| NG3 | Mutating the repo or git state |
-| NG4 | Executing user code from the PR diff |
-| NG5 | Policy that belongs in CI shell gates instead of static rules |
+Do not implement NG1–NG5 as rules. The definitions live only in
+`CONTRIBUTING.md` (“Non-goals (NG1–NG5)”).
 
 Before merging a new rule, read `AGENTS.md` and `CONTRIBUTING.md` when present on the branch.

@@ -7,14 +7,16 @@ description: >
 
 # Pre-push gate
 
-Run these on the exact tree you will push, with no further edits afterward.
+Single source for the local gate (`AGENTS.md` §4 and the PR template summarize).
+Run on the exact tree you will push, Julia **`+1.13`**, no further edits after.
 
 ## Always
 
 1. `runic --check --diff .` using the pin in `.github/runic/Project.toml`.
 2. Trailing-newline audit on all tracked text files (each file ends with a single newline).
 3. `git diff --check` on the staged and unstaged diff you are about to push.
-4. `./.github/jetls-check.sh` when that script exists and `src/AgentRuleLint.jl` and `test/runtests.jl` are present (added in the core foundation PR).
+4. `./.github/jetls-check.sh` (`jetls check --exit-severity=hint --show-severity=hint` on `src/AgentRuleLint.jl` and `test/runtests.jl`).
+5. `git merge-tree --write-tree origin/main HEAD` must succeed with a clean tree.
 
 ## When scripts or workflows change
 
@@ -33,16 +35,19 @@ Read `.github/actions-lint.env` and pin sources before bumping tool versions.
 set -o pipefail; JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
 ```
 
-Confirm **Aqua** runs and `test/test_runic_invariance.jl` executes.
+Confirm **Aqua** and `test/test_runic_invariance.jl`. The command’s exit status
+is the suite result. Then:
 
-Check the command's exit status; a non-zero status means the suite failed, even if you only read the digest.
+```bash
+JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. test/mutation/run_all.jl
+```
 
-On failure, read the digest (`=== AgentRuleLint test failure digest ===` at the
-end of the log, or `test/last_failures.txt`), or
-`grep -n "Test Failed\|Error During Test" /tmp/agentrulelint-test.log`. Never
-re-run the full suite only to see which tests failed. Re-run the affected group
-(via test selection once it exists), then run the full suite once on the final
-tree.
+Every harness must **PASS** (nonzero or crash is failure).
+
+On `Pkg.test` failure, read the digest (`=== AgentRuleLint test failure digest ===`
+at the end of the log, or `test/last_failures.txt`). Never re-run the full suite
+only to see which tests failed. Re-run the affected file, then the full suite once
+on the final tree.
 
 ## Hygiene
 
