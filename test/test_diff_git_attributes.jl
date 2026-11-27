@@ -110,34 +110,24 @@
                 true,
             )
         end
-        err = AgentRuleLint.GitError("git diff --numstat --text missing path=missing.jl (fail closed)")
-        @test err isa AgentRuleLint.GitError
     end
 
     @testset "malformed numstat -z record throws GitError" begin
         @test_throws AgentRuleLint.GitError r"malformed git diff --numstat -z" begin
             AgentRuleLint._parse_numstat_z_by_path("only-one-field\0path.jl")
         end
-        err = AgentRuleLint.GitError("malformed git diff --numstat -z record: \"only-one-field\"")
-        @test err isa AgentRuleLint.GitError
     end
 
     @testset "malformed numstat line throws GitError" begin
         @test_throws AgentRuleLint.GitError r"malformed git diff --numstat" begin
             AgentRuleLint._numstat_totals("not-a-number\talso-bad\tpath.jl\n")
         end
-        err = AgentRuleLint.GitError(
-            "malformed git diff --numstat line: \"not-a-number\\talso-bad\\tpath.jl\"",
-        )
-        @test err isa AgentRuleLint.GitError
     end
 
     @testset "numstat binary probe fails closed without hunks" begin
         @test_throws AgentRuleLint.GitError r"numstat probe binary" begin
             AgentRuleLint._changed_lines_from_diff_output("", "", "-\t-\ttarget.jl", "target.jl")
         end
-        err = AgentRuleLint.GitError("git diff numstat probe binary for path=target.jl (fail closed)")
-        @test err isa AgentRuleLint.GitError
     end
 
     @testset "numstat text change without hunks fails closed" begin
@@ -149,10 +139,6 @@
                 "target.jl",
             )
         end
-        err = AgentRuleLint.GitError(
-            "git diff numstat reports content change without hunks for path=target.jl",
-        )
-        @test err isa AgentRuleLint.GitError
     end
 
     @testset "mode-only diff allows empty changed lines" begin
