@@ -1,8 +1,9 @@
 using AgentRuleLint
 using Test
 
+# ROOT comes from ParallelTestRunner init_code in test/runtests.jl.
+
 const RUNIC_ENV = joinpath(@__DIR__, "runic_env")
-const ROOT = dirname(@__DIR__)
 
 function runic_format_str(code::String)
     path, io = mktemp()

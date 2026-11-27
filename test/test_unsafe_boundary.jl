@@ -1,4 +1,4 @@
-include("mutation_subprocess_helpers.jl")
+# mutation_subprocess_helpers.jl is loaded via ParallelTestRunner init_code.
 
 @testset "unsafe-boundary rule" begin
     _UNSAFE_POSITIVE = String[

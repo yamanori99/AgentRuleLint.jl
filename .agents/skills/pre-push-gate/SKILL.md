@@ -25,11 +25,39 @@ Read `.github/actions-lint.env` before bumping tool versions.
 
 ## When the package tree exists
 
+Dogfood (match the CI `dogfood` job: base-branch linter, not the working tree's `src/`):
+
+```bash
+set -euo pipefail
+git fetch origin main
+if [[ -e .linter-base ]]; then
+  git worktree remove -f .linter-base
+fi
+git worktree add --detach .linter-base origin/main
+JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=.linter-base -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+set -o pipefail
+JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=.linter-base -m AgentRuleLint check \
+  --diff "$(git merge-base origin/main HEAD)" \
+  --config-from origin/main \
+  --format agent 2>&1 | tee /tmp/agentrulelint-dogfood.log
+git worktree remove -f .linter-base
+```
+
+`.linter-base/` is listed in `.gitignore` and is not part of the PR diff; dogfood
+uses `--diff` only.
+
+Read the **entire** `tee` output (or `/tmp/agentrulelint-dogfood.log`). Do **not**
+use `tail`; the closing summary line does not repeat every `HIT` with path and
+span — you need the full agent format body to locate and fix each finding.
+
+Expect only `protected-paths` on PRs that touch protected files; fix every other
+finding before push.
+
 ```bash
 set -o pipefail; JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
 ```
 
-Confirm Aqua and `test/test_runic_invariance.jl`. The command’s exit status is
+Confirm Aqua and `test/test_runic_invariance.jl`. The command's exit status is
 the suite result. Then:
 
 ```bash
@@ -38,7 +66,21 @@ JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. test/mutat
 
 Every harness must PASS. On `Pkg.test` failure, read the digest at the end of
 the log or `test/last_failures.txt`. Do not re-run the full suite only to see
-which tests failed. Re-run the affected file, then the full suite once.
+which tests failed.
+
+List discovered per-file tests:
+
+```bash
+JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test(test_args=["--list"])'
+```
+
+Re-run one file by name (example: `test_output_formats`), then the full suite
+once on the final tree:
+
+```bash
+JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test(test_args=["test_output_formats"])'
+set -o pipefail; JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
+```
 
 ## Hygiene
 

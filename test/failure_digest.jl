@@ -13,6 +13,14 @@ struct FailureDigestEntry
     testset_path::String
     location::String
     message::String
+    function FailureDigestEntry(kind, testset_path, location, message)
+        return new(
+            string(something(kind, "")),
+            string(something(testset_path, "")),
+            string(something(location, "")),
+            string(something(message, "")),
+        )
+    end
 end
 
 function _digest_first_line(s::AbstractString)

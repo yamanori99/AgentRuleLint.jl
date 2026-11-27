@@ -19,7 +19,7 @@
 
 const OUTPUT_GOLDEN_DIR = joinpath(ROOT, "test", "goldens", "output")
 const OUTPUT_GOLDEN_WIDTH = 80
-const OUTPUT_GOLDEN_VERSION_PLACEHOLDER = "<VERSION>"
+# Text normalization helpers live in test/golden_test_helpers.jl (init_code).
 const OUTPUT_GOLDEN_EXPLAIN_IDS = (
     "analysis-incomplete",
     "expect-audit",
@@ -56,42 +56,6 @@ const OUTPUT_GOLDEN_NO_CONFIG_INACTIVE_EXPLAIN_IDS = (
     "test-integrity",
     "unsafe-boundary",
 )
-
-"""Drop the JSONL header object (`"type":"header"`).
-
-The header embeds `julia_version` and `parser`, which differ across Julia 1.13
-vs 1.14-pre even when diagnostics are identical.
-"""
-function _golden_json_without_header(text::AbstractString)
-    lines = split(text, '\n'; keepempty = true)
-    kept = String[]
-    for line in lines
-        isempty(line) && (push!(kept, line); continue)
-        if occursin("\"type\":\"header\"", line) || occursin("\"type\": \"header\"", line)
-            continue
-        end
-        push!(kept, line)
-    end
-    return join(kept, '\n')
-end
-
-"""Normalize human/agent text for cross-environment comparison.
-
-Pinned with `output_width=$(OUTPUT_GOLDEN_WIDTH)` for human body wrapping. Agent
-lines truncate at that cap without wrapping. Strip ANSI
-in case a caller enables color. Paths in these formats are repo-relative, so no
-absolute-path rewrite is needed. Package version is replaced with
-`OUTPUT_GOLDEN_VERSION_PLACEHOLDER` so goldens stay stable across bumps
-(`Project.toml` is the sole source of truth).
-"""
-function _golden_substitute_version(text::AbstractString)
-    ver = string(AgentRuleLint.AGENTRULELINT_VERSION)
-    return replace(text, ver => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
-end
-
-function _golden_normalize_text(text::AbstractString)
-    return _golden_substitute_version(AgentRuleLint.strip_ansi(text))
-end
 
 const _CHECK_GOLDEN_REL_PATHS = (
     "check_human.txt",
@@ -301,14 +265,10 @@ end
         id = "not-a-real-rule"
         tmp = _temp_corpus_root()
         try
-            err = try
-                AgentRuleLint.explain_rule(id; root = tmp)
-                nothing
-            catch e
-                e
-            end
-            @test err isa ArgumentError
-            @test err.msg == "unknown rule id: $id"
+            @test_throws ArgumentError "unknown rule id: not-a-real-rule" AgentRuleLint.explain_rule(
+                id;
+                root = tmp,
+            )
 
             mktemp() do out_path, _
                 mktemp() do err_path, _
@@ -341,14 +301,10 @@ end
             "unknown rule id: shell-safety (did you mean shell-safety/process-pattern?)"
         tmp = _temp_corpus_root()
         try
-            err = try
-                AgentRuleLint.explain_rule(id; root = tmp)
-                nothing
-            catch e
-                e
-            end
-            @test err isa ArgumentError
-            @test err.msg == hint_msg
+            @test_throws ArgumentError hint_msg AgentRuleLint.explain_rule(
+                id;
+                root = tmp,
+            )
 
             mktemp() do out_path, _
                 mktemp() do err_path, _
