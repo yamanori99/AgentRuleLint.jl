@@ -192,14 +192,19 @@ function _numstat_line_binary(line::AbstractString)
 end
 
 function _numstat_add_del(line::AbstractString)
+    line = String(line)
     _numstat_line_binary(line) && return (0, 0)
-    parts = split(String(line), '\t'; limit = 3)
-    length(parts) >= 2 || return (0, 0)
-    added = parse(Int, parts[1])
-    deleted = parse(Int, parts[2])
+    parts = split(line, '\t'; limit = 3)
+    length(parts) >= 2 ||
+        throw(GitError("malformed git diff --numstat line: $(repr(line))"))
+    added = tryparse(Int, parts[1])
+    deleted = tryparse(Int, parts[2])
+    (added === nothing || deleted === nothing) &&
+        throw(GitError("malformed git diff --numstat line: $(repr(line))"))
     return added, deleted
 end
 
+"""Sum add/del for a single-path or full `--numstat` payload (one or more lines)."""
 function _numstat_totals(payload::AbstractString)
     added = 0
     deleted = 0
@@ -211,6 +216,16 @@ function _numstat_totals(payload::AbstractString)
         deleted += d
     end
     return added, deleted, any_binary
+end
+
+function _parse_numstat_by_path(payload::AbstractString)
+    out = Dict{String, String}()
+    for line in split(String(payload), '\n'; keepempty = false)
+        parts = split(line, '\t'; limit = 3)
+        length(parts) >= 3 || continue
+        out[normalize_path(parts[3])] = line
+    end
+    return out
 end
 
 function _diff_has_unified_hunk(body::AbstractString)
@@ -252,7 +267,12 @@ function _diff_pure_rename_copy_metadata(body::AbstractString)
     return false
 end
 
-function _git_diff_numstat_cmd(root::AbstractString, base::AbstractString, path::AbstractString; text::Bool)
+function _git_diff_numstat_cmd(
+        root::AbstractString,
+        base::AbstractString;
+        text::Bool,
+        path = nothing,
+    )
     args = [
         "git",
         "-C",
@@ -263,8 +283,35 @@ function _git_diff_numstat_cmd(root::AbstractString, base::AbstractString, path:
         "--no-textconv",
     ]
     text && push!(args, "--text")
-    append!(args, ["--end-of-options", base, "--", path])
+    append!(args, ["--end-of-options", base])
+    path === nothing || append!(args, ["--", String(path)])
     return Cmd(args)
+end
+
+function _git_diff_numstat_maps(root::AbstractString, base::AbstractString, prefix::AbstractString)
+    text_bytes = try
+        _read_git_cmd(_git_diff_numstat_cmd(root, base; text = true); error_prefix = prefix)
+    catch err
+        err isa InterruptException && rethrow()
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
+    end
+    probe_bytes = try
+        _read_git_cmd(_git_diff_numstat_cmd(root, base; text = false); error_prefix = prefix)
+    catch err
+        err isa InterruptException && rethrow()
+        err isa GitError && rethrow()
+        throw(GitError("$prefix: $(format_error(err))"))
+    end
+    return (
+        _parse_numstat_by_path(String(text_bytes)),
+        _parse_numstat_by_path(String(probe_bytes)),
+    )
+end
+
+function _numstat_payload_for_path(map::Dict{String, String}, path::AbstractString)
+    line = get(map, normalize_path(path), "")
+    return isempty(line) ? "" : line * "\n"
 end
 
 """
@@ -299,7 +346,13 @@ function _changed_lines_from_diff_output(
     return lines
 end
 
-function git_diff_changed_lines(root::AbstractString, base::AbstractString, relpath::AbstractString)
+function git_diff_changed_lines(
+        root::AbstractString,
+        base::AbstractString,
+        relpath::AbstractString;
+        numstat_text_map = nothing,
+        numstat_probe_map = nothing,
+    )
     root = _git_root(root)
     base = verify_diff_base_ref(root, base)
     path = normalize_path(relpath)
@@ -328,12 +381,38 @@ function git_diff_changed_lines(root::AbstractString, base::AbstractString, relp
         err isa GitError && rethrow()
         throw(GitError("$prefix: $(format_error(err))"))
     end
-    numstat_text = String(
-        _read_git_cmd(_git_diff_numstat_cmd(root, base, path; text = true); error_prefix = prefix),
-    )
-    numstat_probe = String(
-        _read_git_cmd(_git_diff_numstat_cmd(root, base, path; text = false); error_prefix = prefix),
-    )
+    numstat_text = if numstat_text_map === nothing
+        try
+            String(
+                _read_git_cmd(
+                    _git_diff_numstat_cmd(root, base; text = true, path = path);
+                    error_prefix = prefix,
+                ),
+            )
+        catch err
+            err isa InterruptException && rethrow()
+            err isa GitError && rethrow()
+            throw(GitError("$prefix: $(format_error(err))"))
+        end
+    else
+        _numstat_payload_for_path(numstat_text_map, path)
+    end
+    numstat_probe = if numstat_probe_map === nothing
+        try
+            String(
+                _read_git_cmd(
+                    _git_diff_numstat_cmd(root, base; text = false, path = path);
+                    error_prefix = prefix,
+                ),
+            )
+        catch err
+            err isa InterruptException && rethrow()
+            err isa GitError && rethrow()
+            throw(GitError("$prefix: $(format_error(err))"))
+        end
+    else
+        _numstat_payload_for_path(numstat_probe_map, path)
+    end
     return _changed_lines_from_diff_output(body, numstat_text, numstat_probe, path)
 end
 
@@ -341,6 +420,8 @@ function build_diff_scope(root::AbstractString, base::AbstractString)
     root = _git_root(root)
     base = verify_diff_base_ref(root, base)
     entries = git_diff_name_status(root, base)
+    prefix = "git diff failed for base=$(base)"
+    text_map, probe_map = _git_diff_numstat_maps(root, base, prefix)
     files = DiffFileContext[]
     for (st, path) in entries
         if st == 'D'
@@ -356,7 +437,13 @@ function build_diff_scope(root::AbstractString, base::AbstractString)
                 Set{Int}()
             end
         else
-            git_diff_changed_lines(root, base, path)
+            git_diff_changed_lines(
+                root,
+                base,
+                path;
+                numstat_text_map = text_map,
+                numstat_probe_map = probe_map,
+            )
         end
         push!(files, DiffFileContext(path, lines, st))
     end

@@ -101,6 +101,17 @@
         end
     end
 
+    @testset "malformed numstat line throws GitError" begin
+        err = try
+            AgentRuleLint._numstat_totals("not-a-number\talso-bad\tpath.jl\n")
+            nothing
+        catch e
+            e
+        end
+        @test err isa AgentRuleLint.GitError
+        @test occursin("malformed git diff --numstat", AgentRuleLint.sprint(showerror, err))
+    end
+
     @testset "numstat binary probe fails closed without hunks" begin
         err = try
             AgentRuleLint._changed_lines_from_diff_output("", "", "-\t-\ttarget.jl", "target.jl")
