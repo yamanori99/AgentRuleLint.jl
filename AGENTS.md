@@ -19,7 +19,6 @@ Invariants (one line each):
 - The package version is single-sourced from `Project.toml`.
 - Tests never write into the repository tree; mutation assertions must fail, not pass, when a child process crashes.
 - CLI options may change presentation only (color, width, a display cap with an always-printed omitted count). They never remove guidance an agent needs to act, and never change the verdict silently: a CLI override of a config value is stated in the verdict line. Anything that changes what is reported or how it is judged lives in the protected config file.
-- Docs state only what is stable (purpose, install, exit codes, where to look), in short sentences without tables. Anything that can change (rules, levels, config keys, output fields) is discoverable from the tool (`explain`, schemas) and is not restated in prose.
 
 ## 2. Rule identity and admission
 
