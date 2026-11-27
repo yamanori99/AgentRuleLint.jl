@@ -47,3 +47,4 @@ See `agentrulelint --help` and `src/ratchet.jl`. Default `--diff` base is `HEAD^
 - When a change must edit protected paths and `protected-paths` will fail by design, follow the interim merge procedure in `CONTRIBUTING.md` (until #70). Agents never merge or approve those PRs.
 - Merge `origin/main`; do not rebase or force-push this branch.
 - Do not post GitHub comments, reviews, or merges directly.
+- In the PR description, state what you were given and the model used: `Task: #<issue>` when the task is an issue (do not copy its text), or the prompt inside a collapsed `<details><summary>Prompt</summary>` block when it is not. Never include private audit findings; write `Prompt withheld (private)` instead.

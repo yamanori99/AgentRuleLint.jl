@@ -11,19 +11,31 @@ permissions:
 
 jobs:
   test:
-    name: Daily Pkg.test (${{ matrix.julia-version }}, ${{ matrix.os }})
+    name: Pkg.test (daily) - Julia ${{ matrix.julia-version }} - ${{ matrix.os }} - ${{ matrix.arch }}
     continue-on-error: ${{ matrix.julia-version == '~1.14.0-0' }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
+        include:
+          - os: ubuntu-latest
+            arch: x64
+            julia-version: "1.13"
+          - os: ubuntu-latest
+            arch: x64
+            julia-version: "~1.14.0-0"
+          - os: windows-latest
+            arch: x64
+            julia-version: "1.13"
+          - os: windows-latest
+            arch: x64
+            julia-version: "~1.14.0-0"
           # Xcode 27 toolchain image (arm64): actions/runner-images images/macos/xcode-27-arm64-Readme.md
-          - xcode-27
-        julia-version:
-          - "1.13"
-          - "~1.14.0-0"
+          - os: xcode-27
+            arch: arm64
+            julia-version: "1.13"
+          - os: xcode-27
+            arch: arm64
+            julia-version: "~1.14.0-0"
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -54,7 +66,7 @@ jobs:
         run: julia --startup-file=no --project=. --color=yes -e 'using Pkg; Pkg.test()'
 
   mutation:
-    name: Daily mutation (Julia 1.13, ubuntu-latest, x64)
+    name: Mutation tests (daily) - Julia 1.13 - ubuntu-latest - x64
     permissions:
       contents: read
     runs-on: ubuntu-latest
