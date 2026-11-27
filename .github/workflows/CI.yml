@@ -281,16 +281,25 @@ jobs:
         with:
           cache-scratchspaces: false
 
-      - name: Instantiate main project
-        shell: bash
-        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
-
-      - name: Fetch base ref for diff
+      - name: Checkout base linter worktree
         shell: bash
         run: |
           set -euo pipefail
           : "${GITHUB_BASE_REF:?GITHUB_BASE_REF unset (pull_request only)}"
           git fetch origin "${GITHUB_BASE_REF}"
+          if [[ -e .linter-base ]]; then
+            git worktree remove -f .linter-base
+          fi
+          git worktree add .linter-base "origin/${GITHUB_BASE_REF}"
+          linter_sha="$(git -C .linter-base rev-parse HEAD)"
+          base_tip="$(git rev-parse "origin/${GITHUB_BASE_REF}")"
+          echo "dogfood linter commit: ${linter_sha}"
+          echo "dogfood base tip: ${base_tip}"
+          [[ "${linter_sha}" == "${base_tip}" ]]
+
+      - name: Instantiate base linter project
+        shell: bash
+        run: julia --startup-file=no --project=.linter-base -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 
       - name: AgentRuleLint check (dogfood)
         shell: bash
@@ -299,7 +308,7 @@ jobs:
           : "${GITHUB_BASE_REF:?GITHUB_BASE_REF unset (pull_request only)}"
           base_sha="$(git merge-base "origin/${GITHUB_BASE_REF}" HEAD)"
           echo "dogfood merge-base: ${base_sha}"
-          julia --startup-file=no --project=. -m AgentRuleLint check \
+          julia --startup-file=no --project=.linter-base -m AgentRuleLint check \
             --diff "${base_sha}" \
             --config-from "origin/${GITHUB_BASE_REF}" \
             --format human
