@@ -2,6 +2,7 @@ using AgentRuleLint
 
 include(joinpath(@__DIR__, "git_test_helpers.jl"))
 
+const run_git_cmd = AgentRuleLint.run_git_cmd
 const ROOT = normpath(joinpath(@__DIR__, ".."))
 cfg = read(joinpath(ROOT, ".AgentRuleLint.jl.toml"), String)
 dir = abspath(mktempdir())

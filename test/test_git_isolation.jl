@@ -41,14 +41,7 @@ end
 @testset "plain check on non-repository fails closed for manifest-sync" begin
     dir = mktempdir()
     try
-        err = try
-            AgentRuleLint.check(dir)
-            nothing
-        catch e
-            e
-        end
-        @test err isa AgentRuleLint.GitError
-        @test occursin("manifest-sync", AgentRuleLint.sprint(showerror, err))
+        @test_throws AgentRuleLint.GitError r"manifest-sync" AgentRuleLint.check(dir)
     finally
         rm(dir, recursive = true, force = true)
     end

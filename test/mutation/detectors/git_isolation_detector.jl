@@ -24,13 +24,12 @@ end
 function main()
     return AgentRuleLint.git_run_scope() do
         hostile = mktempdir()
-        return try
-            compare_signatures(hostile) && exit(0)
-            exit(_HITS_EXIT)
+        try
+            compare_signatures(hostile) || exit(_HITS_EXIT)
+            exit(0)
         catch err
             err isa InterruptException && rethrow()
-            showerror(stderr, err)
-            exit(1)
+            rethrow()
         finally
             rm(hostile, recursive = true, force = true)
         end
