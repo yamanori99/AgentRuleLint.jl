@@ -1,4 +1,5 @@
 include("mutation_lib.jl")
+using AgentRuleLint
 
 const _DETECT = _MUTATION_VERIFY_DETECTED_EXIT
 
@@ -19,6 +20,7 @@ run_source_mutation(;
                 git_diff_changed_lines(
     """,
     verify = root -> begin
+        cfg_file = repr(AgentRuleLint.CONFIG_FILENAME)
         script = """
         using AgentRuleLint
         dir = mktempdir()
@@ -32,10 +34,10 @@ run_source_mutation(;
             end
             ver = string(pkgversion(AgentRuleLint))
             cfg =
-                "agentrulelint_version = \"=" * ver *
-                "\"\n[[project_rules]]\nid = \"diff-literal\"\nlevel = \"deny\"\npaths = [\"**\"]\nforbid_literals = [\"FORBIDDEN_DIFF_TOKEN\"]\nintent = \"\"\ndo_not = \"\"\n"
-            write(joinpath(dir,".AgentRuleLint.jl.toml"), cfg)
-            write(joinpath(dir,"old.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
+                "agentrulelint_version = \\\"=" * ver *
+                "\\\"\\n[[project_rules]]\\nid = \\\"diff-literal\\\"\\nlevel = \\\"deny\\\"\\npaths = [\\\"**\\\"]\\nforbid_literals = [\\\"FORBIDDEN_DIFF_TOKEN\\\"]\\nintent = \\\"\\\"\\ndo_not = \\\"\\\"\\n"
+            write(joinpath(dir, $cfg_file), cfg)
+            write(joinpath(dir,"old.jl"), "x = \\\"FORBIDDEN_DIFF_TOKEN\\\"\\n")
             commit!("base")
             run(Cmd(["git","-C",dir,"mv","old.jl","new.jl"]))
             commit!("rename")
