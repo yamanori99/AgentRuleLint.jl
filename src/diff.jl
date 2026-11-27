@@ -310,11 +310,23 @@ function _diff_pure_rename_copy_metadata(body::AbstractString)
     return false
 end
 
+function _git_diff_path_args(path_status::Char, path::AbstractString, old_path::AbstractString)
+    p = normalize_path(path)
+    if path_status in _DIFF_NAME_STATUS_PAIR
+        o = normalize_path(old_path)
+        !isempty(o) || throw(GitError("git diff path pairing missing old path for status=$(path_status) path=$(p)"))
+        return [o, p]
+    end
+    return [p]
+end
+
 function _git_diff_numstat_cmd(
         root::AbstractString,
         base::AbstractString;
         text::Bool,
+        path_status::Char = 'M',
         path = nothing,
+        old_path::AbstractString = "",
     )
     args = [
         "git",
@@ -331,7 +343,38 @@ function _git_diff_numstat_cmd(
     ]
     text && push!(args, "--text")
     append!(args, ["--end-of-options", base])
-    path === nothing || append!(args, ["--", String(path)])
+    if path !== nothing
+        append!(args, ["--"])
+        append!(args, _git_diff_path_args(path_status, String(path), old_path))
+    end
+    return Cmd(args)
+end
+
+function _git_diff_unified_cmd(
+        root::AbstractString,
+        base::AbstractString,
+        path_status::Char,
+        path::AbstractString,
+        old_path::AbstractString,
+    )
+    args = [
+        "git",
+        "-C",
+        root,
+        "-c",
+        "diff.renames=true",
+        "diff",
+        "-U0",
+        "-M",
+        "--no-color",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--text",
+        "--end-of-options",
+        base,
+        "--",
+    ]
+    append!(args, _git_diff_path_args(path_status, path, old_path))
     return Cmd(args)
 end
 
@@ -399,9 +442,7 @@ function _changed_lines_from_diff_output(
     end
     add, del, text_binary = _numstat_totals(numstat_text)
     if stats.nhunks > 0
-        # Rename/copy use 0/0 numstat while `--text` unified diffs show file contents.
-        skip_rename_numstat = add == 0 && del == 0 && _diff_has_content_delta(body)
-        if !text_binary && !skip_rename_numstat && (stats.new_sum != add || stats.old_sum != del)
+        if !text_binary && (stats.new_sum != add || stats.old_sum != del)
             throw(
                 GitError(
                     "git diff hunk line counts disagree with numstat for path=$(path): " *
@@ -428,27 +469,12 @@ function git_diff_changed_lines(
         numstat_text_map = nothing,
         numstat_probe_map = nothing,
         path_status::Char = 'M',
+        old_path::AbstractString = "",
     )
     root = _git_root(root)
     base = verify_diff_base_ref(root, base)
     path = normalize_path(relpath)
-    unified = Cmd(
-        [
-            "git",
-            "-C",
-            root,
-            "diff",
-            "-U0",
-            "--no-color",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--text",
-            "--end-of-options",
-            base,
-            "--",
-            path,
-        ],
-    )
+    unified = _git_diff_unified_cmd(root, base, path_status, path, old_path)
     prefix = "git diff failed for base=$(base) path=$(path)"
     body = try
         String(_read_git_cmd(unified; error_prefix = prefix))
@@ -462,7 +488,14 @@ function git_diff_changed_lines(
         raw_text = try
             String(
                 _read_git_cmd(
-                    _git_diff_numstat_cmd(root, base; text = true, path = path);
+                    _git_diff_numstat_cmd(
+                        root,
+                        base;
+                        text = true,
+                        path = path,
+                        path_status = path_status,
+                        old_path = old_path,
+                    );
                     error_prefix = prefix,
                 ),
             )
@@ -474,7 +507,14 @@ function git_diff_changed_lines(
         raw_probe = try
             String(
                 _read_git_cmd(
-                    _git_diff_numstat_cmd(root, base; text = false, path = path);
+                    _git_diff_numstat_cmd(
+                        root,
+                        base;
+                        text = false,
+                        path = path,
+                        path_status = path_status,
+                        old_path = old_path,
+                    );
                     error_prefix = prefix,
                 ),
             )
@@ -495,7 +535,12 @@ end
 function build_diff_scope(root::AbstractString, base::AbstractString)
     root = _git_root(root)
     base = verify_diff_base_ref(root, base)
-    entries = git_diff_name_status(root, base)
+    events = git_diff_path_events(root, base)
+    old_path_for = Dict{String, String}()
+    for ev in events
+        ev.status in _DIFF_NAME_STATUS_PAIR && (old_path_for[ev.path] = ev.old_path)
+    end
+    entries = unique(Tuple{Char, String}[(ev.status, ev.path) for ev in events])
     prefix = "git diff failed for base=$(base)"
     text_map, probe_map = _git_diff_numstat_maps(root, base, prefix)
     files = DiffFileContext[]
@@ -520,6 +565,7 @@ function build_diff_scope(root::AbstractString, base::AbstractString)
                 numstat_text_map = text_map,
                 numstat_probe_map = probe_map,
                 path_status = st,
+                old_path = get(old_path_for, path, ""),
             )
         end
         push!(files, DiffFileContext(path, lines, st))

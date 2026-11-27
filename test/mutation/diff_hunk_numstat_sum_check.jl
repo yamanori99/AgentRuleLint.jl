@@ -3,7 +3,7 @@ include("mutation_lib.jl")
 run_source_mutation(;
     name = "diff hunk numstat sum cross-check",
     rel_path = "src/diff.jl",
-    needle = "if !text_binary && !skip_rename_numstat && (stats.new_sum != add || stats.old_sum != del)",
+    needle = "if !text_binary && (stats.new_sum != add || stats.old_sum != del)",
     replacement = "if false",
     verify = root -> begin
         script = raw"""

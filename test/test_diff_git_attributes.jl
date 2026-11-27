@@ -189,21 +189,112 @@
         try
             init_git_repo!(dir)
             write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
-            write(joinpath(dir, "src.jl"), "v = 1\n")
+            write(joinpath(dir, "src.jl"), "v=1\n")
             git_commit_all!(dir, "base")
             run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
-            write(joinpath(dir, "dst.jl"), "v = 1\nx = \"FORBIDDEN_DIFF_TOKEN\"\n")
-            git_commit_all!(dir, "rename-edit")
+            git_commit_all!(dir, "rename only")
+            write(joinpath(dir, "dst.jl"), "v=1\nx=\"FORBIDDEN_DIFF_TOKEN\"\n")
+            git_commit_all!(dir, "add literal on line two")
             cd(dir) do
                 scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
                 lines = AgentRuleLint.diff_changed_lines(scope, "dst.jl")
-                @test !isempty(lines)
+                @test AgentRuleLint.diff_path_status(scope, "dst.jl") == 'M'
+                @test lines == Set([2])
                 res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
                 lit = filter(d -> d.rule_id == "project/diff-literal", res.violations)
                 @test any(d -> d.path == "dst.jl", lit)
             end
         finally
             rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "rename and copy numstat pairing (real git)" begin
+        @testset "pure rename without content change" begin
+            dir = abspath(mktempdir())
+            try
+                init_git_repo!(dir)
+                write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+                write(joinpath(dir, "old.jl"), "alpha\nbeta\n")
+                git_commit_all!(dir, "base")
+                run(setenv(Cmd(["git", "-C", dir, "mv", "old.jl", "new.jl"]); dir = dir))
+                git_commit_all!(dir, "rename only")
+                cd(dir) do
+                    scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                    lines = AgentRuleLint.diff_changed_lines(scope, "new.jl")
+                    res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                    @test AgentRuleLint.diff_path_status(scope, "new.jl") == 'R'
+                    @test isempty(lines)
+                    @test res.exit_code == 0
+                end
+            finally
+                rm(dir, recursive = true, force = true)
+            end
+        end
+
+        @testset "rename with small similarity-preserving edit" begin
+            dir = abspath(mktempdir())
+            try
+                init_git_repo!(dir)
+                write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+                write(joinpath(dir, "src.jl"), "v=1\n")
+                git_commit_all!(dir, "base")
+                run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
+                write(joinpath(dir, "dst.jl"), "v=1\nx=2\n")
+                git_commit_all!(dir, "rename and add one line")
+                cd(dir) do
+                    scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                    @test AgentRuleLint.diff_path_status(scope, "dst.jl") == 'R'
+                    @test AgentRuleLint.diff_changed_lines(scope, "dst.jl") == Set([2])
+                end
+            finally
+                rm(dir, recursive = true, force = true)
+            end
+        end
+
+        @testset "rename with deletion-only edit" begin
+            dir = abspath(mktempdir())
+            try
+                init_git_repo!(dir)
+                write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+                write(joinpath(dir, "src.jl"), "keep\nbad\ntail\n")
+                git_commit_all!(dir, "base")
+                run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
+                write(joinpath(dir, "dst.jl"), "keep\ntail\n")
+                git_commit_all!(dir, "rename and delete middle")
+                cd(dir) do
+                    scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                    @test AgentRuleLint.diff_path_status(scope, "dst.jl") == 'R'
+                    @test isempty(AgentRuleLint.diff_changed_lines(scope, "dst.jl"))
+                end
+            finally
+                rm(dir, recursive = true, force = true)
+            end
+        end
+
+        @testset "copy with small edit when git reports status C" begin
+            dir = abspath(mktempdir())
+            try
+                init_git_repo!(dir)
+                write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+                body = join(["line" * string(i) for i in 1:20], "\n") * "\n"
+                write(joinpath(dir, "src.jl"), body)
+                git_commit_all!(dir, "base")
+                write(joinpath(dir, "cp.jl"), body * "extra\n")
+                git_commit_all!(dir, "copy-like add")
+                cd(dir) do
+                    scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                    st = AgentRuleLint.diff_path_status(scope, "cp.jl")
+                    if st != 'C'
+                        @test_broken error("git name-status was $(st), not copy")
+                    else
+                        lines = AgentRuleLint.diff_changed_lines(scope, "cp.jl")
+                        @test lines == Set([21])
+                    end
+                end
+            finally
+                rm(dir, recursive = true, force = true)
+            end
         end
     end
 
