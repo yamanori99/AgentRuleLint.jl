@@ -127,7 +127,7 @@
                     @test code == 0
                 end
                 flush(io)
-                out = read(path, String)
+                out = replace(read(path, String), r"\s+" => " ")
                 @test occursin("PASSED", out)
                 @test occursin("threshold forbid from --exit-severity", out)
                 @test occursin("config warn", out)
