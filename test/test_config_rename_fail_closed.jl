@@ -28,6 +28,20 @@ using Test
         return nothing
     end
 
+    function expect_rename_config_error(f)
+        try
+            f()
+            @test false
+            return nothing
+        catch err
+            if err isa AgentRuleLint.ConfigError
+                return err
+            else
+                rethrow(err)
+            end
+        end
+    end
+
     function assert_rename_error(err)
         @test err isa AgentRuleLint.ConfigError
         msg = sprint(showerror, err)
@@ -53,12 +67,7 @@ using Test
         root = mktempdir()
         try
             write(joinpath(root, AgentRuleLint.LEGACY_CONFIG_FILENAME), minimal_config())
-            err = try
-                AgentRuleLint.check(root)
-                nothing
-            catch e
-                e
-            end
+            err = expect_rename_config_error(() -> AgentRuleLint.check(root))
             @test assert_rename_error(err)
         finally
             rm(root, recursive = true, force = true)
@@ -70,12 +79,7 @@ using Test
         try
             write(joinpath(root, AgentRuleLint.LEGACY_CONFIG_FILENAME), minimal_config())
             write(joinpath(root, AgentRuleLint.CONFIG_FILENAME), minimal_config())
-            err = try
-                AgentRuleLint.check(root)
-                nothing
-            catch e
-                e
-            end
+            err = expect_rename_config_error(() -> AgentRuleLint.check(root))
             @test assert_rename_error(err)
         finally
             rm(root, recursive = true, force = true)
@@ -89,12 +93,9 @@ using Test
             write(joinpath(dir, AgentRuleLint.LEGACY_CONFIG_FILENAME), minimal_config())
             write(joinpath(dir, "ok.jl"), "1\n")
             git_commit_all!(dir, "base")
-            err = try
-                AgentRuleLint.check(dir; config_from = "HEAD", paths = ["ok.jl"])
-                nothing
-            catch e
-                e
-            end
+            err = expect_rename_config_error(
+                () -> AgentRuleLint.check(dir; config_from = "HEAD", paths = ["ok.jl"]),
+            )
             @test assert_rename_error(err)
         finally
             rm(dir, recursive = true, force = true)

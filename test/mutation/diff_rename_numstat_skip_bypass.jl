@@ -19,14 +19,13 @@ run_source_mutation(;
                 "0\t0\ttarget.jl\n",
                 "target.jl",
             )
-            exit(1)
+            exit(42)
         catch err
             err isa AgentRuleLint.GitError || rethrow(err)
-            occursin("disagree with numstat", err.msg) || exit(1)
+            occursin("disagree with numstat", err.msg) || exit(42)
             exit(0)
         end
         """
-        cmd = _julia_project_cmd(root, "-e", script)
-        return !success(run(ignorestatus(setenv(cmd; dir = root))))
+        return mutation_verify_script(root, script; dir = root)
     end,
 )

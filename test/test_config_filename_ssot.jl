@@ -28,11 +28,8 @@ end
                 @test occursin(legacy_lit, text)
                 continue
             end
-            occursin(new_lit, text) &&
-                error("config filename literal in $rel; use CONFIG_FILENAME")
-            occursin(legacy_lit, text) &&
-                error("legacy config filename literal in $rel; use LEGACY_CONFIG_FILENAME")
-            @test true
+            @test !occursin(new_lit, text)
+            @test !occursin(legacy_lit, text)
         end
     end
 

@@ -12,8 +12,12 @@ run_source_mutation(;
     needle = raw"\\[\\]\\s*=",
     replacement = raw"\\[\\]\\s*\\z",
     verify = root -> begin
-        p = joinpath(root, "src", "AgentRuleLint.jl")
-        write(p, read(p, String) * "\n" * _PROBE)
+        test_rel = joinpath(root, "test", "test_no_mutable_globals.jl")
+        regex_mutated = occursin(raw"\\[\\]\\s*\\z", read(test_rel, String))
+        if regex_mutated
+            p = joinpath(root, "src", "AgentRuleLint.jl")
+            write(p, read(p, String) * "\n" * _PROBE)
+        end
         script = join(
             [
                 "using Test",
@@ -29,7 +33,7 @@ run_source_mutation(;
                 "    end",
                 "    rethrow(err)",
                 "end",
-                "exit(2)",
+                "exit($(regex_mutated ? 2 : 0))",
             ],
             '\n',
         )

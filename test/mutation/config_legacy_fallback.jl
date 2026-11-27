@@ -1,6 +1,8 @@
 include("mutation_lib.jl")
 using AgentRuleLint
 
+const _DETECT = _MUTATION_VERIFY_DETECTED_EXIT
+
 run_source_mutation(;
     name = "config legacy filename fallback",
     rel_path = "src/config.jl",
@@ -13,21 +15,23 @@ run_source_mutation(;
         isfile(p) ? p : joinpath(abspath(root), LEGACY_CONFIG_FILENAME)
     end)""",
     verify = root -> begin
+        legacy = repr(AgentRuleLint.LEGACY_CONFIG_FILENAME)
+        script = """
+        using AgentRuleLint
         tmp = mktempdir()
         try
-            write(
-                joinpath(tmp, AgentRuleLint.LEGACY_CONFIG_FILENAME),
-                "agentrulelint_version = \"=0.1.0\"\n",
-            )
-            survived = try
+            write(joinpath(tmp, $legacy), "agentrulelint_version = \\\"=0.1.0\\\"\\n")
+            try
                 AgentRuleLint.check(tmp)
-                true
-            catch
-                false
+                exit($_DETECT)
+            catch err
+                err isa AgentRuleLint.ConfigError || rethrow(err)
+                exit(0)
             end
-            return !survived
         finally
-            rm(tmp, recursive = true, force = true)
+            rm(tmp, recursive=true, force=true)
         end
+        """
+        return mutation_verify_script(root, script; dir = root)
     end,
 )
