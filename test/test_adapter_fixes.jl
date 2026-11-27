@@ -47,7 +47,7 @@
             intent = \"\"
             do_not = \"\"
             """
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), cfg)
             res = AgentRuleLint.check(root)
             hits = filter(d -> d.rule_id == "project/glob-star" && !d.suppressed, res.violations)
             paths = unique(d.path for d in hits)

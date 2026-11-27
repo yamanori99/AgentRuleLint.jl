@@ -37,7 +37,7 @@
 
     function assert_attrs_literal_and_protected!(dir, attr_line::String)
         init_git_repo!(dir)
-        write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+        write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
         write(joinpath(dir, "target.jl"), "x = 1\n")
         git_commit_all!(dir, "base")
         write(joinpath(dir, ".gitattributes"), attr_line)
@@ -81,7 +81,7 @@
             dir = abspath(mktempdir())
             try
                 init_git_repo!(dir)
-                write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+                write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
                 write(joinpath(dir, "keep.jl"), "1\n")
                 git_commit_all!(dir, "base")
                 write(joinpath(dir, rel), content)
@@ -166,7 +166,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
             rel = "café x.jl"
             write(joinpath(dir, rel), "1\n")
             git_commit_all!(dir, "base")
@@ -188,16 +188,18 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
-            write(joinpath(dir, "src.jl"), "v = 1\n")
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
+            write(joinpath(dir, "src.jl"), "v=1\n")
             git_commit_all!(dir, "base")
             run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
-            write(joinpath(dir, "dst.jl"), "v = 1\nx = \"FORBIDDEN_DIFF_TOKEN\"\n")
-            git_commit_all!(dir, "rename-edit")
+            git_commit_all!(dir, "rename only")
+            write(joinpath(dir, "dst.jl"), "v=1\nx=\"FORBIDDEN_DIFF_TOKEN\"\n")
+            git_commit_all!(dir, "add literal on line two")
             cd(dir) do
                 scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
                 lines = AgentRuleLint.diff_changed_lines(scope, "dst.jl")
-                @test !isempty(lines)
+                @test AgentRuleLint.diff_path_status(scope, "dst.jl") == 'M'
+                @test lines == Set([2])
                 res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
                 lit = filter(d -> d.rule_id == "project/diff-literal", res.violations)
                 @test any(d -> d.path == "dst.jl", lit)
@@ -207,11 +209,203 @@
         end
     end
 
+    @testset "rename and copy destination whole-file scope (real git)" begin
+        function wc_physical_line_set(abspath_file::AbstractString)
+            wc_line = strip(read(Cmd(["wc", "-l", abspath_file]), String))
+            n = parse(Int, first(split(wc_line)))
+            return Set(1:max(n, 1))
+        end
+
+        function path_scoped_literal_cfg()
+            ver = string(pkgversion(AgentRuleLint))
+            return """
+            agentrulelint_version = \"=$(ver)\"
+
+            [rules.protected-paths]
+            level = \"forbid\"
+
+            [[project_rules]]
+            id = \"src-only-literal\"
+            level = \"deny\"
+            paths = [\"src/**\"]
+            forbid_literals = [\"FORBIDDEN_DIFF_TOKEN\"]
+            intent = \"\"
+            do_not = \"\"
+
+            [[project_rules]]
+            id = \"diff-literal\"
+            level = \"deny\"
+            paths = [\"**\"]
+            forbid_literals = [\"FORBIDDEN_DIFF_TOKEN\"]
+            intent = \"\"
+            do_not = \"\"
+            """
+        end
+
+        @testset "pure rename without content change" begin
+            dir = abspath(mktempdir())
+            try
+                init_git_repo!(dir)
+                write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
+                write(joinpath(dir, "old.jl"), "alpha\nbeta\n")
+                git_commit_all!(dir, "base")
+                run(setenv(Cmd(["git", "-C", dir, "mv", "old.jl", "new.jl"]); dir = dir))
+                git_commit_all!(dir, "rename only")
+                dest = joinpath(dir, "new.jl")
+                cd(dir) do
+                    scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                    @test AgentRuleLint.diff_path_status(scope, "new.jl") == 'R'
+                    @test AgentRuleLint.diff_changed_lines(scope, "new.jl") == wc_physical_line_set(dest)
+                    res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                    @test res.exit_code == 0
+                end
+            finally
+                rm(dir, recursive = true, force = true)
+            end
+        end
+
+        @testset "rename with small similarity-preserving edit" begin
+            dir = abspath(mktempdir())
+            try
+                init_git_repo!(dir)
+                write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
+                write(joinpath(dir, "src.jl"), "v=1\n")
+                git_commit_all!(dir, "base")
+                run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
+                write(joinpath(dir, "dst.jl"), "v=1\nx=2\n")
+                git_commit_all!(dir, "rename and add one line")
+                dest = joinpath(dir, "dst.jl")
+                cd(dir) do
+                    scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                    @test AgentRuleLint.diff_path_status(scope, "dst.jl") == 'R'
+                    @test AgentRuleLint.diff_changed_lines(scope, "dst.jl") == wc_physical_line_set(dest)
+                end
+            finally
+                rm(dir, recursive = true, force = true)
+            end
+        end
+
+        @testset "copy-like add is status A with whole file" begin
+            dir = abspath(mktempdir())
+            try
+                init_git_repo!(dir)
+                write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
+                body = join(["line" * string(i) for i in 1:20], "\n") * "\n"
+                write(joinpath(dir, "src.jl"), body)
+                git_commit_all!(dir, "base")
+                write(joinpath(dir, "cp.jl"), body * "tail\n")
+                git_commit_all!(dir, "copy-like add")
+                dest = joinpath(dir, "cp.jl")
+                cd(dir) do
+                    scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                    @test AgentRuleLint.diff_path_status(scope, "cp.jl") == 'A'
+                    @test AgentRuleLint.diff_changed_lines(scope, "cp.jl") == wc_physical_line_set(dest)
+                    res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                    @test res.exit_code == 0
+                end
+            finally
+                rm(dir, recursive = true, force = true)
+            end
+        end
+
+        @testset "rename into path-scoped rule reports unedited lines" begin
+            dir = abspath(mktempdir())
+            try
+                init_git_repo!(dir)
+                write(joinpath(dir, ".AgentRuleLint.jl.toml"), path_scoped_literal_cfg())
+                mkpath(joinpath(dir, "test"))
+                write(
+                    joinpath(dir, "test", "moved.jl"),
+                    "x = \"FORBIDDEN_DIFF_TOKEN\"\nallowed\n",
+                )
+                git_commit_all!(dir, "base")
+                mkpath(joinpath(dir, "src"))
+                run(
+                    setenv(
+                        Cmd(["git", "-C", dir, "mv", "test/moved.jl", "src/moved.jl"]);
+                        dir = dir,
+                    ),
+                )
+                write(joinpath(dir, "src", "moved.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\nallowed\nedit\n")
+                git_commit_all!(dir, "rename and edit line three")
+                dest = joinpath(dir, "src", "moved.jl")
+                cd(dir) do
+                    scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                    @test AgentRuleLint.diff_path_status(scope, "src/moved.jl") == 'R'
+                    @test AgentRuleLint.diff_changed_lines(scope, "src/moved.jl") ==
+                        wc_physical_line_set(dest)
+                    res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                    src_hits = filter(
+                        d -> d.rule_id == "project/src-only-literal" && d.path == "src/moved.jl",
+                        res.violations,
+                    )
+                    @test res.exit_code == 1
+                    @test length(src_hits) == 1
+                    @test first(src_hits).span.start_line == 1
+                end
+            finally
+                rm(dir, recursive = true, force = true)
+            end
+        end
+
+        @testset "rename with deletion-only edit" begin
+            dir = abspath(mktempdir())
+            try
+                init_git_repo!(dir)
+                write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
+                write(joinpath(dir, "src.jl"), "keep\nbad\ntail\n")
+                git_commit_all!(dir, "base")
+                run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
+                write(joinpath(dir, "dst.jl"), "keep\ntail\n")
+                git_commit_all!(dir, "rename and delete middle")
+                dest = joinpath(dir, "dst.jl")
+                cd(dir) do
+                    scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                    @test AgentRuleLint.diff_path_status(scope, "dst.jl") == 'R'
+                    @test AgentRuleLint.diff_changed_lines(scope, "dst.jl") ==
+                        wc_physical_line_set(dest)
+                end
+            finally
+                rm(dir, recursive = true, force = true)
+            end
+        end
+
+        @testset "added file line count matches wc -l" begin
+            @test AgentRuleLint._newline_delimited_line_count("a\nb\n") == 2
+            @test AgentRuleLint._newline_delimited_line_count("a\nb") == 2
+            dir = abspath(mktempdir())
+            try
+                init_git_repo!(dir)
+                write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
+                write(joinpath(dir, "keep.jl"), "1\n")
+                git_commit_all!(dir, "base")
+                write(joinpath(dir, "new.jl"), "safe\nx = \"FORBIDDEN_DIFF_TOKEN\"\n")
+                git_commit_all!(dir, "add file")
+                dest = joinpath(dir, "new.jl")
+                cd(dir) do
+                    scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                    @test AgentRuleLint.diff_path_status(scope, "new.jl") == 'A'
+                    lines = AgentRuleLint.diff_changed_lines(scope, "new.jl")
+                    @test lines == wc_physical_line_set(dest)
+                    res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                    lit = filter(
+                        d -> d.rule_id == "project/diff-literal" && d.path == "new.jl",
+                        res.violations,
+                    )
+                    @test length(lit) == 1
+                    @test first(lit).span.start_line == 2
+                end
+            finally
+                rm(dir, recursive = true, force = true)
+            end
+        end
+    end
+
     @testset "batched numstat with gitattributes -diff on modified file" begin
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
             write(joinpath(dir, "target.jl"), "x = 1\n")
             git_commit_all!(dir, "base")
             write(joinpath(dir, ".gitattributes"), "*.jl -diff\n")
@@ -231,7 +425,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
             write(joinpath(dir, "target.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
             git_commit_all!(dir, "base")
             chmod(joinpath(dir, "target.jl"), 0o755)
@@ -239,6 +433,92 @@
             cd(dir) do
                 lines = AgentRuleLint.git_diff_changed_lines(dir, "HEAD^1", "target.jl")
                 @test isempty(lines)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "hunk line counts disagree with numstat throws GitError" begin
+        body = "@@ -10,3 +10,1 @@\n"
+        @test_throws AgentRuleLint.GitError r"path=target\.jl" begin
+            AgentRuleLint._changed_lines_from_diff_output(
+                body,
+                "2\t3\ttarget.jl",
+                "2\t3\ttarget.jl",
+                "target.jl",
+            )
+        end
+    end
+
+    @testset "deletion-only hunk in temp repo" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
+            write(
+                joinpath(dir, "target.jl"),
+                "keep = 1\nx = \"FORBIDDEN_DIFF_TOKEN\"\ntail = 3\n",
+            )
+            git_commit_all!(dir, "base")
+            write(joinpath(dir, "target.jl"), "keep = 1\ntail = 3\n")
+            git_commit_all!(dir, "delete middle line")
+            cd(dir) do
+                scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                lines = AgentRuleLint.diff_changed_lines(scope, "target.jl")
+                @test isempty(lines)
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                lit = filter(d -> d.rule_id == "project/diff-literal", res.violations)
+                @test isempty(lit)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "deletion and addition hunks report only new lines" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
+            write(joinpath(dir, "target.jl"), "a = 1\nb = 2\nc = 3\n")
+            git_commit_all!(dir, "base")
+            write(
+                joinpath(dir, "target.jl"),
+                "a = \"FORBIDDEN_DIFF_TOKEN\"\nb = 2\n",
+            )
+            git_commit_all!(dir, "delete tail and edit head")
+            cd(dir) do
+                scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                lines = AgentRuleLint.diff_changed_lines(scope, "target.jl")
+                @test lines == Set([1])
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                lit = filter(
+                    d -> d.rule_id == "project/diff-literal" && !d.suppressed,
+                    res.violations,
+                )
+                @test length(lit) == 1
+                @test first(lit).span.start_line == 1
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "whole file deletion in temp repo" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
+            write(joinpath(dir, "gone.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
+            git_commit_all!(dir, "base")
+            rm(joinpath(dir, "gone.jl"))
+            git_commit_all!(dir, "delete file")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                lit = filter(d -> d.rule_id == "project/diff-literal", res.violations)
+                @test isempty(lit)
+                @test res.exit_code == 0
             end
         finally
             rm(dir, recursive = true, force = true)

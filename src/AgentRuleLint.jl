@@ -241,6 +241,17 @@ function _cli_check(positional::Vector{String}, opts)
     return result.exit_code
 end
 
+function _cli_init(::Vector{String}, ::Dict)
+    root = pwd()
+    reject_legacy_config_file!(root)
+    path = joinpath(root, CONFIG_FILENAME)
+    isfile(path) &&
+        throw(ConfigError("config already exists: $CONFIG_FILENAME"))
+    write(path, render_init_config())
+    println("Wrote $(abspath(path))")
+    return 0
+end
+
 function _cli_explain(positional::Vector{String}, ::Dict)
     isempty(positional) && throw(ArgumentError("explain requires <rule-id>"))
     println(explain_rule(positional[1]; root = pwd()))
@@ -309,12 +320,14 @@ function _print_cli_help(cmd::String)
         println(
             """
             Usage: agentrulelint check [paths...] [options]
+                   agentrulelint init
                    agentrulelint explain <rule-id>
                    agentrulelint ratchet --write [paths...] [options]
                    agentrulelint report <fingerprint>
 
             Commands:
               check    Lint Julia sources (default). Reads ceilings; does not write them.
+              init     Write a starter $CONFIG_FILENAME in the current directory.
               explain  Print rule intent and anchor semantics for <rule-id>.
               ratchet  Update .agentrulelint/ceilings.toml from current violation counts (--write required).
               report   Emit anonymized JSON for a diagnostic fingerprint.
@@ -322,7 +335,7 @@ function _print_cli_help(cmd::String)
             Options (check and ratchet --write):
               --format human|json|agent   Output format (default: config default_format; invalid values exit 2)
               --config <path>             Alternate config file path
-              --config-from <git-ref>     Load .AgentRuleLintConfig.toml from a git ref
+              --config-from <git-ref>     Load $(CONFIG_FILENAME) from a git ref
               --diff [<base-ref>]         Limit to changed files/lines vs base (default: HEAD^1)
               --allow-paths GLOB,...      Trusted allowlist for scope-paths (requires --diff; not from config)
               --output <path>             Write formatted output to <path>
@@ -359,7 +372,7 @@ function cli_main(args::AbstractVector{<:AbstractString})::Int
             return 0
         end
         rest = length(argvec) > 1 ? argvec[2:end] : String[]
-        known_cmds = ("check", "explain", "ratchet", "report")
+        known_cmds = ("check", "init", "explain", "ratchet", "report")
         cmd in known_cmds || throw(ArgumentError("unknown command: $cmd"))
         if "--help" in rest || "-h" in rest
             _print_cli_help(cmd)
@@ -368,6 +381,9 @@ function cli_main(args::AbstractVector{<:AbstractString})::Int
         positional, opts = _parse_cli_args(cmd, rest)
         return if cmd == "check"
             _cli_check(positional, opts)
+        elseif cmd == "init"
+            !isempty(positional) && throw(ArgumentError("init takes no arguments"))
+            _cli_init(positional, opts)
         elseif cmd == "explain"
             _cli_explain(positional, opts)
         elseif cmd == "ratchet"

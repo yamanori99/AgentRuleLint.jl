@@ -4,6 +4,18 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 
 ## Unreleased (0.1.0-DEV)
 
+### **[CI-breaking]** Config file renamed to `.AgentRuleLint.jl.toml`
+
+AgentRuleLint reads only `.AgentRuleLint.jl.toml`. Leaving `.AgentRuleLintConfig.toml`
+in the repository root (alone or beside the new file) is a `ConfigError` (exit 2);
+`--config-from` fails the same way when the revision still has only the old name.
+
+Rename in your repo:
+
+```bash
+git mv .AgentRuleLintConfig.toml .AgentRuleLint.jl.toml
+```
+
 ### **[CI-breaking]** Diff scope uses `git diff --text`; `.gitattributes` and `.gitmodules` protected
 
 `check --diff` passes `--text` on all git diff invocations so changed-line selection does
@@ -61,7 +73,7 @@ on `InternalError`; the CLI prints that backtrace (Phase 3 /
 
 #### `silent-catch` default level is `warn` (was `deny`)
 
-With no `.AgentRuleLintConfig.toml`, `silent-catch` now defaults to **`warn`**.
+With no `.AgentRuleLint.jl.toml`, `silent-catch` now defaults to **`warn`**.
 Restore the previous built-in default with explicit config:
 
 ```toml

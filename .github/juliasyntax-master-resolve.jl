@@ -22,3 +22,28 @@ open(joinpath(ROOT, "Project.toml"), "w") do io
 end
 Pkg.resolve()
 Pkg.precompile()
+
+function juliasyntax_manifest_entry()
+    man = TOML.parsefile(joinpath(ROOT, "Manifest.toml"))
+    pkgdeps = get(get(man, "deps", Dict{String, Any}()), PKG, nothing)
+    pkgdeps === nothing && error("Manifest.toml missing deps.$PKG after resolve")
+    if pkgdeps isa AbstractDict
+        return pkgdeps
+    elseif pkgdeps isa AbstractVector
+        isempty(pkgdeps) && error("Manifest.toml deps.$PKG is empty after resolve")
+        entry = pkgdeps[1]
+        entry isa AbstractDict || error("Manifest deps.$PKG[1] must be a table")
+        return entry
+    end
+    error("Manifest.toml deps.$PKG has unexpected type $(typeof(pkgdeps))")
+end
+
+entry = juliasyntax_manifest_entry()
+rev = get(entry, "repo-rev", nothing)
+rev isa AbstractString && !isempty(rev) ||
+    error("resolved JuliaSyntax manifest entry missing repo-rev")
+tree = get(entry, "git-tree-sha1", nothing)
+tree isa AbstractString && !isempty(tree) ||
+    error("resolved JuliaSyntax manifest entry missing git-tree-sha1")
+println("juliasyntax-master-ci: resolved repo-rev=$rev")
+println("juliasyntax-master-ci: resolved git-tree-sha1=$tree")

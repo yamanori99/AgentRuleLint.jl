@@ -137,7 +137,7 @@ function human_rule_footer(rule_id::String, origin::Symbol, config_path::Abstrac
     if origin == :agentrulelint
         return "└ @ AgentRuleLint (run `agentrulelint explain $rule_id` for details)"
     elseif origin == :project
-        cfg = isempty(config_path) ? ".AgentRuleLintConfig.toml" : config_path
+        cfg = isempty(config_path) ? CONFIG_FILENAME : config_path
         return "└ @ Project $cfg ([[project_rules]])"
     else
         return "└ @ $(origin_label(origin)) (run `agentrulelint explain $rule_id` for details)"

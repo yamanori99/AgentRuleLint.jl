@@ -1,13 +1,13 @@
 using AgentRuleLint
 
 const ROOT = normpath(joinpath(@__DIR__, ".."))
-cfg = read(joinpath(ROOT, ".AgentRuleLintConfig.toml"), String)
+cfg = read(joinpath(ROOT, ".AgentRuleLint.jl.toml"), String)
 dir = abspath(mktempdir())
 try
     run(`git -C $dir init -q -b main`)
     run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "m@t"]); dir = dir))
     run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "m"]); dir = dir))
-    write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+    write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
     mkpath(joinpath(dir, "test"))
     write(joinpath(dir, "test", "approx.jl"), "isapprox(1.0, 2.0; atol=1.0e-12)\n")
     run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))

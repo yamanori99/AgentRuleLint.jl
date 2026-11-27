@@ -51,7 +51,7 @@ const _SHELL_SAFETY_EXPLAIN_ANCHOR = """
 """
 
 const _SHELL_SAFETY_EXPLAIN_CONFIG = """
-Opt-in via `presets = ["shell-safety"]` in `.AgentRuleLintConfig.toml`.
+Opt-in via `presets = ["shell-safety"]` in `$CONFIG_FILENAME`.
 `[rules."shell-safety/process-pattern"]` without `presets = ["shell-safety"]` is ConfigError.
 """
 

@@ -44,7 +44,7 @@
     @testset "increase fails" begin
         dir = abspath(mktempdir())
         try
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "hit.jl"), "x = \"CEILING_TOKEN\"\n")
             write_ceilings!(
                 dir,
@@ -71,7 +71,7 @@
     @testset "decrease requires lowering ceiling" begin
         dir = abspath(mktempdir())
         try
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "hit.jl"), "x = 1\n")
             write_ceilings!(
                 dir,
@@ -98,7 +98,7 @@
     @testset "expect count implicit ceiling zero" begin
         dir = abspath(mktempdir())
         try
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(
                 joinpath(dir, "hit.jl"),
                 "# agentrulelint-expect: project/ratchet-lit reason=\"r\"\nx = 1\n",
@@ -129,7 +129,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "hit.jl"), "x = 1\n")
             git_commit_all!(dir, "base")
             write_ceilings!(
@@ -159,7 +159,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "hit.jl"), "x = 1\n")
             git_commit_all!(dir, "base without ceilings file")
             write_ceilings!(
@@ -188,7 +188,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "hit.jl"), "x = 1\n")
             write_ceilings!(
                 dir,
@@ -213,7 +213,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "hit.jl"), "x = 1\n")
             write_ceilings!(
                 dir,
@@ -249,7 +249,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "hit.jl"), "x = 1\n")
             write_ceilings!(
                 dir,
@@ -285,7 +285,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "hit.jl"), "x = 1\n")
             write_ceilings!(
                 dir,
@@ -310,7 +310,7 @@
     @testset "malformed and unknown rule id (exit 2 / ConfigError)" begin
         dir = abspath(mktempdir())
         try
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "a.jl"), "1\n")
             write_ceilings!(dir, "bad_top = 1\n")
             err = try
@@ -362,7 +362,7 @@
     @testset "TOML round-trip with special path keys" begin
         dir = abspath(mktempdir())
         try
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             policy = AgentRuleLint.resolve_policy(dir)
             weird = "src/\"weird\".jl"
             entry = AgentRuleLint.CeilingEntry(
@@ -383,7 +383,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "hit.jl"), "x = \"CEILING_TOKEN\"\n")
             write_ceilings!(
                 dir,
@@ -408,7 +408,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_cfg())
             write(joinpath(dir, "hit.jl"), "x = \"CEILING_TOKEN\"\n")
             write(joinpath(dir, "other.jl"), "y = 1\n")
             write_ceilings!(

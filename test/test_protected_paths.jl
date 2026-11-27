@@ -43,7 +43,7 @@ RULE = "protected-paths"
     @testset "no diff mode reports nothing" begin
         dir = abspath(mktempdir())
         try
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), base_cfg())
             write(joinpath(dir, ".JETLSConfig.toml"), "x = 1\n")
             res = AgentRuleLint.check(dir)
             @test isempty(protected_hits(res))
@@ -56,7 +56,7 @@ RULE = "protected-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), base_cfg())
             write(joinpath(dir, ".JETLSConfig.toml"), "ok = true\n")
             git_commit_all!(dir, "base")
             write(joinpath(dir, ".JETLSConfig.toml"), "ok = false\n")
@@ -83,7 +83,7 @@ RULE = "protected-paths"
               { glob = "docs/**", reason = "Docs require human review." },
             ]
             """
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg(extra))
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), base_cfg(extra))
             mkpath(joinpath(dir, "docs"))
             write(joinpath(dir, "docs", "note.txt"), "v1\n")
             git_commit_all!(dir, "base")
@@ -103,7 +103,7 @@ RULE = "protected-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), base_cfg())
             write(
                 joinpath(dir, "Project.toml"),
                 """
@@ -141,7 +141,7 @@ RULE = "protected-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), base_cfg())
             write(
                 joinpath(dir, "Project.toml"),
                 """
@@ -172,7 +172,7 @@ RULE = "protected-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), base_cfg())
             write(joinpath(dir, ".JETLSConfig.toml"), "1\n")
             git_commit_all!(dir, "base")
             # Use git mv so case-only renames work on case-insensitive filesystems
@@ -200,7 +200,7 @@ RULE = "protected-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), base_cfg())
             mkpath(joinpath(dir, ".agentrulelint"))
             write(
                 joinpath(dir, ".agentrulelint", "ceilings.toml"),
@@ -231,7 +231,7 @@ RULE = "protected-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), base_cfg())
             mkpath(joinpath(dir, ".agentrulelint"))
             write(
                 joinpath(dir, ".agentrulelint", "ceilings.toml"),
@@ -262,7 +262,7 @@ RULE = "protected-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), base_cfg())
             write(joinpath(dir, ".JETLSConfig.toml"), "ok = 1\n")
             git_commit_all!(dir, "base")
             ver = string(pkgversion(AgentRuleLint))
@@ -272,7 +272,7 @@ RULE = "protected-paths"
             [rules.protected-paths]
             level = \"allow\"
             """
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), bypass)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), bypass)
             write(joinpath(dir, ".JETLSConfig.toml"), "ok = 2\n")
             git_commit_all!(dir, "bypass and jetls")
             cd(dir) do
@@ -295,7 +295,7 @@ RULE = "protected-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), base_cfg())
             write(
                 joinpath(dir, "Project.toml"),
                 """
@@ -321,7 +321,7 @@ RULE = "protected-paths"
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), base_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), base_cfg())
             mkpath(joinpath(dir, ".agentrulelint"))
             write(
                 joinpath(dir, ".agentrulelint", "ceilings.toml"),
@@ -340,6 +340,12 @@ RULE = "protected-paths"
         finally
             rm(dir, recursive = true, force = true)
         end
+    end
+
+    @testset "legacy config filename stays auto-protected" begin
+        legacy = AgentRuleLint.LEGACY_CONFIG_FILENAME
+        @test legacy in AgentRuleLint.AUTO_PROTECTED_EXACT
+        @test occursin("AgentRuleLint policy", AgentRuleLint.auto_protected_reason(legacy))
     end
 
     @testset "corpus fixtures" begin

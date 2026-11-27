@@ -1,4 +1,4 @@
-AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLintConfig.toml, pos: utf8-line-col)
+AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-line-col)
 
 ┌ Error: [AgentRuleLint] analysis-incomplete [forbid] (2 violations, ceiling 0)
 │   intent: Fail closed when static analysis cannot finish (constant-fold
@@ -178,7 +178,7 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLintConfig.toml, pos: ut
 │     forbidden literal matched (folded)
 │     > secret = "INT" * "ERNAL_CODENAME"
 │                ~~~~~~~~~~~~~~~~~~~~~~~~
-└ @ Project .AgentRuleLintConfig.toml ([[project_rules]])
+└ @ Project .AgentRuleLint.jl.toml ([[project_rules]])
 
 ┌ Error: [AgentRuleLint] silent-catch [deny] (14 violations, ceiling 0)
 │   intent: Surface try/catch blocks that hide failures instead of rethrowing or

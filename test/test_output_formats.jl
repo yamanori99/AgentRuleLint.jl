@@ -2,7 +2,8 @@ using AgentRuleLint
 using JSON
 using Test
 
-const ROOT = dirname(@__DIR__)
+# ROOT comes from ParallelTestRunner init_code in test/runtests.jl.
+
 const SCHEMA_PATH = joinpath(ROOT, "schemas", "check-jsonl.schema.json")
 const HUMAN_GOLDEN_PATH = joinpath(@__DIR__, "fixtures", "human_output_golden.txt")
 const HUMAN_GOLDEN_CS = AgentRuleLint.ConfigSource(:git_ref, "", "origin/main", "9f2c1a4e")
@@ -12,7 +13,7 @@ function strip_ansi_local(s::AbstractString)
 end
 
 function check_result_fixture()
-    cs = AgentRuleLint.ConfigSource(:path, ".AgentRuleLintConfig.toml", "", "")
+    cs = AgentRuleLint.ConfigSource(:path, ".AgentRuleLint.jl.toml", "", "")
     d = AgentRuleLint.Violation(
         "project/no-internal-codename",
         :project,
@@ -194,13 +195,9 @@ end
         res = human_fixture_result([joinpath("test", "corpus")])
         plain = IOContext(IOBuffer(), :color => false)
         out_narrow = AgentRuleLint.format_human(res; root = ROOT, io = plain)
-        old = get(ENV, "COLUMNS", nothing)
-        ENV["COLUMNS"] = "60"
-        try
+        withenv("COLUMNS" => "60") do
             out_cols = AgentRuleLint.format_human(res; root = ROOT, io = plain)
             @test out_narrow == out_cols
-        finally
-            old === nothing ? pop!(ENV, "COLUMNS", nothing) : (ENV["COLUMNS"] = old)
         end
     end
 
@@ -291,7 +288,7 @@ end
         try
             ver = string(pkgversion(AgentRuleLint))
             write(
-                joinpath(dir, ".AgentRuleLintConfig.toml"),
+                joinpath(dir, ".AgentRuleLint.jl.toml"),
                 """
                 agentrulelint_version = \"=$(ver)\"
                 presets = [\"shell-safety\"]

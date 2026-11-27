@@ -1,7 +1,7 @@
 using AgentRuleLint
 using Test
 
-const ROOT = dirname(@__DIR__)
+# ROOT comes from ParallelTestRunner init_code in test/runtests.jl.
 
 # Docstrings / user-facing rule text that legitimately name a release series (not
 # `Project.toml` version duplication).

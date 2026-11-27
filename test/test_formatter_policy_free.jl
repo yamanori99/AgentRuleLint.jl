@@ -1,7 +1,8 @@
 using AgentRuleLint
 using Test
 
-const ROOT = dirname(@__DIR__)
+# ROOT comes from ParallelTestRunner init_code in test/runtests.jl.
+
 const FORMAT_DIR = joinpath(ROOT, "src", "format")
 const FORMAT_POLICY_ALLOWLIST = ("report.jl",)
 
@@ -42,7 +43,7 @@ end
             default_format = \"json\"
             presets = [\"shell-safety\"]
             """
-            write(joinpath(remote, ".AgentRuleLintConfig.toml"), conflict)
+            write(joinpath(remote, ".AgentRuleLint.jl.toml"), conflict)
             human_here = AgentRuleLint.format_human(
                 res;
                 root = ROOT,
@@ -86,7 +87,7 @@ end
         try
             mkpath(joinpath(tmp, "test"))
             cp(joinpath(ROOT, "test", "corpus"), joinpath(tmp, "test", "corpus"); force = true)
-            cfg_path = joinpath(tmp, ".AgentRuleLintConfig.toml")
+            cfg_path = joinpath(tmp, ".AgentRuleLint.jl.toml")
             write(cfg_path, cfg)
             path = joinpath("test", "corpus", "unsafe_inbounds.jl")
             run(`git -C $tmp init`)

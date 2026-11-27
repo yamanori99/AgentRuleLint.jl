@@ -1,4 +1,4 @@
-include("mutation_subprocess_helpers.jl")
+# mutation_subprocess_helpers.jl is loaded via ParallelTestRunner init_code.
 
 @testset "unsafe-boundary rule" begin
     _UNSAFE_POSITIVE = String[
@@ -114,7 +114,7 @@ include("mutation_subprocess_helpers.jl")
             config_toml::Union{Nothing, AbstractString} = nothing,
         )
         if config_toml !== nothing
-            write(joinpath(tmp, ".AgentRuleLintConfig.toml"), config_toml)
+            write(joinpath(tmp, ".AgentRuleLint.jl.toml"), config_toml)
         end
         write(joinpath(tmp, source_relpath), patched)
         script = _mutation_detector_script(tmp, corpus, msg_needle, rule_id)
@@ -154,8 +154,8 @@ include("mutation_subprocess_helpers.jl")
         root = mktempdir()
         try
             cp(repo_root, root; force = true)
-            isfile(joinpath(root, ".AgentRuleLintConfig.toml")) &&
-                rm(joinpath(root, ".AgentRuleLintConfig.toml"))
+            isfile(joinpath(root, ".AgentRuleLint.jl.toml")) &&
+                rm(joinpath(root, ".AgentRuleLint.jl.toml"))
             for file in _UNSAFE_STRICT_POSITIVE
                 @test isempty(_unsafe_hits(root, file))
                 @test isempty(_unsafe_strict_hits(root, file))
@@ -169,7 +169,7 @@ include("mutation_subprocess_helpers.jl")
         root = mktempdir()
         try
             cp(repo_root, root; force = true)
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), _minimal_config_with_unsafe_strict())
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), _minimal_config_with_unsafe_strict())
             for file in _UNSAFE_STRICT_POSITIVE
                 hits = _unsafe_hits(root, file)
                 @test !isempty(hits)
@@ -185,7 +185,7 @@ include("mutation_subprocess_helpers.jl")
             cp(repo_root, root; force = true)
             v = string(pkgversion(AgentRuleLint))
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 """
                 agentrulelint_version = \"=$(v)\"
                 default_format = \"human\"
@@ -211,7 +211,7 @@ include("mutation_subprocess_helpers.jl")
         try
             v = string(pkgversion(AgentRuleLint))
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 """
                 agentrulelint_version = \"=$(v)\"
                 default_format = \"human\"
@@ -235,14 +235,14 @@ include("mutation_subprocess_helpers.jl")
     @testset "inactive without rules.unsafe-boundary" begin
         root = mktempdir()
         try
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), _minimal_config_with_unsafe())
-            cfg = read(joinpath(root, ".AgentRuleLintConfig.toml"), String)
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), _minimal_config_with_unsafe())
+            cfg = read(joinpath(root, ".AgentRuleLint.jl.toml"), String)
             cfg = replace(
                 cfg,
                 "[rules.unsafe-boundary]\nlevel = \"deny\"\nallow_modules = []\nallow_globs = []\n" =>
                     "",
             )
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), cfg)
             write(joinpath(root, "bad.jl"), read(joinpath(CORPUS, "unsafe_ccall.jl"), String))
             res = AgentRuleLint.check(root; paths = ["bad.jl"])
             hits = filter(d -> d.rule_id == "unsafe-boundary", res.violations)
@@ -256,7 +256,7 @@ include("mutation_subprocess_helpers.jl")
         root = mktempdir()
         try
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 _minimal_config_with_unsafe("allow_globs = [\"**\"]\n"),
             )
             write(joinpath(root, "bad.jl"), read(joinpath(CORPUS, "unsafe_ccall.jl"), String))
@@ -272,7 +272,7 @@ include("mutation_subprocess_helpers.jl")
         root = mktempdir()
         try
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 _minimal_config_with_unsafe("typo = true\n"),
             )
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
@@ -290,7 +290,7 @@ include("mutation_subprocess_helpers.jl")
         cp(repo_root, shared_tmp; force = true)
         rule_rel = "src/rules/unsafe_boundary.jl"
         rule_path = joinpath(shared_tmp, rule_rel)
-        config_path = joinpath(shared_tmp, ".AgentRuleLintConfig.toml")
+        config_path = joinpath(shared_tmp, ".AgentRuleLint.jl.toml")
         config_backup = isfile(config_path) ? read(config_path, String) : nothing
 
         cases = [
@@ -382,7 +382,7 @@ include("mutation_subprocess_helpers.jl")
                         try
                             cp(repo_root, cfg_root; force = true)
                             write(
-                                joinpath(cfg_root, ".AgentRuleLintConfig.toml"),
+                                joinpath(cfg_root, ".AgentRuleLint.jl.toml"),
                                 _minimal_config_with_unsafe("allow_modules = [\"BoundarySafe\"]\n"),
                             )
                             hits = filter(
@@ -425,7 +425,7 @@ include("mutation_subprocess_helpers.jl")
                                 scratch = mktempdir()
                                 try
                                     cp(repo_root, scratch; force = true)
-                                    write(joinpath(scratch, ".AgentRuleLintConfig.toml"), strict_config)
+                                    write(joinpath(scratch, ".AgentRuleLint.jl.toml"), strict_config)
                                     @test !isempty(_mutation_needle_hits(scratch, corpus, needle; rule_id))
                                 finally
                                     rm(scratch, recursive = true, force = true)
@@ -479,7 +479,7 @@ include("mutation_subprocess_helpers.jl")
                 try
                     cp(repo_root, globs_root; force = true)
                     write(
-                        joinpath(globs_root, ".AgentRuleLintConfig.toml"),
+                        joinpath(globs_root, ".AgentRuleLint.jl.toml"),
                         _minimal_config_with_unsafe("allow_globs = [\"**\"]\n"),
                     )
                     hits = filter(

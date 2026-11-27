@@ -11,19 +11,31 @@ permissions:
 
 jobs:
   test:
-    name: Daily Pkg.test (${{ matrix.julia-version }}, ${{ matrix.os }})
+    name: Pkg.test (daily) - Julia ${{ matrix.julia-version }} - ${{ matrix.os }} - ${{ matrix.arch }}
     continue-on-error: ${{ matrix.julia-version == '~1.14.0-0' }}
     strategy:
       fail-fast: false
       matrix:
-        os:
-          - ubuntu-latest
-          - windows-latest
+        include:
+          - os: ubuntu-latest
+            arch: x64
+            julia-version: "1.13"
+          - os: ubuntu-latest
+            arch: x64
+            julia-version: "~1.14.0-0"
+          - os: windows-latest
+            arch: x64
+            julia-version: "1.13"
+          - os: windows-latest
+            arch: x64
+            julia-version: "~1.14.0-0"
           # Xcode 27 toolchain image (arm64): actions/runner-images images/macos/xcode-27-arm64-Readme.md
-          - xcode-27
-        julia-version:
-          - "1.13"
-          - "~1.14.0-0"
+          - os: xcode-27
+            arch: arm64
+            julia-version: "1.13"
+          - os: xcode-27
+            arch: arm64
+            julia-version: "~1.14.0-0"
     permissions:
       contents: read
     runs-on: ${{ matrix.os }}
@@ -53,12 +65,18 @@ jobs:
         shell: bash
         run: julia --startup-file=no --project=. --color=yes -e 'using Pkg; Pkg.test()'
 
-  mutation:
-    name: Daily mutation (Julia 1.13, ubuntu-latest, x64)
+  mutation_shard:
+    name: Mutation tests (daily shard ${{ matrix.shard }}/3) - Julia 1.13 - ubuntu-latest - x64
     permissions:
       contents: read
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      AGENTRULELINT_MUTATION_SHARD: ${{ matrix.shard }}/3
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -80,10 +98,27 @@ jobs:
         shell: bash
         run: julia --startup-file=no --project=. test/mutation/run_all.jl
 
+  mutation:
+    name: Mutation tests (daily) - Julia 1.13 - ubuntu-latest - x64
+    needs: [mutation_shard]
+    if: always()
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all mutation shards successful
+        shell: bash
+        env:
+          SHARD_RESULT: ${{ needs.mutation_shard.result }}
+        run: |
+          if [ "$SHARD_RESULT" != "success" ]; then
+            echo "mutation_shard result was $SHARD_RESULT (expected success)" >&2
+            exit 1
+          fi
+
   # Issue #120: early signal when JuliaLang/julia master JuliaSyntax breaks tests (not required for merge).
   juliasyntax-master:
-    name: Daily Pkg.test (Julia 1.13, ubuntu-latest, JuliaSyntax master)
-    continue-on-error: true
+    name: Pkg.test (daily, JuliaSyntax master) - Julia 1.13 - ubuntu-latest - x64
     permissions:
       contents: read
     runs-on: ubuntu-latest
@@ -117,6 +152,10 @@ jobs:
       - name: Resolve JuliaSyntax from julia master
         shell: bash
         run: julia --startup-file=no .github/juliasyntax-master-resolve.jl
+
+      - name: Instantiate main project
+        shell: bash
+        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 
       - name: Instantiate Runic test env
         shell: bash

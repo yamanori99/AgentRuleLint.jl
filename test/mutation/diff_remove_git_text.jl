@@ -10,11 +10,15 @@ run_source_mutation(;
     needle = "\"--text\",",
     replacement = "",
     replace_count = typemax(Int),
+    # When `--text` is dropped on `-diff` paths, fail-closed binary handling still blocks
+    # silent misses unless the probe-binary guard is weakened (detector then exits 2).
+    extra_patches = [
+        "text && push!(args, \"--text\")" => "false",
+        """throw(GitError("git diff numstat probe binary for path=\$(path) (fail closed)"))""" =>
+            "return lines",
+    ],
     verify = root -> begin
         cmd = _julia_project_cmd(root, _DIFF_HARDENING_DETECTOR)
-        proc = run(ignorestatus(setenv(cmd; dir = root)))
-        proc.exitcode == 0 ||
-            error("patched tree must keep detector alive (exit 0), got $(proc.exitcode)")
-        return true
+        return detector_disabled(cmd; dir = root)
     end,
 )

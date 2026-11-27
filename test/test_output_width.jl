@@ -1,8 +1,9 @@
 using AgentRuleLint
 using Test
-const textwidth = Base.Unicode.textwidth
 
-const ROOT = dirname(@__DIR__)
+# ROOT comes from ParallelTestRunner init_code in test/runtests.jl.
+
+const textwidth = Base.Unicode.textwidth
 
 function ansi_stripped_lines(text::AbstractString)
     return split(replace(text, r"\e\[[0-9;]*m" => ""), '\n'; keepempty = false)
@@ -31,21 +32,8 @@ function assert_max_textwidth(
 end
 
 function with_columns(f, columns::Union{Nothing, Int})
-    old = get(ENV, "COLUMNS", nothing)
-    try
-        if columns === nothing
-            pop!(ENV, "COLUMNS", nothing)
-        else
-            ENV["COLUMNS"] = string(columns)
-        end
-        return f()
-    finally
-        if old === nothing
-            pop!(ENV, "COLUMNS", nothing)
-        else
-            ENV["COLUMNS"] = old
-        end
-    end
+    cols = columns === nothing ? nothing : string(columns)
+    return withenv(f, "COLUMNS" => cols)
 end
 
 function corpus_human_text(columns::Union{Nothing, Int})
@@ -113,32 +101,34 @@ end
 
     @testset "long source line truncates in gutter" begin
         long_line = "x"^120
-        d = AgentRuleLint.Violation(
-            "project/test",
-            :project,
-            :deny,
-            "tmp_human_width/x.jl",
-            AgentRuleLint.Span(1, 1, 1, 120),
-            1,
-            "v1:abc",
-            :none,
-            false,
-            "forbidden literal matched",
-            "",
-            "",
-        )
-        mkpath(joinpath(ROOT, "tmp_human_width"))
-        write(joinpath(ROOT, "tmp_human_width", "x.jl"), long_line * "\n")
+        fixture_root = mktempdir()
+        rel = "tmp_human_width/x.jl"
         try
+            mkpath(joinpath(fixture_root, "tmp_human_width"))
+            write(joinpath(fixture_root, rel), long_line * "\n")
+            d = AgentRuleLint.Violation(
+                "project/test",
+                :project,
+                :deny,
+                rel,
+                AgentRuleLint.Span(1, 1, 1, 120),
+                1,
+                "v1:abc",
+                :none,
+                false,
+                "forbidden literal matched",
+                "",
+                "",
+            )
             res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
-            out = AgentRuleLint.format_human(res; root = ROOT, output_width = 35)
+            out = AgentRuleLint.format_human(res; root = fixture_root, output_width = 35)
             gutter_lines = filter(l -> occursin("> ", l) || occursin('~', l), split(out, '\n'))
             @test !isempty(gutter_lines)
             @test all(textwidth.(AgentRuleLint.strip_ansi.(gutter_lines)) .<= 35)
             @test any(l -> endswith(strip(l), "…"), gutter_lines)
             @test !any(l -> textwidth(l) > 35, gutter_lines)
         finally
-            rm(joinpath(ROOT, "tmp_human_width"), recursive = true, force = true)
+            rm(fixture_root, recursive = true, force = true)
         end
     end
 
@@ -265,11 +255,11 @@ end
     @testset "agent caps long source excerpt with ellipsis" begin
         excerpt_cap = 24
         body = "secret"^40
+        fixture_root = mktempdir()
         rel = "tmp_agent_excerpt/line.jl"
-        absdir = joinpath(ROOT, "tmp_agent_excerpt")
-        mkpath(absdir)
-        write(joinpath(absdir, "line.jl"), body * "\n")
         try
+            mkpath(joinpath(fixture_root, "tmp_agent_excerpt"))
+            write(joinpath(fixture_root, rel), body * "\n")
             d = AgentRuleLint.Violation(
                 "project/test",
                 :project,
@@ -287,7 +277,7 @@ end
             res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :agent, 20, 0, 1)
             out = AgentRuleLint.format_agent(
                 res;
-                root = ROOT,
+                root = fixture_root,
                 io = IOBuffer(),
                 output_width = excerpt_cap,
             )
@@ -299,7 +289,7 @@ end
             @test endswith(excerpt, "…")
             @test excerpt != body
         finally
-            rm(absdir; recursive = true, force = true)
+            rm(fixture_root; recursive = true, force = true)
         end
     end
 
@@ -319,7 +309,7 @@ end
         old = pwd()
         try
             v = string(pkgversion(AgentRuleLint))
-            cfg = joinpath(root, ".AgentRuleLintConfig.toml")
+            cfg = joinpath(root, ".AgentRuleLint.jl.toml")
             write(
                 cfg,
                 """
