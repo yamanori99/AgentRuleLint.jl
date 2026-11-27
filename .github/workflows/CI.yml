@@ -303,12 +303,31 @@ jobs:
 
       - name: AgentRuleLint check (dogfood)
         shell: bash
+        env:
+          DOGFOOD_JSON: ${{ runner.temp }}/dogfood.jsonl
         run: |
           set -euo pipefail
           : "${GITHUB_BASE_REF:?GITHUB_BASE_REF unset (pull_request only)}"
           base_sha="$(git merge-base "origin/${GITHUB_BASE_REF}" HEAD)"
           echo "dogfood merge-base: ${base_sha}"
+          set +e
           julia --startup-file=no --project=.linter-base -m AgentRuleLint check \
             --diff "${base_sha}" \
             --config-from "origin/${GITHUB_BASE_REF}" \
             --format human
+          check_exit=$?
+          julia --startup-file=no --project=.linter-base -m AgentRuleLint check \
+            --diff "${base_sha}" \
+            --config-from "origin/${GITHUB_BASE_REF}" \
+            --format json \
+            --output "${DOGFOOD_JSON}"
+          set -e
+          exit "${check_exit}"
+
+      - name: Upload dogfood findings
+        if: always()
+        uses: actions/upload-artifact@65c4c4a1ddee5b72f698fdd19549f0f0fb45cf08 # v4.6.0
+        with:
+          name: dogfood-pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
+          path: ${{ runner.temp }}/dogfood.jsonl
+          retention-days: 90
