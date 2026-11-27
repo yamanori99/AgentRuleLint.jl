@@ -373,5 +373,4 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLintConfig.toml, pos: ut
 │                      ~~~~
 └ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
 
-Summary: 84 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED
-(exit 1)
+Summary: 84 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED (exit 1)

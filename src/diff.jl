@@ -185,11 +185,32 @@ function _parse_unified_hunks(body::AbstractString)
     return lines
 end
 
-function _diff_binary_only(body::AbstractString)
-    for line in split(body, '\n'; keepempty = false)
-        startswith(line, "Binary files ") && occursin(" differ", line) && return true
+function _numstat_line_binary(line::AbstractString)
+    parts = split(String(line), '\t'; limit = 3)
+    length(parts) >= 2 || return false
+    return parts[1] == "-" && parts[2] == "-"
+end
+
+function _numstat_add_del(line::AbstractString)
+    _numstat_line_binary(line) && return (0, 0)
+    parts = split(String(line), '\t'; limit = 3)
+    length(parts) >= 2 || return (0, 0)
+    added = parse(Int, parts[1])
+    deleted = parse(Int, parts[2])
+    return added, deleted
+end
+
+function _numstat_totals(payload::AbstractString)
+    added = 0
+    deleted = 0
+    any_binary = false
+    for line in split(String(payload), '\n'; keepempty = false)
+        _numstat_line_binary(line) && (any_binary = true; continue)
+        a, d = _numstat_add_del(line)
+        added += a
+        deleted += d
     end
-    return false
+    return added, deleted, any_binary
 end
 
 function _diff_has_unified_hunk(body::AbstractString)
@@ -199,32 +220,81 @@ function _diff_has_unified_hunk(body::AbstractString)
     return false
 end
 
-"""True when git reports mode/type/rename metadata only (no `@@` hunks)."""
-function _diff_allows_empty_changed_lines(body::AbstractString)
-    isempty(strip(body)) && return true
+function _diff_has_content_delta(body::AbstractString)
+    for line in split(body, '\n'; keepempty = false)
+        (startswith(line, "+") && !startswith(line, "+++")) && return true
+        (startswith(line, "-") && !startswith(line, "---")) && return true
+    end
+    return false
+end
+
+"""Unified diff has mode metadata only (no `@@` hunks)."""
+function _diff_mode_only_metadata(body::AbstractString)
     _diff_has_unified_hunk(body) && return false
-    return true
+    for line in split(body, '\n'; keepempty = false)
+        startswith(line, "old mode ") && return true
+        startswith(line, "new mode ") && return true
+    end
+    return false
+end
+
+"""Unified diff has rename/copy metadata only (no content `+`/`-` lines)."""
+function _diff_pure_rename_copy_metadata(body::AbstractString)
+    _diff_has_unified_hunk(body) && return false
+    _diff_has_content_delta(body) && return false
+    for line in split(body, '\n'; keepempty = false)
+        occursin("rename from", line) && return true
+        occursin("rename to", line) && return true
+        startswith(line, "copy from") && return true
+        startswith(line, "copy to") && return true
+        startswith(line, "similarity index ") && return true
+    end
+    return false
+end
+
+function _git_diff_numstat_cmd(root::AbstractString, base::AbstractString, path::AbstractString; text::Bool)
+    args = [
+        "git",
+        "-C",
+        root,
+        "diff",
+        "--numstat",
+        "--no-ext-diff",
+        "--no-textconv",
+    ]
+    text && push!(args, "--text")
+    append!(args, ["--end-of-options", base, "--", path])
+    return Cmd(args)
 end
 
 """
-    _changed_lines_from_diff_body(body, path) -> Set{Int}
+    _changed_lines_from_diff_output(body, numstat_text, numstat_probe, path) -> Set{Int}
 
-Parse unified diff output into changed line numbers on the new side. Fail closed when
-git reports a binary-only change or non-empty text diff without line hunks.
+Parse `git diff -U0 --text` into new-side line numbers. `numstat_probe` is `git diff
+--numstat` without `--text` (binary paths use `-\\t-\\t`). Empty hunks are allowed
+only for mode-only or pure rename/copy metadata; otherwise fail closed.
 """
-function _changed_lines_from_diff_body(body::AbstractString, path::AbstractString)
+function _changed_lines_from_diff_output(
+        body::AbstractString,
+        numstat_text::AbstractString,
+        numstat_probe::AbstractString,
+        path::AbstractString,
+    )
     body = String(body)
     path = String(path)
     lines = _parse_unified_hunks(body)
-    if _diff_binary_only(body) && isempty(lines)
-        throw(
-            GitError(
-                "git diff reported binary-only change for path=$(path) (fail closed; use --text)",
-            ),
-        )
+    _, _, probe_binary = _numstat_totals(numstat_probe)
+    if probe_binary && isempty(lines)
+        throw(GitError("git diff numstat probe binary for path=$(path) (fail closed)"))
     end
-    if isempty(lines) && !isempty(strip(body)) && !_diff_allows_empty_changed_lines(body)
-        throw(GitError("git diff produced no changed lines for path=$(path) (fail closed)"))
+    add, del, _ = _numstat_totals(numstat_text)
+    if isempty(lines)
+        _diff_mode_only_metadata(body) && return lines
+        _diff_pure_rename_copy_metadata(body) && return lines
+        (add > 0 || del > 0) &&
+            throw(GitError("git diff numstat reports content change without hunks for path=$(path)"))
+        _diff_has_content_delta(body) &&
+            throw(GitError("git diff produced no changed lines for path=$(path) (fail closed)"))
     end
     return lines
 end
@@ -233,7 +303,7 @@ function git_diff_changed_lines(root::AbstractString, base::AbstractString, relp
     root = _git_root(root)
     base = verify_diff_base_ref(root, base)
     path = normalize_path(relpath)
-    cmd = Cmd(
+    unified = Cmd(
         [
             "git",
             "-C",
@@ -251,14 +321,20 @@ function git_diff_changed_lines(root::AbstractString, base::AbstractString, relp
         ],
     )
     prefix = "git diff failed for base=$(base) path=$(path)"
-    bytes = try
-        _read_git_cmd(cmd; error_prefix = prefix)
+    body = try
+        String(_read_git_cmd(unified; error_prefix = prefix))
     catch err
         err isa InterruptException && rethrow()
         err isa GitError && rethrow()
         throw(GitError("$prefix: $(format_error(err))"))
     end
-    return _changed_lines_from_diff_body(String(bytes), path)
+    numstat_text = String(
+        _read_git_cmd(_git_diff_numstat_cmd(root, base, path; text = true); error_prefix = prefix),
+    )
+    numstat_probe = String(
+        _read_git_cmd(_git_diff_numstat_cmd(root, base, path; text = false); error_prefix = prefix),
+    )
+    return _changed_lines_from_diff_output(body, numstat_text, numstat_probe, path)
 end
 
 function build_diff_scope(root::AbstractString, base::AbstractString)

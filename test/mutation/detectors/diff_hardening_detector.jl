@@ -1,4 +1,4 @@
-# Detector for diff hardening mutations: exit 0 = loud failure (detector alive), exit 2 = silent pass (disabled).
+# Exit contract: 0 = detector alive, 2 = disabled (do not use 1; harness treats 1 as crash).
 
 using AgentRuleLint
 
@@ -33,15 +33,15 @@ function main()
         write(joinpath(dir, "target.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
         run(Cmd(["git", "-C", dir, "add", "-A"]))
         run(Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "head"]))
-        loud = try
+        alive = try
             res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
             has_literal = any(d -> d.rule_id == "project/diff-literal", res.violations)
             has_prot = any(d -> d.rule_id == "protected-paths" && d.path == ".gitattributes", res.violations)
-            res.exit_code != 0 || (has_literal && has_prot)
+            res.exit_code != 0 && has_literal && has_prot
         catch err
             err isa AgentRuleLint.GitError
         end
-        exit(loud ? 0 : 2)
+        exit(alive ? 0 : 2)
     finally
         rm(dir, recursive = true, force = true)
     end

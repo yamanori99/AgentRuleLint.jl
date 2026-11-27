@@ -23,6 +23,7 @@ include("rules/common.jl")
 include("rules/project_rules.jl")
 include("rules/builtin_rules.jl")
 include("rules/registry.jl")
+include("exit_severity.jl")
 include("runner.jl")
 include("format/json.jl")
 include("format/width.jl")
@@ -80,6 +81,7 @@ function _parse_cli_args(cmd::String, rest::Vector{String})
         :paths => String[],
         :allow_paths => nothing,
         :write_ratchet => false,
+        :exit_severity => nothing,
     )
     i = 1
     positional = String[]
@@ -112,6 +114,19 @@ function _parse_cli_args(cmd::String, rest::Vector{String})
             opts[:output] = rest[i + 1]
             i += 2
             continue
+        elseif a == "--exit-severity"
+            opts[:exit_severity] !== nothing &&
+                throw(ArgumentError("duplicate --exit-severity"))
+            if i + 1 > length(rest) || startswith(rest[i + 1], "-")
+                throw(ArgumentError("--exit-severity requires a value (forbid|deny|warn)"))
+            end
+            opts[:exit_severity] = rest[i + 1]
+            i += 2
+            continue
+        elseif startswith(a, "--exit-severity=")
+            opts[:exit_severity] !== nothing &&
+                throw(ArgumentError("duplicate --exit-severity"))
+            opts[:exit_severity] = a[(length("--exit-severity=") + 1):end]
         elseif a == "--allow-paths" && i + 1 <= length(rest)
             opts[:allow_paths] !== nothing &&
                 throw(ArgumentError("duplicate --allow-paths"))
@@ -211,6 +226,7 @@ end
 function _cli_check(positional::Vector{String}, opts)
     root = pwd()
     paths = isempty(positional) ? String[] : positional
+    opts[:exit_severity] !== nothing && _parse_exit_severity_cli(opts[:exit_severity])
     result = check(
         root;
         paths = paths,
@@ -218,6 +234,7 @@ function _cli_check(positional::Vector{String}, opts)
         config_from = opts[:config_from],
         diff_base = _resolve_diff_kw(opts),
         allow_paths = opts[:allow_paths],
+        exit_severity = opts[:exit_severity],
     )
     fmt = _resolve_emit_format(result, opts)
     _emit(result, fmt, opts; root = root)
@@ -309,6 +326,8 @@ function _print_cli_help(cmd::String)
               --diff [<base-ref>]         Limit to changed files/lines vs base (default: HEAD^1)
               --allow-paths GLOB,...      Trusted allowlist for scope-paths (requires --diff; not from config)
               --output <path>             Write formatted output to <path>
+              --exit-severity forbid|deny|warn
+                                          Fail at this level or above (default warn; CLI overrides config)
 
             Config is fail-closed: unknown keys, rule levels, preset names, or default_format values error.
             """,

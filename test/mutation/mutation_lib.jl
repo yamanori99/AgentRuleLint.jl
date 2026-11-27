@@ -27,6 +27,13 @@ function detector_disabled(cmd::Cmd; dir::AbstractString = MUTATION_ROOT)
     error("detector helper crashed with exit $code (expected 0=alive or 2=disabled): $cmd")
 end
 
+function assert_detector_alive(cmd::Cmd; dir::AbstractString = MUTATION_ROOT)
+    proc = run(ignorestatus(setenv(cmd; dir = dir)))
+    proc.exitcode == 0 ||
+        error("detector not alive (expected exit 0, got $(proc.exitcode)): $cmd")
+    return true
+end
+
 function assert_real_src_clean(root::AbstractString = MUTATION_ROOT)
     status = read(`git -C $(root) status --porcelain -- src`, String)
     isempty(strip(status)) || error("real src/ is dirty after mutation harness:\n$status")

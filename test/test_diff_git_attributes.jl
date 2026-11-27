@@ -101,20 +101,31 @@
         end
     end
 
-    @testset "binary-only diff body fails closed" begin
-        body = """
-        diff --git a/target.jl b/target.jl
-        index 7d4290a..46368f1 100644
-        Binary files a/target.jl and b/target.jl differ
-        """
+    @testset "numstat binary probe fails closed without hunks" begin
         err = try
-            AgentRuleLint._changed_lines_from_diff_body(body, "target.jl")
+            AgentRuleLint._changed_lines_from_diff_output("", "", "-\t-\ttarget.jl", "target.jl")
             nothing
         catch e
             e
         end
         @test err isa AgentRuleLint.GitError
-        @test occursin("binary-only", AgentRuleLint.sprint(showerror, err))
+        @test occursin("numstat probe binary", AgentRuleLint.sprint(showerror, err))
+    end
+
+    @testset "numstat text change without hunks fails closed" begin
+        err = try
+            AgentRuleLint._changed_lines_from_diff_output(
+                "",
+                "2\t1\ttarget.jl",
+                "2\t1\ttarget.jl",
+                "target.jl",
+            )
+            nothing
+        catch e
+            e
+        end
+        @test err isa AgentRuleLint.GitError
+        @test occursin("without hunks", AgentRuleLint.sprint(showerror, err))
     end
 
     @testset "mode-only diff allows empty changed lines" begin
@@ -123,7 +134,36 @@
         old mode 100644
         new mode 100755
         """
-        lines = AgentRuleLint._changed_lines_from_diff_body(body, "target.jl")
+        lines = AgentRuleLint._changed_lines_from_diff_output(body, "", "", "target.jl")
         @test isempty(lines)
+    end
+
+    @testset "pure rename metadata allows empty changed lines" begin
+        body = """
+        diff --git a/old.jl b/new.jl
+        similarity index 100%
+        rename from old.jl
+        rename to new.jl
+        """
+        lines = AgentRuleLint._changed_lines_from_diff_output(body, "0\t0\tnew.jl", "", "new.jl")
+        @test isempty(lines)
+    end
+
+    @testset "mode-only change in temp repo" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, "target.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
+            git_commit_all!(dir, "base")
+            chmod(joinpath(dir, "target.jl"), 0o755)
+            git_commit_all!(dir, "mode")
+            cd(dir) do
+                lines = AgentRuleLint.git_diff_changed_lines(dir, "HEAD^1", "target.jl")
+                @test isempty(lines)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
     end
 end

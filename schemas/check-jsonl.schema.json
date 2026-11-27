@@ -66,14 +66,25 @@
     },
     "summary": {
       "type": "object",
-      "required": ["type", "complete", "violations", "suppressed", "rules", "exit_code"],
+      "required": [
+        "type",
+        "complete",
+        "violations",
+        "suppressed",
+        "rules",
+        "exit_code",
+        "threshold",
+        "threshold_source"
+      ],
       "properties": {
         "type": { "const": "summary" },
         "complete": { "type": "boolean" },
         "violations": { "type": "integer" },
         "suppressed": { "type": "integer" },
         "rules": { "type": "integer" },
-        "exit_code": { "type": "integer" }
+        "exit_code": { "type": "integer" },
+        "threshold": { "enum": ["forbid", "deny", "warn"] },
+        "threshold_source": { "enum": ["default", "config", "cli"] }
       },
       "additionalProperties": false
     }

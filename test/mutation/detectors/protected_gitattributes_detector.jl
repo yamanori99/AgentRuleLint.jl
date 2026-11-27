@@ -1,4 +1,4 @@
-# Detector for `.gitattributes` auto-protection: exit 0 = alive, exit 2 = disabled.
+# Exit contract: 0 = detector alive, 2 = disabled (do not use 1; harness treats 1 as crash).
 
 using AgentRuleLint
 

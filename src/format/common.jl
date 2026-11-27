@@ -89,6 +89,32 @@ function human_policy_banner(result::CheckResult, version::AbstractString)
     return "AgentRuleLint v$version ($base, pos: utf8-line-col)"
 end
 
+function _below_threshold_phrase(result::CheckResult)
+    n = result.below_threshold_count
+    n <= 0 && return ""
+    word = n == 1 ? "finding" : "findings"
+    lvl = result.below_threshold_level
+    lvl == :none && return ""
+    lvl == :mixed && return "$n $word below threshold"
+    return "$n $lvl $word below threshold"
+end
+
+"""Parenthetical verdict clause from `CheckResult` fields only (never policy)."""
+function verdict_exit_paren(result::CheckResult)
+    parts = String["exit $(result.exit_code)"]
+    if result.exit_severity_source == :cli && result.exit_severity != result.baseline_exit_severity
+        baseline_word = result.baseline_exit_severity_source == :default ? "default" : "config"
+        push!(
+            parts,
+            "threshold $(result.exit_severity) from --exit-severity, $(baseline_word) $(result.baseline_exit_severity)",
+        )
+    end
+    below = _below_threshold_phrase(result)
+    !isempty(below) && push!(parts, below)
+    return "(" * join(parts, "; ") * ")"
+end
+
+
 function _src_visible_body(src::AbstractString)
     endswith(src, ELLIPSIS_CHAR) || return src
     last = prevind(src, lastindex(src))

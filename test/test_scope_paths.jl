@@ -128,6 +128,8 @@ SCOPE_RULE = "scope-paths"
         policy = AgentRuleLint.PolicyBundle(
             base.agentrulelint_version,
             base.default_format,
+            base.exit_severity,
+            base.exit_severity_source,
             base.max_hits_per_rule,
             base.presets,
             Dict{String, AgentRuleLint.RuleSpec}(),
