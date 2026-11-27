@@ -137,6 +137,7 @@ jobs:
           cache-scratchspaces: false
 
       - name: Report JuliaSyntax pin vs JuliaLang/julia master
+        id: pin-master
         shell: bash
         run: |
           set -euo pipefail
@@ -148,10 +149,36 @@ jobs:
           fi
           echo "juliasyntax-master-ci: pinned repo-rev=${pin}"
           echo "juliasyntax-master-ci: JuliaLang/julia master=${master}"
+          echo "master_sha=${master}" >> "${GITHUB_OUTPUT}"
 
       - name: Resolve JuliaSyntax from julia master
         shell: bash
-        run: julia --startup-file=no .github/juliasyntax-master-resolve.jl
+        env:
+          JULIASYNTAX_MASTER_COMMIT: ${{ steps.pin-master.outputs.master_sha }}
+        run: |
+          set -euo pipefail
+          master_commit="${JULIASYNTAX_MASTER_COMMIT}"
+          if [[ -z "${master_commit}" ]]; then
+            echo "juliasyntax-master-ci: missing JULIASYNTAX_MASTER_COMMIT from report step" >&2
+            exit 1
+          fi
+          master_now="$(git ls-remote https://github.com/JuliaLang/julia refs/heads/master | awk '{print $1}')"
+          if [[ -z "${master_now}" ]]; then
+            echo "juliasyntax-master-ci: git ls-remote returned no master sha" >&2
+            exit 1
+          fi
+          if [[ "${master_now}" != "${master_commit}" ]]; then
+            echo "juliasyntax-master-ci: master moved between report and resolve (report=${master_commit}, now=${master_now})" >&2
+            exit 1
+          fi
+          worktree="$(mktemp -d)"
+          trap 'rm -rf "${worktree}"' EXIT
+          git -C "${worktree}" init -q
+          git -C "${worktree}" remote add origin https://github.com/JuliaLang/julia
+          git -C "${worktree}" fetch --depth 1 --filter=blob:none origin "${master_commit}"
+          expected_tree="$(git -C "${worktree}" rev-parse "FETCH_HEAD:JuliaSyntax")"
+          export JULIASYNTAX_EXPECTED_TREE="${expected_tree}"
+          julia --startup-file=no .github/juliasyntax-master-resolve.jl
 
       - name: Instantiate main project
         shell: bash

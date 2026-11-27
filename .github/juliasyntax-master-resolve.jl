@@ -8,6 +8,15 @@ using TOML
 const ROOT = normpath(joinpath(@__DIR__, ".."))
 const PKG = "JuliaSyntax"
 
+function require_env(name::AbstractString)
+    v = get(ENV, name, "")
+    isempty(v) && error("$name must be set (from Daily pin-master / git fetch step)")
+    return v
+end
+
+const MASTER_COMMIT = require_env("JULIASYNTAX_MASTER_COMMIT")
+const EXPECTED_TREE = require_env("JULIASYNTAX_EXPECTED_TREE")
+
 Pkg.activate(ROOT)
 proj = TOML.parsefile(joinpath(ROOT, "Project.toml"))
 sources = get(proj, "sources", Dict{String, Any}())
@@ -39,11 +48,27 @@ function juliasyntax_manifest_entry()
 end
 
 entry = juliasyntax_manifest_entry()
-rev = get(entry, "repo-rev", nothing)
-rev isa AbstractString && !isempty(rev) ||
-    error("resolved JuliaSyntax manifest entry missing repo-rev")
-tree = get(entry, "git-tree-sha1", nothing)
-tree isa AbstractString && !isempty(tree) ||
+manifest_tree = get(entry, "git-tree-sha1", nothing)
+manifest_tree isa AbstractString && !isempty(manifest_tree) ||
     error("resolved JuliaSyntax manifest entry missing git-tree-sha1")
-println("juliasyntax-master-ci: resolved repo-rev=$rev")
-println("juliasyntax-master-ci: resolved git-tree-sha1=$tree")
+manifest_rev = get(entry, "repo-rev", nothing)
+
+println("juliasyntax-master-ci: commit=$(MASTER_COMMIT)")
+println("juliasyntax-master-ci: expected JuliaSyntax tree=$(EXPECTED_TREE)")
+println("juliasyntax-master-ci: manifest git-tree-sha1=$(manifest_tree)")
+if manifest_tree != EXPECTED_TREE
+    error(
+        "JuliaSyntax manifest git-tree-sha1 does not match commit $(MASTER_COMMIT) " *
+            "(master may have moved between report and resolve; expected tree $(EXPECTED_TREE), got $(manifest_tree))",
+    )
+end
+if manifest_rev isa AbstractString && !isempty(manifest_rev) && manifest_rev != "master"
+    if manifest_rev != MASTER_COMMIT
+        error(
+            "JuliaSyntax manifest repo-rev $(manifest_rev) does not match pinned master commit $(MASTER_COMMIT)",
+        )
+    end
+    println("juliasyntax-master-ci: manifest repo-rev=$(manifest_rev)")
+elseif manifest_rev == "master"
+    println("juliasyntax-master-ci: manifest repo-rev=master (tree match confirms commit)")
+end
