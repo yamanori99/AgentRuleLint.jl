@@ -53,15 +53,18 @@ function run_one_mutation_captured(script::AbstractString)
         elapsed = time() - t0
         stdout = isfile(stdout_path) ? read(stdout_path, String) : ""
         stderr = isfile(stderr_path) ? read(stderr_path, String) : ""
+        sig = proc.termsignal
         code = proc.exitcode
-        result = if code == 0
+        result = if sig != 0
+            :crash
+        elseif code == 0
             :pass
         elseif code == 1
             :fail
         else
             :crash
         end
-        return (; name, result, code, elapsed, stdout, stderr)
+        return (; name, result, code, termsignal = sig, elapsed, stdout, stderr)
     finally
         rm(stdout_path, force = true)
         rm(stderr_path, force = true)
@@ -99,7 +102,10 @@ function print_mutation_report(results)
         r.stderr != "" && print(stderr, r.stderr)
         label = r.result === :pass ? "PASS" : (r.result === :fail ? "FAIL" : "CRASH")
         elapsed = round(r.elapsed; digits = 1)
-        line = lpad(string(r.name), 48) * "  " * label * "  " * string(elapsed) * "s  (exit " * string(r.code) * ")\n"
+        status =
+            r.termsignal == 0 ? "(exit $(r.code))" :
+            "(exit $(r.code), signal $(r.termsignal))"
+        line = lpad(string(r.name), 48) * "  " * label * "  " * string(elapsed) * "s  " * status * "\n"
         print(line)
         r.result !== :pass && (failed += 1)
     end

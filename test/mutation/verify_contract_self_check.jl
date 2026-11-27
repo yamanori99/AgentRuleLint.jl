@@ -8,6 +8,7 @@ include("mutation_lib.jl")
 function _expect_verify_script_crash(script::String)
     cmd = _julia_project_cmd(MUTATION_ROOT, "-e", script)
     proc = run(pipeline(ignorestatus(setenv(cmd; dir = MUTATION_ROOT)); stderr = devnull))
+    proc.termsignal != 0 && return nothing
     code = proc.exitcode
     code == 0 && error("expected verify script crash, got exit 0")
     code == _MUTATION_VERIFY_DETECTED_EXIT && error("expected verify script crash, got detected")
@@ -42,6 +43,8 @@ mktempdir() do tmp
             ),
         ),
     )
+    vacuous_proc.termsignal == 0 ||
+        error("vacuous control terminated by signal $(vacuous_proc.termsignal)")
     vacuous_proc.exitcode == 3 ||
         error("vacuous control expected exit 3, got $(vacuous_proc.exitcode)")
 end

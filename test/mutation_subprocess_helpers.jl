@@ -32,5 +32,9 @@ function _mutation_child_exitcode(
     )
     cmd = _mutation_child_cmd(project, script)
     proc = run(ignorestatus(setenv(cmd; dir = dir)))
-    return proc.exitcode
+    sig = proc.termsignal
+    # Julia can report exitcode 0 with a nonzero termsignal (e.g. SIGKILL).
+    # Do not treat that as a clean 0 / 42 hit-contract result.
+    sig == 0 && return proc.exitcode
+    return 128 + Int(sig)
 end

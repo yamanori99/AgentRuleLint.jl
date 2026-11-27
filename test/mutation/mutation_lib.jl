@@ -28,8 +28,15 @@ Run a detector helper with a strict exit contract:
 
 Do not use exit 1 for "disabled": that collides with ProcessExited(1) from crashes.
 """
+function _require_no_signal(proc, ctx::AbstractString)
+    sig = proc.termsignal
+    sig == 0 && return nothing
+    error("$ctx: subprocess terminated by signal $sig")
+end
+
 function detector_disabled(cmd::Cmd; dir::AbstractString = MUTATION_ROOT)
     proc = run(ignorestatus(setenv(cmd; dir = dir)))
+    _require_no_signal(proc, "detector helper")
     code = proc.exitcode
     code == 2 && return true
     code == 0 && return false
@@ -38,6 +45,7 @@ end
 
 function assert_detector_alive(cmd::Cmd; dir::AbstractString = MUTATION_ROOT)
     proc = run(ignorestatus(setenv(cmd; dir = dir)))
+    _require_no_signal(proc, "detector helper")
     proc.exitcode == 0 ||
         error("detector not alive (expected exit 0, got $(proc.exitcode)): $cmd")
     return true
@@ -149,9 +157,11 @@ function run_source_mutation(;
             isfile(path) || error("$name: missing source in temp copy $rel_path")
             write(path, patched)
             cmp_proc = run(ignorestatus(`cmp -s $real_path $path`))
+            _require_no_signal(cmp_proc, "$name: cmp")
             cmp_proc.exitcode == 0 && error("$name: cmp shows temp copy unchanged after mutation")
             load_cmd = _julia_project_cmd(tmp, "-e", "using AgentRuleLint")
             load_proc = run(ignorestatus(setenv(load_cmd; dir = tmp)))
+            _require_no_signal(load_proc, "$name: using AgentRuleLint")
             load_proc.exitcode != 0 && error("$name: using AgentRuleLint failed after mutation")
             if !verify(tmp)
                 throw(MutationSurvived("$name: fail-closed check still passed after mutation"))
