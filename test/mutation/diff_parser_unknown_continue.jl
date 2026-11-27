@@ -10,13 +10,12 @@ run_source_mutation(;
         using Test, AgentRuleLint
         try
             AgentRuleLint._parse_diff_path_events_payload("X\0x\0")
-            exit(1)
+            exit(42)
         catch err
             err isa AgentRuleLint.GitError || rethrow(err)
             exit(0)
         end
         """
-        cmd = _julia_project_cmd(root, "-e", script)
-        return !success(run(ignorestatus(setenv(cmd; dir = root))))
+        return mutation_verify_script(root, script; dir = root)
     end,
 )

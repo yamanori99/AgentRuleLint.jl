@@ -3,7 +3,7 @@
 const _MUTATION_JULIA = joinpath(Sys.BINDIR, Base.julia_exename())
 
 """Child exit when violations match; distinct from Julia's default `1` on load/crash."""
-const _MUTATION_HITS_EXIT = 42
+const _MUTATION_HITS_EXIT = 42  # must match `_MUTATION_VERIFY_DETECTED_EXIT` in mutation/mutation_lib.jl
 
 function _mutation_child_cmd(project::AbstractString, script::AbstractString)
     return Cmd(
@@ -32,5 +32,9 @@ function _mutation_child_exitcode(
     )
     cmd = _mutation_child_cmd(project, script)
     proc = run(ignorestatus(setenv(cmd; dir = dir)))
-    return proc.exitcode
+    sig = proc.termsignal
+    # Julia can report exitcode 0 with a nonzero termsignal (e.g. SIGKILL).
+    # Do not treat that as a clean 0 / 42 hit-contract result.
+    sig == 0 && return proc.exitcode
+    return 128 + Int(sig)
 end

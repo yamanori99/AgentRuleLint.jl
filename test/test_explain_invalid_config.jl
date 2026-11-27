@@ -17,7 +17,8 @@ try
         occursin("99.99.99", err) &&
         occursin("agentrulelint_version", err) &&
         !occursin("unknown rule id", err)
-    exit(ok ? 0 : 1)
+    # 42 = mutation detected (see `_MUTATION_VERIFY_DETECTED_EXIT` in test/mutation/mutation_lib.jl)
+    exit(ok ? 0 : 42)
 finally
     isfile(err_path) && rm(err_path; force = true)
     rm(dir, recursive = true, force = true)

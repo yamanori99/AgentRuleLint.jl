@@ -36,4 +36,14 @@
     withenv("AGENTRULELINT_MUTATION_JOBS" => "nope") do
         @test_throws ArgumentError parse_mutation_jobs()
     end
+
+    @testset "signaled harness child is crash" begin
+        mktempdir() do tmp
+            src = joinpath(tmp, "kill_self.jl")
+            write(src, "run(Cmd([\"kill\", \"-KILL\", string(getpid())]))\n")
+            r = run_one_mutation_captured(src)
+            @test r.result === :crash
+            @test r.termsignal != 0
+        end
+    end
 end

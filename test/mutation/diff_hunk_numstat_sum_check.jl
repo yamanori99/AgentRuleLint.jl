@@ -16,14 +16,13 @@ run_source_mutation(;
                 "",
                 "target.jl",
             )
-            exit(1)
+            exit(42)
         catch err
             err isa AgentRuleLint.GitError || rethrow(err)
-            occursin("path=target.jl", err.msg) || exit(1)
+            occursin("path=target.jl", err.msg) || exit(42)
             exit(0)
         end
         """
-        cmd = _julia_project_cmd(root, "-e", script)
-        return !success(run(ignorestatus(setenv(cmd; dir = root))))
+        return mutation_verify_script(root, script; dir = root)
     end,
 )
