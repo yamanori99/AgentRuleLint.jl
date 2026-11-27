@@ -2,18 +2,6 @@
 
 include("mutation_lib.jl")
 
-function _expect_verify_crash(f::Function)
-    try
-        f()
-        error("expected verify helper to throw")
-    catch err
-        msg = sprint(showerror, err)
-        (occursin("verify subprocess crashed", msg) || occursin("verify is vacuous", msg)) ||
-            rethrow()
-    end
-    return nothing
-end
-
 @assert !mutation_verify_script(MUTATION_ROOT, "exit(0)"; dir = MUTATION_ROOT)
 @assert mutation_verify_script(MUTATION_ROOT, "exit($(_MUTATION_VERIFY_DETECTED_EXIT))"; dir = MUTATION_ROOT)
 

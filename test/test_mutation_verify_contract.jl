@@ -7,12 +7,12 @@
         "exit($(_MUTATION_VERIFY_DETECTED_EXIT))",
         dir = MUTATION_ROOT,
     )
-    @test_throws ErrorException mutation_verify_script(
+    @test_throws MutationVerifyCrashed mutation_verify_script(
         MUTATION_ROOT,
         "exit(1)",
         dir = MUTATION_ROOT,
     )
-    @test_throws ErrorException redirect_stderr(devnull) do
+    @test_throws MutationVerifyCrashed redirect_stderr(devnull) do
         mutation_verify_script(
             MUTATION_ROOT,
             "this is not valid Julia syntax",

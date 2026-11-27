@@ -11,7 +11,13 @@ struct MutationSurvived <: Exception
     msg::String
 end
 
+"""Verify subprocess exited with a code other than 0 or `_MUTATION_VERIFY_DETECTED_EXIT`."""
+struct MutationVerifyCrashed <: Exception
+    msg::String
+end
+
 Base.showerror(io::IO, e::MutationSurvived) = print(io, e.msg)
+Base.showerror(io::IO, e::MutationVerifyCrashed) = print(io, e.msg)
 
 """
 Run a detector helper with a strict exit contract:
@@ -55,9 +61,11 @@ function mutation_verify_detected(cmd::Cmd; dir::AbstractString)
     code = proc.exitcode
     code == 0 && return false
     code == _MUTATION_VERIFY_DETECTED_EXIT && return true
-    error(
-        "verify subprocess crashed with exit $code " *
-            "(expected 0=not detected or $(_MUTATION_VERIFY_DETECTED_EXIT)=detected): $cmd",
+    throw(
+        MutationVerifyCrashed(
+            "verify subprocess crashed with exit $code " *
+                "(expected 0=not detected or $(_MUTATION_VERIFY_DETECTED_EXIT)=detected): $cmd",
+        ),
     )
 end
 
