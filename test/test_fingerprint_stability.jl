@@ -16,18 +16,20 @@ function _git_commit_scratch!(scratch::AbstractString)
     run(setenv(Cmd(["git", "-C", scratch, "add", "-A"]); dir = scratch))
     run(
         setenv(
-            Cmd([
-                "git",
-                "-C",
-                scratch,
-                "-c",
-                "commit.gpgsign=false",
-                "commit",
-                "-q",
-                "-m",
-                "snap",
-                "--allow-empty",
-            ]);
+            Cmd(
+                [
+                    "git",
+                    "-C",
+                    scratch,
+                    "-c",
+                    "commit.gpgsign=false",
+                    "commit",
+                    "-q",
+                    "-m",
+                    "snap",
+                    "--allow-empty",
+                ]
+            );
             dir = scratch,
         ),
     )
@@ -51,7 +53,7 @@ function _fingerprint_scratch_root()
     mkpath(corpus_dst)
     cp(
         joinpath(ROOT, "test", "corpus", "fingerprint_multiline_span.jl"),
-        joinpath(corpus_dst, "fingerprint_multiline_span.jl");
+        joinpath(corpus_dst, "fingerprint_multiline_span.jl")
     )
     _init_scratch_git!(scratch)
     return scratch
