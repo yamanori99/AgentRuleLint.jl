@@ -35,7 +35,14 @@ Assuming `~/.julia/bin` is in your `PATH` you can invoke `agentrulelint` from
 your shell (or `pkg> app add https://github.com/yamanori99/AgentRuleLint.jl` in
 the Pkg REPL).
 
+Exit 0 means no violations, 1 means violations at `warn` or above, 2 a config
+or usage error, 3 an internal error. `exit_severity` in the config, or
+`--exit-severity` for one run, raises the threshold to `deny` or `forbid`;
+`forbid` findings always fail, and a CLI override is shown in the verdict line.
+
 Place `.AgentRuleLintConfig.toml` at the repository root.
+The opt-in preset id `unsafe-boundary/strict` adds `@inbounds` / `@generated` /
+`@assume_effects` checks on top of the core built-in rule `unsafe-boundary`.
 
 ## Planned scope
 
@@ -48,7 +55,8 @@ Place `.AgentRuleLintConfig.toml` at the repository root.
 - **Test-strength checks**: detect weakened assertions, hollowed test
   inputs, and shrinking test coverage in diffs.
 - **Local and CI modes**: run diff-scoped or full-repository checks in a
-  single Julia process.
+  single Julia process. `check` is reentrant: multiple threads or tasks may call
+  it concurrently on the same process.
 
 **In this dev tree:** built-in `expect-audit` and declarative
 `[[project_rules]]` (`project/<id>`) are implemented; other built-in slugs
@@ -95,11 +103,6 @@ Project.toml             # package metadata, [workspace], and [apps]
 
 - **Fail-closed**: malformed suppression comments, unknown options, or broken
   rule state fail the check instead of silently passing.
-- **Exit threshold**: `check` fails (exit `1`) when any active finding is at or
-  above the configured `exit_severity` (`warn`, `deny`, or `forbid`; default
-  `warn`, aligned with JETLS `jetls check --exit-severity=warn`). Findings at
-  level `forbid` always fail regardless of threshold. Set `exit_severity` in
-  `.AgentRuleLintConfig.toml` or pass `--exit-severity` on the CLI.
 - **Syntax over regex**: inspect parsed Julia syntax with lightweight constant
   folding rather than brittle text patterns, without full type inference.
 - **Assume evasion**: rules target surface-level workarounds (split literals,

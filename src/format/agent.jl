@@ -4,22 +4,22 @@ function format_agent(
         max_hits::Union{Nothing, Int} = nothing,
         io::IO = stdout,
         output_width::Union{Nothing, Int} = nothing,
+        _agentrulelint_version::Union{Nothing, AbstractString} = nothing, # test-only: override the displayed version (see test_output_goldens.jl)
     )
     width = resolve_output_width(io; output_width = output_width)
     hit_cap = something(max_hits, result.max_hits_per_rule)
     buf = IOBuffer()
-    policy = resolve_policy(root)
-    ceilings = load_ceilings(root, policy)
+    ceilings = result.ceilings
     base = config_source_base_label(result.config_source)
-    active = active_violations(result.violations)
-    groups = violations_by_rule(active)
+    groups = violations_by_rule(active_violations(result.violations))
     rule_hits = length(groups)
     status = result.exit_code == 0 ? "OK" : "FAIL"
+    ver = something(_agentrulelint_version, string(AGENTRULELINT_VERSION))
     headline =
-        "AGENTRULELINT $status v$(pkgversion(AgentRuleLint)) base=$base pos=utf8-codepoint-1based violations=$(result.violation_count) rules=$rule_hits"
-    for ln in wrap_prose_lines("", "", headline, width)
-        println(buf, ln)
-    end
+        "AGENTRULELINT $status v$ver base=$base pos=utf8-codepoint-1based violations=$(result.violation_count) rules=$rule_hits"
+    extras = verdict_exit_paren(result)
+    extras != "(exit $(result.exit_code))" && (headline *= " $extras")
+    println(buf, headline)
     println(buf)
     for (rid, all_ds) in groups
         lvl = all_ds[1].level

@@ -5,7 +5,11 @@ using Aqua
 const ROOT = dirname(@__DIR__)
 const CORPUS = joinpath(ROOT, "test", "corpus")
 
-@testset "AgentRuleLint" begin
+include("failure_digest.jl")
+
+const _FAILURE_DIGEST_TS = Ref{Union{Nothing, Test.DefaultTestSet}}(nothing)
+
+function run_all_tests()
     @testset "constant folding" begin
         src = "s = \"a\" * \"b\"\n"
         tree = AgentRuleLint.parse_source(src)
@@ -188,8 +192,14 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
         @test_throws AgentRuleLint.GitError AgentRuleLint.resolve_policy(ROOT; config_from = "not-a-ref-zzz")
     end
 
+    include("test_failure_digest.jl")
     include("test_fingerprint_stability.jl")
+    include("test_shared_parse_tree.jl")
+    include("test_check_reentrant.jl")
+    include("test_no_mutable_globals.jl")
     include("test_rule_registration.jl")
+    include("test_rule_def_explain_parity.jl")
+    include("test_version_ssot.jl")
     include("test_output_goldens.jl")
     include("test_exit_codes.jl")
     include("test_exit_severity.jl")
@@ -197,6 +207,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     include("test_project_rules_paths.jl")
     include("test_expect_audit.jl")
     include("test_silent_catch.jl")
+    include("test_no_src_writes_in_tests.jl")
     include("test_adapter_fixes.jl")
     include("test_test_integrity.jl")
     include("test_diff_mode.jl")
@@ -209,6 +220,7 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
     include("test_output_width.jl")
     include("test_shell_safety.jl")
     include("test_output_formats.jl")
+    include("test_formatter_policy_free.jl")
     include("test_unsafe_boundary.jl")
     include("test_manifest_sync.jl")
     include("test_app_cli.jl")
@@ -217,8 +229,25 @@ const CORPUS = joinpath(ROOT, "test", "corpus")
 
     include("test_runic_invariance.jl")
 
-    @testset "src/ untouched by tests" begin
+    return @testset "src/ untouched by tests" begin
         status = read(`git -C $(ROOT) status --porcelain -- src`, String)
         @test isempty(strip(status))
     end
+end
+
+try
+    @testset "AgentRuleLint" begin
+        _FAILURE_DIGEST_TS[] = Test.get_testset()::Test.DefaultTestSet
+        run_all_tests()
+    end
+catch err
+    err isa InterruptException && rethrow()
+    let ts = _FAILURE_DIGEST_TS[]
+        ts isa Test.DefaultTestSet && emit_failure_digest(ts)
+    end
+    rethrow()
+end
+
+let ts = _FAILURE_DIGEST_TS[]
+    ts isa Test.DefaultTestSet && emit_failure_digest(ts)
 end

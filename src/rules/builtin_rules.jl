@@ -11,6 +11,7 @@ include("shell_safety.jl")
 include("silent_catch.jl")
 include("test_integrity.jl")
 include("unsafe_boundary.jl")
+include("unsafe_boundary_strict.jl")
 
 """Canonical built-in / preset rule definitions, sorted by `id`."""
 const RULE_DEFS = (
@@ -24,6 +25,7 @@ const RULE_DEFS = (
     SILENT_CATCH_RULE_DEF,
     TEST_INTEGRITY_RULE_DEF,
     UNSAFE_BOUNDARY_RULE_DEF,
+    UNSAFE_BOUNDARY_STRICT_RULE_DEF,
 )
 
 function _assert_rule_defs_sorted!()
@@ -49,6 +51,18 @@ function _run_unsafe_boundary_rule(fc::FileContext, policy::PolicyBundle)
     return diags
 end
 
+function _run_unsafe_boundary_strict_rule(fc::FileContext, policy::PolicyBundle)
+    diags = Violation[]
+    cfg = policy.unsafe_boundary_strict
+    cfg.active || return diags
+    ub = _unsafe_boundary_allow_cfg(policy)
+    path_matches_glob(fc.parsed.path, ub.allow_globs) && return diags
+    eff = _effective_rule_level(policy, cfg.level)
+    eff == :allow && return diags
+    append!(diags, diagnose_unsafe_boundary_strict(fc, policy, cfg, eff))
+    return diags
+end
+
 function _run_shell_safety_rule(fc::FileContext, policy::PolicyBundle)
     diags = Violation[]
     cfg = policy.shell_safety
@@ -63,6 +77,7 @@ function run_builtin_rules(fc::FileContext, policy::PolicyBundle)
     diags = Violation[]
     julia_source_path(fc.parsed.path) || return diags
     append!(diags, _run_unsafe_boundary_rule(fc, policy))
+    append!(diags, _run_unsafe_boundary_strict_rule(fc, policy))
     append!(diags, _run_shell_safety_rule(fc, policy))
     return diags
 end

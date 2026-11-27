@@ -121,9 +121,23 @@ When proposing corpus entries, strip secrets, tokens, and customer paths. Prefer
 ```bash
 git clone https://github.com/yamanori99/AgentRuleLint.jl.git
 cd AgentRuleLint.jl
-julia --project=. -e 'using Pkg; Pkg.instantiate()'
-julia --project=. -e 'using Pkg; Pkg.test()'
+julia +1.13 --project=. -e 'using Pkg; Pkg.instantiate()'
+set -o pipefail; julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
 ```
+
+Check the command's exit status; a non-zero status means the suite failed, even if you only read the digest.
+
+Always capture `Pkg.test()` with `tee` as above. Failures print mid-run; the
+end of the log has a block starting with
+`=== AgentRuleLint test failure digest ===` (testset path, `file:line`, first
+line of the message; `no failures` when clean). The same text is written to
+`test/last_failures.txt` (gitignored, overwritten every run).
+
+On failure, read that digest (`tail` of the log or `test/last_failures.txt`) or
+`grep -n "Test Failed\|Error During Test" /tmp/agentrulelint-test.log`. Do **not**
+re-run the full suite only to see which tests failed. Re-run the affected group
+(via test selection once it exists), then run the full suite **once** before
+pushing.
 
 From the repository root (after `Pkg.instantiate()`):
 

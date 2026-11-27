@@ -47,6 +47,17 @@ struct Violation
     do_not::String
 end
 
+struct CeilingEntry
+    violations::Dict{String, Dict{String, Int}}
+    expects::Dict{String, Dict{String, Int}}
+end
+
+function Base.isequal(a::CeilingEntry, b::CeilingEntry)
+    return isequal(a.violations, b.violations) && isequal(a.expects, b.expects)
+end
+
+Base.:(==)(a::CeilingEntry, b::CeilingEntry) = isequal(a, b)
+
 struct CheckResult
     violations::Vector{Violation}
     complete::Bool
@@ -56,7 +67,53 @@ struct CheckResult
     max_hits_per_rule::Int
     suppressed_count::Int
     violation_count::Int
+    ceilings::CeilingEntry
+    exit_severity::Symbol
+    exit_severity_source::Symbol
+    baseline_exit_severity::Symbol
+    below_threshold_count::Int
+    below_threshold_level::Symbol
+
+    function CheckResult(
+            violations::Vector{Violation},
+            complete::Bool,
+            exit_code::Int,
+            config_source::ConfigSource,
+            default_format::Symbol,
+            max_hits_per_rule::Int,
+            suppressed_count::Int,
+            violation_count::Int;
+            ceilings::CeilingEntry = CeilingEntry(Dict(), Dict()),
+            exit_severity::Symbol = :warn,
+            exit_severity_source::Symbol = :default,
+            baseline_exit_severity::Symbol = :warn,
+            below_threshold_count::Int = 0,
+            below_threshold_level::Symbol = :none,
+        )
+        return new(
+            violations,
+            complete,
+            exit_code,
+            config_source,
+            default_format,
+            max_hits_per_rule,
+            suppressed_count,
+            violation_count,
+            ceilings,
+            exit_severity,
+            exit_severity_source,
+            baseline_exit_severity,
+            below_threshold_count,
+            below_threshold_level,
+        )
+    end
 end
+
+function Base.isequal(a::CheckResult, b::CheckResult)
+    return all(f -> isequal(getfield(a, f), getfield(b, f)), fieldnames(CheckResult))
+end
+
+Base.:(==)(a::CheckResult, b::CheckResult) = isequal(a, b)
 
 struct ConfigError <: Exception
     msg::String
@@ -137,6 +194,15 @@ end
 
 ShellSafetyConfig() = ShellSafetyConfig(false, :deny, "", "")
 
+struct UnsafeBoundaryStrictConfig
+    active::Bool
+    level::Symbol
+    intent::String
+    do_not::String
+end
+
+UnsafeBoundaryStrictConfig() = UnsafeBoundaryStrictConfig(false, :warn, "", "")
+
 struct ProjectRule
     id::String
     level::Symbol
@@ -166,6 +232,7 @@ struct PolicyBundle
     agentrulelint_version::VersionNumber
     default_format::Symbol
     exit_severity::Symbol
+    exit_severity_source::Symbol
     max_hits_per_rule::Int
     presets::Vector{String}
     rules::Dict{String, RuleSpec}
@@ -173,15 +240,11 @@ struct PolicyBundle
     on_allow_rule::Symbol
     shell_safety::ShellSafetyConfig
     unsafe_boundary::UnsafeBoundaryConfig
+    unsafe_boundary_strict::UnsafeBoundaryStrictConfig
     config_path::String
     config_source::ConfigSource
     project_toml_policy::String
     protected_path_globs::Vector{ProtectedGlobEntry}
-end
-
-struct CeilingEntry
-    violations::Dict{String, Dict{String, Int}}
-    expects::Dict{String, Dict{String, Int}}
 end
 
 struct ExpectLine
@@ -197,8 +260,10 @@ struct ParsedFile
     normalized::String
 end
 
+"""Per-file lint context. `tree` is the shared `GreenNode` for `.jl` head sources (`nothing` otherwise)."""
 struct FileContext
     parsed::ParsedFile
+    tree::Union{Nothing, JuliaSyntax.GreenNode{JuliaSyntax.SyntaxHead}}
     expects::Vector{ExpectLine}
     expect_errors::Vector{Violation}
 end

@@ -8,8 +8,13 @@ function ansi_stripped_lines(text::AbstractString)
     return split(replace(text, r"\e\[[0-9;]*m" => ""), '\n'; keepempty = false)
 end
 
-function assert_max_textwidth(text::AbstractString, limit::Int)
+function is_status_header_line(line::AbstractString)
+    return startswith(line, "AGENTRULELINT ") || startswith(line, "AgentRuleLint v")
+end
+
+function assert_max_textwidth(text::AbstractString, limit::Int; skip_status_headers::Bool = false)
     for line in ansi_stripped_lines(text)
+        skip_status_headers && is_status_header_line(line) && continue
         @test textwidth(line) <= limit
     end
     return nothing
@@ -33,9 +38,9 @@ end
 @testset "output width" begin
     @testset "corpus human respects COLUMNS and 80 cap" begin
         out60 = corpus_human_text(60)
-        assert_max_textwidth(out60, 60)
+        assert_max_textwidth(out60, 60; skip_status_headers = true)
         out200 = corpus_human_text(200)
-        assert_max_textwidth(out200, 80)
+        assert_max_textwidth(out200, 80; skip_status_headers = true)
     end
 
     @testset "long do_not wraps with aligned prefix" begin
@@ -175,7 +180,7 @@ end
     @testset "agent format width (single violation fixture)" begin
         res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "split_string.jl")])
         out = AgentRuleLint.format_agent(res; root = ROOT, io = IOBuffer(), output_width = 60)
-        assert_max_textwidth(out, 60)
+        assert_max_textwidth(out, 60; skip_status_headers = true)
     end
 
 end

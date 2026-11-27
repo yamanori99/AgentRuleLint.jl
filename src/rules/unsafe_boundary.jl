@@ -1,10 +1,5 @@
 using JuliaSyntax: GreenNode, head, is_infix_op_call, span
 
-const _UNSAFE_BOUNDARY_INTENT =
-    "Keep runtime evaluation, metaprogramming escapes, and FFI calls inside reviewed module or path boundaries."
-const _UNSAFE_BOUNDARY_DO_NOT =
-    "Alias Core.eval to a local name, pass eval/Meta.parse/ccall/invokelatest as values, split strings, Expr(:call,:eval,...), or hide calls outside allow_modules / allow_globs."
-
 const _INDIRECT_EVAL_MODULES = Set(["Base", "Core"])
 
 const _ALLOWED_BOUNDARY_QUALIFIERS = Set(["", "Base", "Core", "Meta", "Base.Meta", "Core.Meta"])
@@ -287,12 +282,13 @@ function _in_allowed_module(stack::Vector{String}, allow::Vector{String})
     return false
 end
 
-const _UNSAFE_MACRO_SUFFIXES = Set(["eval", "inbounds", "generated", "ccall", "assume_effects"])
+const _UNSAFE_MACRO_SUFFIXES_CORE = Set(["eval", "ccall"])
+const _UNSAFE_MACRO_SUFFIXES_STRICT = Set(["inbounds", "generated", "assume_effects"])
 
-function _unsafe_macro_label(name::AbstractString)
+function _unsafe_macro_label(name::AbstractString, suffixes::Set{String})
     qual, leaf = _macro_qualified_parts(name)
     !_allowed_boundary_qualifier(qual) && return ""
-    leaf in _UNSAFE_MACRO_SUFFIXES || return ""
+    leaf in suffixes || return ""
     return qual == "" ? "@" * leaf : qual * ".@" * leaf
 end
 
@@ -353,6 +349,8 @@ mutable struct UnsafeBoundaryWalk
     at_toplevel::Bool
     dangerous_aliases::Dict{String, String}
     hits::Vector{Tuple{Int, Int, String}}
+    macro_suffixes::Set{String}
+    macro_only::Bool
 end
 
 function _allow_site(ctx::UnsafeBoundaryWalk)
@@ -402,7 +400,7 @@ function _walk_unsafe_boundary!(node::GreenNode, pos::Int, ctx::UnsafeBoundaryWa
         return
     end
 
-    if s == "="
+    if s == "=" && !ctx.macro_only
         lhs, lpos, rhs, rpos = _assignment_binding_parts(node, pos)
         if lhs !== nothing && rhs !== nothing
             lhs_name = _lhs_binding_ident(lhs, ctx.source, lpos)
@@ -418,7 +416,7 @@ function _walk_unsafe_boundary!(node::GreenNode, pos::Int, ctx::UnsafeBoundaryWa
 
     if s == "macrocall"
         mname = _macrocall_name(node, ctx.source, pos)
-        macro_label = _unsafe_macro_label(mname)
+        macro_label = _unsafe_macro_label(mname, ctx.macro_suffixes)
         if !isempty(macro_label)
             if _matches_qualified_macro(mname, "eval") &&
                     _top_level_literal_at_eval(node, ctx.source, pos, ctx.at_toplevel)
@@ -427,7 +425,7 @@ function _walk_unsafe_boundary!(node::GreenNode, pos::Int, ctx::UnsafeBoundaryWa
                 _record_hit!(ctx, pos, node, "unsafe boundary escape ($macro_label)")
             end
         end
-    elseif s == "call"
+    elseif s == "call" && !ctx.macro_only
         fname, args, argpos = _call_expr_parts(node, ctx.source, pos)
         if haskey(ctx.dangerous_aliases, fname)
             _record_hit!(ctx, pos, node, "call via value alias ($fname)")
@@ -473,14 +471,19 @@ function _walk_unsafe_boundary!(node::GreenNode, pos::Int, ctx::UnsafeBoundaryWa
     return nothing
 end
 
-function diagnose_unsafe_boundary(
+function _diagnose_unsafe_boundary_macros(
         fc::FileContext,
-        policy::PolicyBundle,
+        cfg::UnsafeBoundaryConfig,
         eff_level::Symbol,
+        rule_id::AbstractString,
+        suffixes::Set{String},
+        intent::AbstractString,
+        do_not::AbstractString;
+        macro_only::Bool = false,
     )
-    cfg = policy.unsafe_boundary
     source = fc.parsed.normalized
-    tree = parse_source(source; filename = fc.parsed.path)
+    tree = fc.tree
+    tree === nothing && return Violation[]
     ctx = UnsafeBoundaryWalk(
         source,
         cfg.allow_modules,
@@ -488,38 +491,91 @@ function diagnose_unsafe_boundary(
         true,
         Dict{String, String}(),
         Tuple{Int, Int, String}[],
+        suffixes,
+        macro_only,
     )
     _walk_unsafe_boundary!(tree, 1, ctx)
-    intent = isempty(cfg.intent) ? _UNSAFE_BOUNDARY_INTENT : cfg.intent
-    do_not = isempty(cfg.do_not) ? _UNSAFE_BOUNDARY_DO_NOT : cfg.do_not
     diags = Violation[]
     seen = Set{Tuple{Int, Int}}()
+    origin = rule_id == "unsafe-boundary" ? :agentrulelint : :preset
     for (bs, be, msg) in ctx.hits
         key = (bs, be)
         key in seen && continue
         push!(seen, key)
         _push_builtin_violation!(
             diags,
-            "unsafe-boundary",
-            :agentrulelint,
+            String(rule_id),
+            origin,
             eff_level,
             fc.parsed.path,
             source,
             bs,
             be,
             msg,
-            intent,
-            do_not,
+            String(intent),
+            String(do_not),
         )
     end
     return diags
 end
 
+function _unsafe_boundary_allow_cfg(policy::PolicyBundle)
+    policy.unsafe_boundary.active && return policy.unsafe_boundary
+    return UnsafeBoundaryConfig(true, :warn, String[], Regex[], "", "")
+end
+
+function diagnose_unsafe_boundary(
+        fc::FileContext,
+        policy::PolicyBundle,
+        eff_level::Symbol,
+    )
+    cfg = policy.unsafe_boundary
+    intent = isempty(cfg.intent) ? UNSAFE_BOUNDARY_RULE_DEF.intent : cfg.intent
+    do_not = isempty(cfg.do_not) ? UNSAFE_BOUNDARY_RULE_DEF.do_not : cfg.do_not
+    return _diagnose_unsafe_boundary_macros(
+        fc,
+        cfg,
+        eff_level,
+        "unsafe-boundary",
+        _UNSAFE_MACRO_SUFFIXES_CORE,
+        intent,
+        do_not,
+    )
+end
+
+function diagnose_unsafe_boundary_strict(
+        fc::FileContext,
+        policy::PolicyBundle,
+        strict_cfg::UnsafeBoundaryStrictConfig,
+        eff_level::Symbol,
+    )
+    ub = _unsafe_boundary_allow_cfg(policy)
+    if policy.unsafe_boundary.active
+        cfg = policy.unsafe_boundary
+        rule_id = "unsafe-boundary"
+        intent = isempty(cfg.intent) ? UNSAFE_BOUNDARY_RULE_DEF.intent : cfg.intent
+        do_not = isempty(cfg.do_not) ? UNSAFE_BOUNDARY_RULE_DEF.do_not : cfg.do_not
+    else
+        rule_id = UNSAFE_BOUNDARY_STRICT_PRESET_ID
+        intent = isempty(strict_cfg.intent) ? UNSAFE_BOUNDARY_STRICT_RULE_DEF.intent : strict_cfg.intent
+        do_not = isempty(strict_cfg.do_not) ? UNSAFE_BOUNDARY_STRICT_RULE_DEF.do_not : strict_cfg.do_not
+    end
+    return _diagnose_unsafe_boundary_macros(
+        fc,
+        ub,
+        eff_level,
+        rule_id,
+        _UNSAFE_MACRO_SUFFIXES_STRICT,
+        intent,
+        do_not;
+        macro_only = true,
+    )
+end
+
 const _UNSAFE_BOUNDARY_EXPLAIN_ANCHOR = """
 the `@eval`, `ccall`, `@ccall`, qualified `Base.Meta.parse` / `Core.Meta.parse`,
 `invokelatest`, `unsafe_*` call, value alias (`const E = Core.eval`), value argument
-(`map(eval, xs)`), indirect `getfield`/`getproperty` escape, or related macro line
-(`@inbounds`, `@generated`, `@assume_effects`).
+(`map(eval, xs)`), indirect `getfield`/`getproperty` escape.
 """
 
 const _UNSAFE_BOUNDARY_EXPLAIN_INTENT_DETAIL = """
@@ -545,8 +601,8 @@ const UNSAFE_BOUNDARY_RULE_DEF = RuleDef(
     "unsafe-boundary",
     :agentrulelint,
     :warn,
-    "Keep runtime evaluation and FFI inside reviewed boundaries.",
-    "Hide eval, ccall, or unsafe_* outside allow_modules / allow_globs.",
+    "Keep runtime evaluation, metaprogramming escapes, and FFI calls inside reviewed module or path boundaries.",
+    "Alias Core.eval to a local name, pass eval/Meta.parse/ccall/invokelatest as values, split strings, Expr(:call,:eval,...), or hide calls outside allow_modules / allow_globs.",
     Dict{Symbol, String}(),
     "unsafe_boundary.jl",
     "test_unsafe_boundary.jl",

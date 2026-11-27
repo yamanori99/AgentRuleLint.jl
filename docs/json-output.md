@@ -1,24 +1,5 @@
 # CLI output formats
 
-## Exit codes (`check`)
-
-Exit code `0` means no finding met the **exit threshold** for this run (not
-necessarily “zero diagnostics printed”). Default threshold is **`warn`**: any
-active finding at `warn`, `deny`, or `forbid` fails; `allow` and suppressed hits
-do not.
-
-| Source | Option | Default |
-| --- | --- | --- |
-| CLI | `--exit-severity=warn\|deny\|forbid` | `warn` when omitted |
-| Config | `exit_severity = "warn"` in `.AgentRuleLintConfig.toml` | `warn` when omitted |
-
-CLI `--exit-severity` overrides config for that invocation. Unknown values exit
-`2` (fail-closed). Findings at level **`forbid`** always fail the check under
-every allowed threshold (integrity / expect-audit and similar).
-
-JETLS analogue: `forbid` / `deny` map loosely to JETLS `error`; `warn` to `warn`;
-default `warn` matches `jetls check --exit-severity=warn`.
-
 ## JSON (`--format=json`)
 
 AgentRuleLint writes **JSONL**: one JSON object per line, always in this order:
@@ -50,7 +31,7 @@ When the ceilings file is missing, empty for that rule, or sums to zero, formatt
 
 ## `agentrulelint explain`
 
-`explain <rule-id>` prints text only for rules that exist in the loaded policy or built-in registry after `init_registry!`:
+`explain <rule-id>` prints text only for rules that exist in the loaded policy or the per-call built-in registry from `build_builtin_registry`:
 
 - Tables under `[[rules]]` / `[rules.*]` in `.AgentRuleLintConfig.toml`
 - Built-ins registered from policy (including the default `expect-audit` fallback when omitted from config)

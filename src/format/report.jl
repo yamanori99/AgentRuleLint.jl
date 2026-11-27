@@ -1,33 +1,29 @@
-const ID_PLACEHOLDER = Ref(0)
-const STR_PLACEHOLDER = Ref(0)
-
-function reset_anonymizer!()
-    ID_PLACEHOLDER[] = 0
-    return STR_PLACEHOLDER[] = 0
+mutable struct _AnonymizerCounters
+    id::Int
+    str::Int
 end
 
-function anonymize_ident!(s::AbstractString)
+function _anonymize_ident!(s::AbstractString, ctr::_AnonymizerCounters)
     return Base.replace(
         s,
         r"\b[a-zA-Z_][a-zA-Z0-9_]*\b" => m -> begin
             if m == "end" || m == "function" || m == "if" || m == "using" || m == "module"
                 return m
             end
-            ID_PLACEHOLDER[] += 1
-            return m[1] in ('x', 'X') ? "x$(ID_PLACEHOLDER[])" : "f$(ID_PLACEHOLDER[])"
+            ctr.id += 1
+            return m[1] in ('x', 'X') ? "x$(ctr.id)" : "f$(ctr.id)"
         end,
     )
 end
 
 function anonymize_snippet(source::AbstractString)
-    reset_anonymizer!()
-    s = anonymize_ident!(source)
-    STR_PLACEHOLDER[] = 0
+    ctr = _AnonymizerCounters(0, 0)
+    s = _anonymize_ident!(source, ctr)
     return Base.replace(
         s,
         r"\"([^\"]*)\"" => _ -> begin
-            STR_PLACEHOLDER[] += 1
-            return "\"s$(STR_PLACEHOLDER[])\""
+            ctr.str += 1
+            return "\"s$(ctr.str)\""
         end,
     )
 end
@@ -52,7 +48,7 @@ function format_report(fingerprint::AbstractString, diagnostic::Violation, sourc
     buf = IOBuffer()
     header = Dict{String, Any}(
         "type" => "header",
-        "agentrulelint_version" => string(pkgversion(AgentRuleLint)),
+        "agentrulelint_version" => string(AGENTRULELINT_VERSION),
         "julia_version" => string(VERSION),
         "parser" => parser_rev_string(),
         "position_encoding" => "utf8-codepoint-1based",
@@ -156,17 +152,19 @@ end
 function explain_rule_unknown(id::AbstractString; root::AbstractString = pwd())
     needle = String(strip(id))
     policy = resolve_policy(root)
-    init_registry!(policy)
+    registry = build_builtin_registry(policy)
     if startswith(needle, "project/")
         short = needle[9:end]
         return !any(pr -> pr.id == short, policy.project_rules)
     end
-    haskey(BUILTIN_RULES, needle) && return false
+    haskey(registry, needle) && return false
     return !haskey(RULE_DEFS_BY_ID, needle)
 end
 
 """First built-in rule id under a known preset name, or `nothing`."""
 function _preset_rule_id_hint(needle::AbstractString)
+    needle == "shell-safety" && return SHELL_SAFETY_PRESET_ID
+    needle == UNSAFE_BOUNDARY_STRICT_PRESET_ID && return UNSAFE_BOUNDARY_STRICT_PRESET_ID
     needle in KNOWN_PRESET_NAMES || return nothing
     prefix = needle * "/"
     for def in RULE_DEFS
@@ -196,7 +194,7 @@ function explain_rule(id::AbstractString; root::AbstractString = pwd())
     explain_rule_unknown(needle; root = root) &&
         throw(ArgumentError(_explain_unknown_rule_message(needle)))
     policy = resolve_policy(root)
-    init_registry!(policy)
+    registry = build_builtin_registry(policy)
     if startswith(needle, "project/")
         short = needle[9:end]
         for pr in policy.project_rules
@@ -204,8 +202,8 @@ function explain_rule(id::AbstractString; root::AbstractString = pwd())
         end
         throw(ArgumentError(_explain_unknown_rule_message(needle)))
     end
-    if haskey(BUILTIN_RULES, needle)
-        return format_explain_rule(BUILTIN_RULES[needle]; enabled = true)
+    if haskey(registry, needle)
+        return format_explain_rule(registry[needle]; enabled = true)
     end
     def = RULE_DEFS_BY_ID[needle]
     spec = attach_rule_explain_docs(rule_def_to_spec(def))

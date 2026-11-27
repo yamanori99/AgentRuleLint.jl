@@ -80,6 +80,100 @@
     @testset "CLI unknown exit_severity" begin
         @test AgentRuleLint.cli_main(["check", "--exit-severity", "hint", "test/corpus"]) == 2
         @test AgentRuleLint.cli_main(["check", "--exit-severity=error", "test/corpus"]) == 2
+        @test AgentRuleLint.cli_main(["check", "--exit-severity"]) == 2
+    end
+
+    @testset "CLI missing value message" begin
+        mktemp() do path, io
+            redirect_stderr(io) do
+                @test AgentRuleLint.cli_main(["check", "--exit-severity"]) == 2
+            end
+            flush(io)
+            err = read(path, String)
+            @test occursin("--exit-severity requires a value (forbid|deny|warn)", err)
+        end
+    end
+
+    @testset "CLI raise threshold prints override and below-threshold count" begin
+        root = mktempdir()
+        old = pwd()
+        try
+            cfg = joinpath(root, ".AgentRuleLintConfig.toml")
+            write(
+                cfg,
+                string(
+                    _pin_config("exit_severity = \"warn\"\n"),
+                    "[rules.unsafe-boundary]\n",
+                    "level = \"warn\"\n",
+                    "allow_modules = []\n",
+                    "allow_globs = []\n",
+                ),
+            )
+            cd(ROOT)
+            mktemp() do path, io
+                redirect_stdout(io) do
+                    code = AgentRuleLint.cli_main(
+                        [
+                            "check",
+                            "--config",
+                            cfg,
+                            "--format",
+                            "human",
+                            "--exit-severity",
+                            "forbid",
+                            "test/corpus/unsafe_allow_module.jl",
+                        ],
+                    )
+                    @test code == 0
+                end
+                flush(io)
+                out = read(path, String)
+                @test occursin("PASSED", out)
+                @test occursin("threshold forbid from --exit-severity", out)
+                @test occursin("config warn", out)
+                @test occursin("below threshold", out)
+                @test occursin("warn finding", out)
+            end
+        finally
+            cd(old)
+            rm(root, recursive = true, force = true)
+        end
+    end
+
+    @testset "config threshold has no CLI override note" begin
+        root = mktempdir()
+        try
+            cfg = joinpath(root, ".AgentRuleLintConfig.toml")
+            write(
+                cfg,
+                string(
+                    _pin_config("exit_severity = \"forbid\"\n"),
+                    "[rules.unsafe-boundary]\n",
+                    "level = \"warn\"\n",
+                    "allow_modules = []\n",
+                    "allow_globs = []\n",
+                ),
+            )
+            res = AgentRuleLint.check(
+                ROOT;
+                paths = [joinpath("test", "corpus", "unsafe_allow_module.jl")],
+                config_path = cfg,
+            )
+            @test res.exit_code == 0
+            @test res.exit_severity == :forbid
+            @test res.exit_severity_source == :config
+            @test res.below_threshold_count > 0
+            human = AgentRuleLint.format_human(
+                res;
+                root = ROOT,
+                io = IOContext(IOBuffer(), :color => false),
+            )
+            @test occursin("PASSED", human)
+            @test occursin("below threshold", human)
+            @test !occursin("from --exit-severity", human)
+        finally
+            rm(root, recursive = true, force = true)
+        end
     end
 
     @testset "CLI overrides config" begin

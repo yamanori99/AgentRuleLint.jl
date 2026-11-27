@@ -18,7 +18,8 @@ const _RULE_ANCHOR_RX = Dict(
     # Suppression anchors on the guarded construct (`try`), not on `catch` (placement above catch is forbidden).
     "silent-catch" => r"^try\b",
     "unsafe-boundary" =>
-        r"^(@eval\b|@inbounds\b|@generated\b|ccall\b|@ccall\b|Meta\.parse|invokelatest|getfield\(|getproperty\(|unsafe_\w+)",
+        r"^(@eval\b|ccall\b|@ccall\b|Meta\.parse|invokelatest|getfield\(|getproperty\(|unsafe_\w+)",
+    "unsafe-boundary/strict" => r"^(@inbounds\b|@generated\b|@assume_effects\b)",
     "test-integrity" => r"^@test",
     "shell-safety/process-pattern" => r"^(run\(|open\(|read\(|pipeline\(|\bCmd\(|`)",
 )
@@ -61,15 +62,20 @@ function group_attachment_code_line(group::Vector{ExpectLine}, source::AbstractS
 end
 
 """
-    expects_eligible_for_suppression(expects, source) -> Vector{ExpectLine}
+    expects_eligible_for_suppression(expects, source; tree=nothing) -> Vector{ExpectLine}
 
 Fail-closed: forbidden or mis-anchored expects are excluded before suppression runs.
+When `tree` is provided (shared head parse), multiline-call interior lines reuse it.
 """
-function expects_eligible_for_suppression(expects::Vector{ExpectLine}, source::AbstractString)
+function expects_eligible_for_suppression(
+        expects::Vector{ExpectLine},
+        source::AbstractString;
+        tree = nothing,
+    )
     isempty(expects) && return ExpectLine[]
     src = normalize_source(source)
     runic_regions = runic_off_regions(src)
-    call_arg_lines = multiline_call_interior_lines(src)
+    call_arg_lines = multiline_call_interior_lines(src; tree = tree)
     eligible = ExpectLine[]
     for g in contiguous_expect_groups(expects)
         anchor_li, code = group_attachment_code_line(g, src)
@@ -111,11 +117,11 @@ function _walk_green(node::GreenNode, pos::Int, src::AbstractString, out::Set{In
 end
 
 """Lines that lie strictly inside a multiline call-like expression (argument region)."""
-function multiline_call_interior_lines(source::AbstractString)
+function multiline_call_interior_lines(source::AbstractString; tree = nothing)
     src = normalize_source(source)
-    tree = parse_source(src)
+    greentree = tree === nothing ? parse_source(src) : tree
     out = Set{Int}()
-    _walk_green(tree, 1, src, out)
+    _walk_green(greentree, 1, src, out)
     return out
 end
 

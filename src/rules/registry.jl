@@ -1,23 +1,9 @@
-const BUILTIN_RULES = Dict{String, RuleSpec}()
+"""Fill empty intent/do_not from `RuleDef` when the config omits them.
 
-# Same three ids as `main`'s `BUILTIN_DOC_DEFAULTS`. Text comes from `RuleDef`
-# (no duplicated table). Widening this set is an intentional output change and
-# belongs in a separate PR that updates the no_config / minimal_config goldens.
-const BUILTIN_DOC_FILL_IDS = Set(
-    [
-        "expect-audit",
-        "protected-paths",
-        SHELL_SAFETY_PRESET_ID,
-    ]
-)
-
-"""Fill empty intent/do_not from `RuleDef` for the historical three-id set only.
-
-Config values win when present. Other rule ids keep empty intent/do_not when the
-config omits them (behavior-neutral vs `main`).
+Config values win when present. Preset and built-in `RuleDef` text is the
+fallback for `explain` and registry-backed formatters.
 """
 function fill_builtin_docs!(spec::RuleSpec)
-    spec.id in BUILTIN_DOC_FILL_IDS || return spec
     def = get(RULE_DEFS_BY_ID, spec.id, nothing)
     def === nothing && return spec
     intent = isempty(spec.intent) ? def.intent : spec.intent
@@ -30,6 +16,7 @@ function builtin_explain_extras(id::AbstractString)
     id == ANALYSIS_INCOMPLETE_RULE && return analysis_incomplete_explain_extra()
     id == EXPECT_AUDIT_ID && return expect_audit_explain_extra()
     id == "unsafe-boundary" && return unsafe_boundary_explain_extra()
+    id == UNSAFE_BOUNDARY_STRICT_PRESET_ID && return unsafe_boundary_strict_explain_extra()
     id == SHELL_SAFETY_PRESET_ID && return shell_safety_explain_extra()
     id == SILENT_CATCH_ID && return silent_catch_explain_extra()
     id == MANIFEST_SYNC_RULE && return manifest_sync_explain_extra()
@@ -48,39 +35,53 @@ function attach_rule_explain_docs(spec::RuleSpec)
     return RuleSpec(spec.id, spec.origin, spec.level, spec.intent, spec.do_not, extra)
 end
 
-function register_builtin!(r::RuleSpec)
-    return BUILTIN_RULES[r.id] = attach_rule_explain_docs(fill_builtin_docs!(r))
+function _register_builtin!(rules::Dict{String, RuleSpec}, r::RuleSpec)
+    rules[r.id] = attach_rule_explain_docs(fill_builtin_docs!(r))
+    return nothing
 end
 
-function init_registry!(policy::PolicyBundle)
-    empty!(BUILTIN_RULES)
+"""
+    build_builtin_registry(policy) -> Dict{String, RuleSpec}
+
+Fresh built-in rule table for one `check` or `explain` call (reentrant; no global state).
+"""
+function build_builtin_registry(policy::PolicyBundle)
+    rules = Dict{String, RuleSpec}()
     for (_, r) in policy.rules
-        register_builtin!(r)
+        _register_builtin!(rules, r)
     end
     if policy.shell_safety.active
         spec = get(policy.rules, SHELL_SAFETY_PRESET_ID, rule_def_to_spec(SHELL_SAFETY_RULE_DEF))
-        register_builtin!(spec)
+        _register_builtin!(rules, spec)
     end
     if policy.unsafe_boundary.active && get(policy.rules, "unsafe-boundary", nothing) === nothing
-        register_builtin!(rule_def_to_spec(UNSAFE_BOUNDARY_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(UNSAFE_BOUNDARY_RULE_DEF))
+    end
+    if policy.unsafe_boundary_strict.active
+        spec = get(
+            policy.rules,
+            UNSAFE_BOUNDARY_STRICT_PRESET_ID,
+            rule_def_to_spec(UNSAFE_BOUNDARY_STRICT_RULE_DEF),
+        )
+        _register_builtin!(rules, spec)
     end
     if get(policy.rules, EXPECT_AUDIT_ID, nothing) === nothing
-        register_builtin!(rule_def_to_spec(EXPECT_AUDIT_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(EXPECT_AUDIT_RULE_DEF))
     end
     if get(policy.rules, SILENT_CATCH_ID, nothing) === nothing
-        register_builtin!(rule_def_to_spec(SILENT_CATCH_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(SILENT_CATCH_RULE_DEF))
     end
     if get(policy.rules, MANIFEST_SYNC_RULE, nothing) === nothing
-        register_builtin!(rule_def_to_spec(MANIFEST_SYNC_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(MANIFEST_SYNC_RULE_DEF))
     end
     if get(policy.rules, SCOPE_PATHS_RULE, nothing) === nothing
-        register_builtin!(rule_def_to_spec(SCOPE_PATHS_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(SCOPE_PATHS_RULE_DEF))
     end
     if get(policy.rules, PROTECTED_PATHS_RULE, nothing) === nothing
-        register_builtin!(rule_def_to_spec(PROTECTED_PATHS_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(PROTECTED_PATHS_RULE_DEF))
     end
     if get(policy.rules, ANALYSIS_INCOMPLETE_RULE, nothing) === nothing
-        register_builtin!(rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF))
+        _register_builtin!(rules, rule_def_to_spec(ANALYSIS_INCOMPLETE_RULE_DEF))
     end
-    return nothing
+    return rules
 end

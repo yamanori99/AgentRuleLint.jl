@@ -4,22 +4,12 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 
 ## Unreleased (0.1.0-DEV)
 
-### `exit_severity` and `--exit-severity` (JETLS-style)
+### `exit_severity` and `--exit-severity`
 
-`check` exit code now respects a minimum severity threshold (default **`warn`**,
-unchanged vs treating every non-`allow` hit as failing).
-
-- CLI: `agentrulelint check --exit-severity=warn|deny|forbid` (default `warn`
-  when omitted).
-- Config: top-level `exit_severity = "warn"` in `.AgentRuleLintConfig.toml`
-  (CLI flag overrides for that run).
-- Findings at level **`forbid`** always fail the check, regardless of threshold
-  (integrity rules, malformed expects, and similar).
-- Unknown values → `ConfigError` (config) or exit `2` (CLI), same as other
-  fail-closed options.
-
-JETLS mapping (approximate): AgentRuleLint `forbid` / `deny` ↔ JETLS `error`;
-`warn` ↔ `warn`; default threshold `warn` matches `jetls check --exit-severity=warn`.
+`check` can raise the fail threshold to `deny` or `forbid` via config
+`exit_severity` or `--exit-severity`. The default remains **`warn`** (same
+exit as today). `forbid` findings always fail. A CLI override is printed on
+the verdict line. JSON summaries add `threshold` and `threshold_source`.
 
 ### **[CI-breaking]** `on_allow_rule = "error"` is a ConfigError
 
@@ -57,6 +47,35 @@ on `InternalError`; the CLI prints that backtrace (Phase 3 /
 
 ### Changed
 
+#### `silent-catch` default level is `warn` (was `deny`)
+
+With no `.AgentRuleLintConfig.toml`, `silent-catch` now defaults to **`warn`**.
+Restore the previous built-in default with explicit config:
+
+```toml
+[rules.silent-catch]
+level = "deny"
+```
+
+This repository’s dogfood config keeps `level = "deny"`.
+
+#### `@inbounds`, `@generated`, `@assume_effects` are opt-in (`unsafe-boundary/strict`)
+
+Core **`unsafe-boundary`** keeps `eval`/`@eval`, `Meta.parse`, `ccall`/`@ccall`,
+`invokelatest`, `unsafe_*`, and alias/escape tracking. Strict macro checks moved to
+preset **`unsafe-boundary/strict`** (same mechanism as `shell-safety`):
+
+```toml
+presets = ["unsafe-boundary/strict"]
+
+[rules."unsafe-boundary/strict"]
+level = "warn"
+```
+
+Restore pre-0.1.0 macro coverage by enabling that preset (and optionally lowering
+or raising `level`). This repo enables the preset via dogfood config (protected
+path; see PR description).
+
 #### `explain` works for built-in rules that are not enabled
 
 `agentrulelint explain <id>` resolves every built-in / preset id from `RULE_DEFS_BY_ID`,
@@ -74,3 +93,8 @@ Migrate notes:
 - Scripts or goldens that expected exit 2 for `explain shell-safety/process-pattern`,
   `explain test-integrity`, or `explain unsafe-boundary` under a config that does not
   enable them must expect exit 0 and the new `status:` / default-level lines instead.
+
+#### Built-in `intent` / `do_not` when config omits them
+
+Rules whose config omits `intent`/`do_not` now show the built-in text in `explain`,
+human, and agent output (previously empty).

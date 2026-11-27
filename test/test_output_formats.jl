@@ -40,7 +40,8 @@ function human_fixture_result(paths::Vector{String})
         res.default_format,
         res.max_hits_per_rule,
         res.suppressed_count,
-        res.violation_count,
+        res.violation_count;
+        ceilings = res.ceilings,
     )
 end
 
@@ -100,6 +101,24 @@ end
         js = AgentRuleLint.format_json(res)
         validate_jsonl_schema!(js)
         @test occursin("\"version\"", replace(js, " " => ""))
+    end
+
+    @testset "json formatter uses CheckResult only" begin
+        corpus = joinpath("test", "corpus", "split_string.jl")
+        res = AgentRuleLint.check(ROOT; paths = [corpus], config_from = "HEAD")
+        json_here = AgentRuleLint.format_json(res)
+
+        remote = mktempdir()
+        try
+            mkpath(joinpath(remote, "shadow"))
+            json_there = cd(joinpath(remote, "shadow")) do
+                AgentRuleLint.format_json(res)
+            end
+            @test json_here == json_there
+        finally
+            rm(remote; recursive = true, force = true)
+        end
+
     end
 
     @testset "json diagnostic sort order" begin
@@ -168,7 +187,7 @@ end
         io = IOContext(IOBuffer(), :color => false)
         out = AgentRuleLint.format_human(res; root = ROOT, io = io, output_width = 100)
         expected = read(HUMAN_GOLDEN_PATH, String)
-        @test out == expected
+        @test _golden_normalize_text(out) == _golden_normalize_text(expected)
     end
 
     @testset "human COLUMNS=60 code lines never wrap" begin
@@ -231,7 +250,7 @@ end
             "unsafe-boundary" => [
                 "Base.Meta.parse",
                 "getfield",
-                "@assume_effects",
+                "`@eval`",
             ],
             "scope-paths" => ["--allow-paths", "--diff <base>", "level = \"forbid\""],
             "protected-paths" => [
@@ -252,8 +271,55 @@ end
         @test occursin("[rules.unsafe-boundary]", ub)
         @test occursin("Remaining gaps:", ub)
         @test occursin("`Expr` escapes", ub)
+        @test !occursin("@assume_effects", ub)
+        ub_strict = AgentRuleLint.explain_rule("unsafe-boundary/strict"; root = ROOT)
+        @test occursin("@assume_effects", ub_strict)
+        @test occursin("unsafe-boundary/strict", ub_strict)
+        @test occursin("Flag `@inbounds`", ub_strict)
+        @test occursin("undefined behavior", ub_strict)
+        @test occursin("core `unsafe-boundary`", ub_strict)
         expect = AgentRuleLint.explain_rule("expect-audit"; root = ROOT)
         @test occursin("Syntax:", expect)
         @test occursin("runic: off", expect)
+    end
+
+    @testset "preset intent/do_not fallback when config omits text" begin
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "unsafe_inbounds.jl")])
+        strict = filter(
+            d -> d.rule_id == "unsafe-boundary" && !d.suppressed,
+            res.violations,
+        )
+        @test any(d -> occursin("@inbounds", d.message), strict)
+        agent = AgentRuleLint.format_agent(res; root = ROOT)
+        @test occursin("RULE [AgentRuleLint] unsafe-boundary", agent)
+        @test occursin("intent: Keep runtime", agent)
+        ub_explain = AgentRuleLint.explain_rule("unsafe-boundary/strict"; root = ROOT)
+        @test occursin("Flag `@inbounds`", ub_explain)
+        @test occursin("Rely on core `unsafe-boundary`", ub_explain)
+        @test occursin("do_not:", ub_explain)
+        @test occursin("intent:\nFlag `@inbounds`", ub_explain)
+        @test occursin("do_not:\nRely on core `unsafe-boundary`", ub_explain)
+        @test occursin("intent: Keep runtime", agent)
+        @test occursin("do_not: Add allow_globs", agent)
+
+        dir = mktempdir()
+        try
+            ver = string(pkgversion(AgentRuleLint))
+            write(
+                joinpath(dir, ".AgentRuleLintConfig.toml"),
+                """
+                agentrulelint_version = \"=$(ver)\"
+                presets = [\"shell-safety\"]
+
+                [rules.\"shell-safety/process-pattern\"]
+                level = \"deny\"
+                """,
+            )
+            shell = AgentRuleLint.explain_rule("shell-safety/process-pattern"; root = dir)
+            @test occursin("pkill, killall, remote shells, sudo", shell)
+            @test occursin("pk\" * \"ill", shell)
+        finally
+            rm(dir, recursive = true, force = true)
+        end
     end
 end

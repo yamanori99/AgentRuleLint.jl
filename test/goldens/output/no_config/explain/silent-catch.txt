@@ -1,6 +1,6 @@
 rule_id: silent-catch
 origin: [AgentRuleLint]
-level: deny
+level: warn
 
 intent:
 Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths.

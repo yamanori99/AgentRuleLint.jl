@@ -1,7 +1,10 @@
-"""Minimum violation levels that fail `check` for a given `exit_severity` threshold (JETLS-style)."""
-const EXIT_SEVERITY_RANK = Dict(:warn => 1, :deny => 2, :forbid => 3)
-
-const VIOLATION_EXIT_RANK = Dict(:warn => 1, :deny => 2, :forbid => 3)
+"""Rank of a finding level for exit-threshold comparison (`:warn` < `:deny` < `:forbid`)."""
+function level_exit_rank(level::Symbol)
+    level == :warn && return 1
+    level == :deny && return 2
+    level == :forbid && return 3
+    return 0
+end
 
 """Whether a diagnostic should set a non-zero exit code for `threshold` (`:forbid`, `:deny`, or `:warn`).
 
@@ -10,9 +13,7 @@ Findings at level `:forbid` always fail the check, regardless of threshold (inte
 function violation_counts_toward_exit(d::Violation, threshold::Symbol)
     is_violation_hit(d) || return false
     d.level == :forbid && return true
-    r = get(VIOLATION_EXIT_RANK, d.level, 0)
-    t = get(EXIT_SEVERITY_RANK, threshold, 1)
-    return r >= t
+    return level_exit_rank(d.level) >= level_exit_rank(threshold)
 end
 
 function check_exit_code(diags, threshold::Symbol)
@@ -36,7 +37,11 @@ function _parse_exit_severity_cli(raw)
     return sym
 end
 
+"""Return `(threshold, source, baseline)` with `source` in `:default`, `:config`, `:cli`."""
 function resolve_exit_severity(policy::PolicyBundle; exit_severity = nothing)
-    exit_severity === nothing && return policy.exit_severity
-    return _parse_exit_severity_cli(exit_severity)
+    baseline = policy.exit_severity
+    if exit_severity === nothing
+        return baseline, policy.exit_severity_source, baseline
+    end
+    return _parse_exit_severity_cli(exit_severity), :cli, baseline
 end

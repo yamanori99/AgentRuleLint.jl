@@ -19,6 +19,7 @@
 
 const OUTPUT_GOLDEN_DIR = joinpath(ROOT, "test", "goldens", "output")
 const OUTPUT_GOLDEN_WIDTH = 80
+const OUTPUT_GOLDEN_VERSION_PLACEHOLDER = "<VERSION>"
 const OUTPUT_GOLDEN_EXPLAIN_IDS = (
     "analysis-incomplete",
     "expect-audit",
@@ -76,13 +77,34 @@ end
 
 """Normalize human/agent text for cross-environment comparison.
 
-Pinned with `output_width=$(OUTPUT_GOLDEN_WIDTH)` so wrapping does not depend on
-TTY/`COLUMNS`. Strip ANSI in case a caller enables color. Paths in these formats
-are repo-relative, so no absolute-path rewrite is needed. Package version in the
-banner is the project pin (`0.1.0-DEV`) and is part of the golden.
+Pinned with `output_width=$(OUTPUT_GOLDEN_WIDTH)` so body wrapping does not depend on
+TTY/`COLUMNS`. Agent and human status headers are never width-wrapped. Strip ANSI
+in case a caller enables color. Paths in these formats are repo-relative, so no
+absolute-path rewrite is needed. Package version is replaced with
+`OUTPUT_GOLDEN_VERSION_PLACEHOLDER` so goldens stay stable across bumps
+(`Project.toml` is the sole source of truth).
 """
+function _golden_substitute_version(text::AbstractString)
+    ver = string(AgentRuleLint.AGENTRULELINT_VERSION)
+    return replace(text, ver => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
+end
+
 function _golden_normalize_text(text::AbstractString)
-    return AgentRuleLint.strip_ansi(text)
+    return _golden_substitute_version(AgentRuleLint.strip_ansi(text))
+end
+
+const _CHECK_GOLDEN_REL_PATHS = (
+    "check_human.txt",
+    "check_agent.txt",
+    "check_json.txt",
+)
+
+function _check_golden_dirs()
+    out = AbstractString[joinpath(OUTPUT_GOLDEN_DIR)]
+    for sub in ("no_config", "minimal_config")
+        push!(out, joinpath(OUTPUT_GOLDEN_DIR, sub))
+    end
+    return out
 end
 
 function _explain_golden_filename(id::AbstractString)
@@ -144,6 +166,78 @@ function _temp_corpus_root(; config_text::Union{Nothing, AbstractString} = nothi
 end
 
 @testset "output goldens (main neutrality)" begin
+    @testset "golden check files pin version placeholder" begin
+        for gdir in _check_golden_dirs()
+            for rel in _CHECK_GOLDEN_REL_PATHS
+                body = read(joinpath(gdir, rel), String)
+                @test occursin(OUTPUT_GOLDEN_VERSION_PLACEHOLDER, body)
+            end
+        end
+    end
+
+    @testset "status headers invariant to version string length" begin
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "split_string.jl")])
+        plain_io = IOContext(IOBuffer(), :color => false)
+        width = OUTPUT_GOLDEN_WIDTH
+        short_v = "0.1.0"
+        long_v = "0.1.0-DEV.1234"
+        human_short = AgentRuleLint.format_human(
+            res;
+            root = ROOT,
+            io = plain_io,
+            output_width = width,
+            _agentrulelint_version = short_v,
+        )
+        human_long = AgentRuleLint.format_human(
+            res;
+            root = ROOT,
+            io = plain_io,
+            output_width = width,
+            _agentrulelint_version = long_v,
+        )
+        agent_short = AgentRuleLint.format_agent(
+            res;
+            root = ROOT,
+            io = plain_io,
+            output_width = width,
+            _agentrulelint_version = short_v,
+        )
+        agent_long = AgentRuleLint.format_agent(
+            res;
+            root = ROOT,
+            io = plain_io,
+            output_width = width,
+            _agentrulelint_version = long_v,
+        )
+        norm_short_h = replace(human_short, short_v => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
+        norm_long_h = replace(human_long, long_v => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
+        norm_short_a = replace(agent_short, short_v => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
+        norm_long_a = replace(agent_long, long_v => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
+        @test norm_short_h == norm_long_h
+        @test norm_short_a == norm_long_a
+    end
+
+    @testset "live check output embeds package version" begin
+        ver = string(AgentRuleLint.AGENTRULELINT_VERSION)
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
+        plain_io = IOContext(IOBuffer(), :color => false)
+        human = AgentRuleLint.format_human(
+            res;
+            root = ROOT,
+            io = plain_io,
+            output_width = OUTPUT_GOLDEN_WIDTH,
+        )
+        agent = AgentRuleLint.format_agent(
+            res;
+            root = ROOT,
+            io = plain_io,
+            output_width = OUTPUT_GOLDEN_WIDTH,
+        )
+        json = AgentRuleLint.format_json(res)
+        @test occursin(ver, human)
+        @test occursin(ver, agent)
+        @test occursin(ver, json)
+    end
     @testset "repo config: check human/json/agent over test/corpus" begin
         _assert_check_goldens(OUTPUT_GOLDEN_DIR, ROOT)
     end

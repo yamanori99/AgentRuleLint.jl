@@ -42,6 +42,13 @@ function _validate_check_keywords!(kwargs)
     return merge(nt, (; allow_paths = allow_paths))
 end
 
+"""
+    check(root; kwargs...) -> CheckResult
+
+Run the AgentRuleLint pipeline on `root`. Safe to call concurrently from multiple
+threads or tasks: each invocation uses its own policy resolution and built-in
+rule registry (no shared mutable linter state).
+"""
 function check(root::AbstractString; kwargs...)
     kwargs = _validate_check_keywords!(kwargs)
     try
@@ -107,9 +114,12 @@ function _parse_cli_args(cmd::String, rest::Vector{String})
             opts[:output] = rest[i + 1]
             i += 2
             continue
-        elseif a == "--exit-severity" && i + 1 <= length(rest)
+        elseif a == "--exit-severity"
             opts[:exit_severity] !== nothing &&
                 throw(ArgumentError("duplicate --exit-severity"))
+            if i + 1 > length(rest) || startswith(rest[i + 1], "-")
+                throw(ArgumentError("--exit-severity requires a value (forbid|deny|warn)"))
+            end
             opts[:exit_severity] = rest[i + 1]
             i += 2
             continue
@@ -316,6 +326,8 @@ function _print_cli_help(cmd::String)
               --diff [<base-ref>]         Limit to changed files/lines vs base (default: HEAD^1)
               --allow-paths GLOB,...      Trusted allowlist for scope-paths (requires --diff; not from config)
               --output <path>             Write formatted output to <path>
+              --exit-severity forbid|deny|warn
+                                          Fail at this level or above (default warn; CLI overrides config)
 
             Config is fail-closed: unknown keys, rule levels, preset names, or default_format values error.
             """,

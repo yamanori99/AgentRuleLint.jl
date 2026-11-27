@@ -2,7 +2,7 @@
 
 const _FOLD_TEST_MAX_DEPTH = 32
 
-FoldedTestValue = Union{Bool, Int, Float64, String}
+const FoldedTestValue = Union{Bool, Int, Float64, String}
 
 const TEST_FOLD_TRIVIAL = :trivial_true
 const TEST_FOLD_NOT_TRIVIAL = :not_trivial

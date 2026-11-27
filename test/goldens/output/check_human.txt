@@ -1,5 +1,4 @@
-AgentRuleLint v0.1.0-DEV (policy bundle base: .AgentRuleLintConfig.toml, pos:
-utf8-line-col)
+AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLintConfig.toml, pos: utf8-line-col)
 
 ┌ Error: [AgentRuleLint] analysis-incomplete [forbid] (2 violations, ceiling 0)
 │   intent: Fail closed when static analysis cannot finish (constant-fold
@@ -20,8 +19,8 @@ utf8-line-col)
 └ @ AgentRuleLint (run `agentrulelint explain analysis-incomplete` for details)
 
 ┌ Error: [AgentRuleLint] expect-audit [forbid] (26 violations, ceiling 0)
-│   intent: Keep suppression comments auditable.
-│   do_not: Hide violations with unapproved expects.
+│   intent: Keep suppression comments auditable and fail-closed.
+│   do_not: Use inline or block comment expects to hide violations.
 │
 │   test/corpus/block_expect.jl:1:1-1:60
 │     block comment expect forbidden

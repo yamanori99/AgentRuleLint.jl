@@ -76,15 +76,17 @@ end
 
 function build_file_context(root::AbstractString, relpath::AbstractString)
     parsed = read_parsed_file(root, relpath)
-    if julia_source_path(relpath)
+    tree = if julia_source_path(relpath)
         parse_source(parsed.normalized; filename = parsed.path)
+    else
+        nothing
     end
     expects = if julia_source_path(relpath)
         extract_expect_lines(parsed.normalized)
     else
         extract_expect_lines_text(parsed.normalized)
     end
-    return FileContext(parsed, expects, Violation[])
+    return FileContext(parsed, tree, expects, Violation[])
 end
 
 function is_violation_hit(d::Violation)
@@ -100,7 +102,6 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         config_path = get(kwargs, :config_path, nothing),
         config_from = get(kwargs, :config_from, nothing),
     )
-    init_registry!(policy)
     paths_kw = get(kwargs, :paths, String[])
     diff_base = get(kwargs, :diff_base, nothing)
     allow_paths = validate_allow_paths_kw(_resolve_allow_paths_kw(get(kwargs, :allow_paths, nothing)), diff_base)
@@ -146,7 +147,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
             push!(path_diags, d)
         end
         eligible = if julia_source_path(rel)
-            expects_eligible_for_suppression(fc.expects, fc.parsed.normalized)
+            expects_eligible_for_suppression(fc.expects, fc.parsed.normalized; tree = fc.tree)
         else
             expects_eligible_for_suppression_text(fc.expects, fc.parsed.normalized)
         end
@@ -233,12 +234,32 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     assign_diagnostic_fingerprints!(all_diags, sources)
 
     all_diags = _unique_violations(all_diags)
-    all_diags = sort(all_diags; by = d -> (d.path, d.span, d.rule_id))
+    all_diags = sort(all_diags; by = diag_sort_key)
 
     vcount = count(is_violation_hit, all_diags)
     scount = count(d -> d.suppressed, all_diags)
-    exit_threshold = resolve_exit_severity(policy; exit_severity = get(kwargs, :exit_severity, nothing))
-    exit = check_exit_code(all_diags, exit_threshold)
+    threshold, thr_source, baseline = resolve_exit_severity(
+        policy;
+        exit_severity = get(kwargs, :exit_severity, nothing),
+    )
+    exit = check_exit_code(all_diags, threshold)
+    below = Violation[
+        d for d in all_diags if
+            is_violation_hit(d) && !violation_counts_toward_exit(d, threshold)
+    ]
+    below_n = length(below)
+    below_lvl = if below_n == 0
+        :none
+    elseif all(d -> d.level == below[1].level, below)
+        below[1].level
+    else
+        :mixed
+    end
+    empty_ceilings = CeilingEntry(
+        Dict{String, Dict{String, Int}}(),
+        Dict{String, Dict{String, Int}}(),
+    )
+    display_ceilings = working_ceil_present ? load_ceilings(root, policy) : empty_ceilings
     result = CheckResult(
         all_diags,
         true,
@@ -247,7 +268,13 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         policy.default_format,
         policy.max_hits_per_rule,
         scount,
-        vcount,
+        vcount;
+        ceilings = display_ceilings,
+        exit_severity = threshold,
+        exit_severity_source = thr_source,
+        baseline_exit_severity = baseline,
+        below_threshold_count = below_n,
+        below_threshold_level = below_lvl,
     )
     return result, contexts
 end
