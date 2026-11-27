@@ -5,6 +5,7 @@ const _MUTATION_HELPER_ONLY_TESTS = Set(
         "test_expect_text_mutation_blank",
         "test_expect_text_mutation_malformed",
         "test_expect_text_mutation_unanchored",
+        "test_unused_expect_mutation_line_only",
         "test_explain_invalid_config",
         "test_integrity_mutation_broad_throws",
         "test_integrity_mutation_exit",
