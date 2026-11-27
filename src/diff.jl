@@ -80,6 +80,7 @@ function _git_diff_name_status_cmd(root::AbstractString, base::AbstractString)
             "-M",
             "--no-ext-diff",
             "--no-textconv",
+            "--text",
             "--name-status",
             "--end-of-options",
             base,
@@ -184,6 +185,50 @@ function _parse_unified_hunks(body::AbstractString)
     return lines
 end
 
+function _diff_binary_only(body::AbstractString)
+    for line in split(body, '\n'; keepempty = false)
+        startswith(line, "Binary files ") && occursin(" differ", line) && return true
+    end
+    return false
+end
+
+function _diff_has_unified_hunk(body::AbstractString)
+    for line in split(body, '\n'; keepempty = false)
+        match(_HUNK_RE, line) === nothing || return true
+    end
+    return false
+end
+
+"""True when git reports mode/type/rename metadata only (no `@@` hunks)."""
+function _diff_allows_empty_changed_lines(body::AbstractString)
+    isempty(strip(body)) && return true
+    _diff_has_unified_hunk(body) && return false
+    return true
+end
+
+"""
+    _changed_lines_from_diff_body(body, path) -> Set{Int}
+
+Parse unified diff output into changed line numbers on the new side. Fail closed when
+git reports a binary-only change or non-empty text diff without line hunks.
+"""
+function _changed_lines_from_diff_body(body::AbstractString, path::AbstractString)
+    body = String(body)
+    path = String(path)
+    lines = _parse_unified_hunks(body)
+    if _diff_binary_only(body) && isempty(lines)
+        throw(
+            GitError(
+                "git diff reported binary-only change for path=$(path) (fail closed; use --text)",
+            ),
+        )
+    end
+    if isempty(lines) && !isempty(strip(body)) && !_diff_allows_empty_changed_lines(body)
+        throw(GitError("git diff produced no changed lines for path=$(path) (fail closed)"))
+    end
+    return lines
+end
+
 function git_diff_changed_lines(root::AbstractString, base::AbstractString, relpath::AbstractString)
     root = _git_root(root)
     base = verify_diff_base_ref(root, base)
@@ -198,6 +243,7 @@ function git_diff_changed_lines(root::AbstractString, base::AbstractString, relp
             "--no-color",
             "--no-ext-diff",
             "--no-textconv",
+            "--text",
             "--end-of-options",
             base,
             "--",
@@ -212,7 +258,7 @@ function git_diff_changed_lines(root::AbstractString, base::AbstractString, relp
         err isa GitError && rethrow()
         throw(GitError("$prefix: $(format_error(err))"))
     end
-    return _parse_unified_hunks(String(bytes))
+    return _changed_lines_from_diff_body(String(bytes), path)
 end
 
 function build_diff_scope(root::AbstractString, base::AbstractString)

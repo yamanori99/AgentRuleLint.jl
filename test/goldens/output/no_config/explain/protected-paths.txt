@@ -14,7 +14,8 @@ Runs only with `--diff <base>`. Reports nothing on a full-tree `check` without `
 
 Auto-protected paths include `.AgentRuleLintConfig.toml`, `.agentrulelint/**`
 (except `.agentrulelint/ceilings.toml` when the diff is monotonic non-increasing),
-`.JETLSConfig.toml`, `Manifest*.toml`, `JuliaManifest.toml`, `LocalPreferences.toml`,
+`.gitattributes`, `.gitmodules`, `.JETLSConfig.toml`, `Manifest*.toml`, `JuliaManifest.toml`,
+`LocalPreferences.toml`,
 and every repo-relative `Project.toml`.
 
 `project_toml_policy = "semantic"` (default) allows adding `[deps]` entries and `[compat]`

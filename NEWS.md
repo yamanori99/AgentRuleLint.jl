@@ -4,6 +4,17 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 
 ## Unreleased (0.1.0-DEV)
 
+### **[CI-breaking]** Diff scope uses `git diff --text`; `.gitattributes` and `.gitmodules` protected
+
+`check --diff` passes `--text` on all git diff invocations so changed-line selection does
+not follow repository `.gitattributes` (`-diff`, `binary`, etc.). Binary-only diff output
+for a modified path without unified hunks fails closed with `GitError` (exit 2).
+
+`protected-paths` now auto-forbids edits to `.gitattributes` and `.gitmodules`.
+
+Repos that change those files without review, or that depended on attributes suppressing
+Julia diffs, will see new findings or exit 2 on diff runs.
+
 ### **[CI-breaking]** `on_allow_rule = "error"` is a ConfigError
 
 `on_allow_rule` now accepts only the rule-level vocabulary `forbid|deny|warn|allow`.
