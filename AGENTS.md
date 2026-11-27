@@ -8,7 +8,7 @@ AgentRuleLint is a **deterministic, fail-closed** Julia invariant linter. It doe
 
 Before fixing lint, test, or CI failures:
 
-1. Read this file, `CONTRIBUTING.md`, and the rule’s `intent` / `do_not` (via `agentrulelint explain`).
+1. Read this file, `CONTRIBUTING.md`, and the rule’s `intent` / `do_not` (via `agentrulelint explain <rule-id>`).
 2. Prefer a real fix over silencing output.
 3. Do **not** weaken checks or reshape code solely to clear findings.
 

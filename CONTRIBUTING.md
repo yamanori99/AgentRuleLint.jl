@@ -31,7 +31,7 @@ This list is the single source for non-goals.
 5. **NG5:** Reject rules that are easier to satisfy via cosmetic syntax evasion than via a real fix (validate against an adversarial evasion corpus before adoption).
 
 Integrity rules have a near-zero false-positive bar and cannot be weakened by
-config. For which rules that applies to, run `agentrulelint explain`.
+config. For which rules that applies to, run `agentrulelint explain <rule-id>`.
 
 Built-in rules ship with the package; presets are opt-in sets enabled with
 `presets = [...]`; project rules are declared under `[[project_rules]]` with
