@@ -1,0 +1,2 @@
+# agentrulelint-expect: project/no-internal-codename reason="used on line 1"
+msg = "INTERNAL_CODENAME"
