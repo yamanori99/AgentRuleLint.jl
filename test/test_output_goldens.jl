@@ -80,13 +80,15 @@ function _assert_check_goldens(golden_dir::AbstractString, root::AbstractString;
     config_path !== nothing && (kwargs[:config_path] = config_path)
     res = AgentRuleLint.check(root; kwargs...)
     plain_io = IOContext(IOBuffer(), :color => false)
+    git_kw = (; git_executable = res.git_executable, git_version = res.git_version)
     human = _golden_normalize_text(
         AgentRuleLint.format_human(
             res;
             root = root,
             io = plain_io,
             output_width = OUTPUT_GOLDEN_WIDTH,
-        ),
+        );
+        git_kw...,
     )
     agent = _golden_normalize_text(
         AgentRuleLint.format_agent(
@@ -94,7 +96,8 @@ function _assert_check_goldens(golden_dir::AbstractString, root::AbstractString;
             root = root,
             io = plain_io,
             output_width = OUTPUT_GOLDEN_WIDTH,
-        ),
+        );
+        git_kw...,
     )
     json = _golden_json_without_header(AgentRuleLint.format_json(res))
     @test human ==
@@ -135,6 +138,10 @@ end
             for rel in _CHECK_GOLDEN_REL_PATHS
                 body = read(joinpath(gdir, rel), String)
                 @test occursin(OUTPUT_GOLDEN_VERSION_PLACEHOLDER, body)
+                if occursin("check_agent", rel) || occursin("check_human", rel)
+                    @test occursin(OUTPUT_GOLDEN_GIT_EXECUTABLE_PLACEHOLDER, body)
+                    @test occursin(OUTPUT_GOLDEN_GIT_VERSION_PLACEHOLDER, body)
+                end
             end
         end
     end

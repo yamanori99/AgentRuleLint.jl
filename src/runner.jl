@@ -97,6 +97,8 @@ function is_violation_hit(d::Violation)
 end
 
 function _run_check_pipeline(root::AbstractString; kwargs...)
+    ensure_git_runtime!(root)
+    rt = git_runtime()
     policy = resolve_policy(
         root;
         config_path = get(kwargs, :config_path, nothing),
@@ -277,17 +279,23 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         baseline_exit_severity_source = baseline_src,
         below_threshold_count = below_n,
         below_threshold_level = below_lvl,
+        git_executable = rt.executable,
+        git_version = rt.version,
     )
     return result, contexts
 end
 
 function run_check(root::AbstractString; kwargs...)
-    result, _ = _run_check_pipeline(root; kwargs...)
-    return result
+    return git_run_scope() do
+        result, _ = _run_check_pipeline(root; kwargs...)
+        result
+    end
 end
 
 function run_check_pipeline(root::AbstractString; kwargs...)
-    return _run_check_pipeline(root; kwargs...)
+    return git_run_scope() do
+        _run_check_pipeline(root; kwargs...)
+    end
 end
 
 function ratchet_write!(

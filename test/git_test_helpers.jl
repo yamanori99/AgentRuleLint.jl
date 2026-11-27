@@ -2,7 +2,7 @@
 
 const _git = AgentRuleLint
 
-"""Initialize a temp repo with local identity (isolated bundled git)."""
+"""Initialize a temp repo with local identity (isolated git)."""
 function init_git_repo!(dir::AbstractString)
     dir = abspath(String(dir))
     _git.run_git_cmd(dir, "init", "-q", "-b", "main"; cwd = dir)
@@ -46,4 +46,23 @@ function minimal_project_cfg()
     intent = \"\"
     do_not = \"\"
     """
+end
+
+"""Sorted active violation `(rule_id, path)` pairs for git-isolation comparisons."""
+function active_violation_paths(res::AgentRuleLint.CheckResult)
+    active = AgentRuleLint.active_violations(res.violations)
+    tup = Tuple{String, String}[(d.rule_id, d.path) for d in active]
+    return sort(tup)
+end
+
+function rename_diff_literal_isolation_fixture(dir::AbstractString)
+    init_git_repo!(dir)
+    write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
+    write(joinpath(dir, "src.jl"), "v=1\n")
+    git_commit_all!(dir, "base")
+    _git.run_git_cmd(dir, "mv", "src.jl", "dst.jl"; cwd = dir)
+    git_commit_all!(dir, "rename only")
+    write(joinpath(dir, "dst.jl"), "v=1\nx=\"FORBIDDEN_DIFF_TOKEN\"\n")
+    git_commit_all!(dir, "add literal")
+    return nothing
 end

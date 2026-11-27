@@ -2,10 +2,10 @@
 
 julia_version = "1.13.4"
 manifest_format = "2.1"
-project_hash = "d17a38ba24b81d988cc2df64efcbb29d4a41fdd5"
+project_hash = "c56b72aeece3316a6a104d849276e2b38ec7fb4b"
 
 [[deps.AgentRuleLint]]
-deps = ["Git_jll", "JuliaSyntax", "PrecompileTools", "SHA", "StyledStrings", "TOML"]
+deps = ["JuliaSyntax", "PrecompileTools", "SHA", "StyledStrings", "TOML"]
 path = "."
 uuid = "c092dd98-a32b-4bb3-9a47-6744e45ef2e3"
 version = "0.1.0-DEV"
@@ -60,23 +60,9 @@ deps = ["ArgTools", "FileWatching", "LibCURL", "NetworkOptions"]
 uuid = "f43a241f-c20a-4ad4-852c-f6b1247861c6"
 version = "1.7.0"
 
-[[deps.Expat_jll]]
-deps = ["Artifacts", "JLLWrappers", "Libdl"]
-git-tree-sha1 = "30fbbf8fb9d4e5d3264b4eb10c04f8a9ebaf9381"
-registries = "General"
-uuid = "2e619515-83b5-522b-bb60-26c02a35a201"
-version = "2.11.0+0"
-
 [[deps.FileWatching]]
 uuid = "7b1f6079-737a-58dc-b8bc-7a2ca5c1b5ee"
 version = "1.11.0"
-
-[[deps.Git_jll]]
-deps = ["Artifacts", "Expat_jll", "JLLWrappers", "LibCURL_jll", "Libdl", "Libiconv_jll", "OpenSSL_jll", "PCRE2_jll", "Zlib_jll"]
-git-tree-sha1 = "399f4a308c804b446ae4c91eeafadb2fe2c54ff9"
-registries = "General"
-uuid = "f8c6e375-362e-5223-8a59-34ff63f689eb"
-version = "2.47.1+0"
 
 [[deps.IOCapture]]
 deps = ["Logging", "Random"]
@@ -89,13 +75,6 @@ version = "1.0.0"
 deps = ["Markdown"]
 uuid = "b77e0a4c-d291-57a0-90e8-8db25a27a240"
 version = "1.11.0"
-
-[[deps.JLLWrappers]]
-deps = ["Artifacts", "Preferences"]
-git-tree-sha1 = "7204148362dafe5fe6a273f855b8ccbe4df8173e"
-registries = "General"
-uuid = "692b3bcd-3c85-4b1f-b108-f13ce0eb3210"
-version = "1.8.0"
 
 [[deps.JSON]]
 deps = ["Dates", "Logging", "Parsers", "PrecompileTools", "StructUtils", "UUIDs", "Unicode"]
@@ -125,13 +104,6 @@ deps = ["StyledStrings"]
 uuid = "ac6e5ff7-fb65-4e79-a425-ec3bc9c03011"
 version = "1.12.0"
 
-[[deps.LazyJLLWrappers]]
-deps = ["Artifacts", "Libdl", "Pkg", "Preferences", "TOML"]
-git-tree-sha1 = "4753919f2a12d14862eab9e4e4cfa2ed08af48d3"
-registries = "General"
-uuid = "21706172-204c-4d4f-5420-656854206f44"
-version = "1.2.7"
-
 [[deps.LibCURL]]
 deps = ["LibCURL_jll", "MozillaCACerts_jll"]
 uuid = "b27032c2-a3e7-50c8-80cd-2d36dbcbfd21"
@@ -160,13 +132,6 @@ version = "1.11.104+0"
 [[deps.Libdl]]
 uuid = "8f399da3-3557-5675-b5ff-fb832c97cbdb"
 version = "1.11.0"
-
-[[deps.Libiconv_jll]]
-deps = ["Artifacts", "LazyJLLWrappers", "Libdl"]
-git-tree-sha1 = "7b395350a0ba7cf31fd533af9f59ebc8eb144e08"
-registries = "General"
-uuid = "94ce4f54-9a6c-5748-9c1c-f9c7231a4531"
-version = "1.18.1"
 
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]

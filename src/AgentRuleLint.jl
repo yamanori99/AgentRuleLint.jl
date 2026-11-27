@@ -5,8 +5,6 @@ using PrecompileTools
 using StyledStrings
 using TOML
 using SHA: sha1
-using Git_jll
-
 export CheckResult, RuleSpec, Span, Violation, check
 export ConfigError, GitError, InternalError, ParseError
 

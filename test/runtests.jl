@@ -67,6 +67,10 @@ const _SERIAL_AFTER = [
 ]
 
 function run_agentrulelint_tests()
+    return AgentRuleLint.git_run_scope(_run_agentrulelint_tests_body)
+end
+
+function _run_agentrulelint_tests_body()
     testsuite = build_testsuite()
     args = parse_args(ARGS)
     # Probe-only suites (e.g. test_digest_deliberate_fail) stay out of the default run.

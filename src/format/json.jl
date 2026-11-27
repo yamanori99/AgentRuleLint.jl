@@ -20,6 +20,8 @@ function format_json(result::CheckResult)
         "type" => "header",
         "version" => string(AGENTRULELINT_VERSION),
         "julia_version" => string(VERSION),
+        "git_executable" => result.git_executable,
+        "git_version" => result.git_version,
         "parser" => parser_rev_string(),
         "config_source" => config_source_dict(result.config_source),
         "position_encoding" => "utf8-codepoint-1based",

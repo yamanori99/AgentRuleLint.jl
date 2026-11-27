@@ -1,67 +1,49 @@
-@testset "bundled git ignores hostile global config" begin
-    hostile_home = mktempdir()
-    try
-        hooks = joinpath(hostile_home, ".gitconfig")
-        write(
-            hooks,
-            """
-            [diff]
-            \trenames = false
-            """,
-        )
+function _git_isolation_child_script(helpers_path::AbstractString)
+    return """
+    using AgentRuleLint
+    include($(repr(helpers_path)))
+    AgentRuleLint.git_run_scope() do
+        hostile = mktempdir()
         dir = mktempdir()
         try
-            init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
-            write(joinpath(dir, "a.jl"), "1\n")
-            git_commit_all!(dir, "base")
-            write(joinpath(dir, "b.jl"), "2\n")
-            git_commit_all!(dir, "head")
-            env_clean = copy(ENV)
-            env_hostile = copy(ENV)
-            env_hostile["HOME"] = hostile_home
-            out_clean = withenv(env_clean) do
-                sprint() do io
-                    redirect_stdout(io) do
-                        AgentRuleLint.check(dir; diff_base = "HEAD^1")
-                    end
-                end
+            write(joinpath(hostile, ".gitconfig"), "[diff]\\n\\trenames = false\\n")
+            rename_diff_literal_isolation_fixture(dir)
+            clean = withenv("HOME" => mktempdir()) do
+                active_violation_paths(AgentRuleLint.check(dir; diff_base = "HEAD^1"))
             end
-            out_hostile = withenv(env_hostile) do
-                sprint() do io
-                    redirect_stdout(io) do
-                        AgentRuleLint.check(dir; diff_base = "HEAD^1")
-                    end
-                end
+            hostile_sig = withenv("HOME" => hostile) do
+                active_violation_paths(AgentRuleLint.check(dir; diff_base = "HEAD^1"))
             end
-            @test out_clean == out_hostile
-            out_clean_plain = withenv(env_clean) do
-                sprint() do io
-                    redirect_stdout(io) do
-                        AgentRuleLint.check(dir)
-                    end
-                end
-            end
-            out_hostile_plain = withenv(env_hostile) do
-                sprint() do io
-                    redirect_stdout(io) do
-                        AgentRuleLint.check(dir)
-                    end
-                end
-            end
-            @test out_clean_plain == out_hostile_plain
+            clean == hostile_sig || exit(42)
+            exit(0)
         finally
+            rm(hostile, recursive = true, force = true)
             rm(dir, recursive = true, force = true)
         end
-    finally
-        rm(hostile_home, recursive = true, force = true)
     end
+    """
+end
+
+@testset "isolated git ignores hostile global diff.renames (child HOME)" begin
+    helpers = joinpath(@__DIR__, "git_test_helpers.jl")
+    script = _git_isolation_child_script(helpers)
+    cmd = Cmd(
+        [
+            joinpath(Sys.BINDIR, Base.julia_exename()),
+            "--compiled-modules=existing",
+            "--startup-file=no",
+            "--project=$(ROOT)",
+            "-e",
+            script,
+        ],
+    )
+    proc = run(ignorestatus(setenv(cmd; dir = @__DIR__)))
+    @test proc.exitcode == 0
 end
 
 @testset "plain check on non-repository fails closed for manifest-sync" begin
     dir = mktempdir()
     try
-        write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
         err = try
             AgentRuleLint.check(dir)
             nothing

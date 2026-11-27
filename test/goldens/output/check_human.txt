@@ -1,4 +1,4 @@
-AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-line-col)
+AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-line-col, git: <GIT> @ <GIT_VERSION>)
 
 ┌ Error: [AgentRuleLint] analysis-incomplete [forbid] (2 violations, ceiling 0)
 │   intent: Fail closed when static analysis cannot finish (constant-fold
