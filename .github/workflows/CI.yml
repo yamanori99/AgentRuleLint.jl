@@ -288,9 +288,7 @@ jobs:
 
       - name: Run mutation harnesses
         shell: bash
-        run: |
-          set -o pipefail
-          julia --startup-file=no --project=. test/mutation/run_all.jl 2>&1 | tee "${RUNNER_TEMP}/mutation.log"
+        run: julia --startup-file=no --project=. test/mutation/run_all.jl
 
   # Non-required until #70: fails on protected-path / policy diffs by design (#71).
   dogfood:
