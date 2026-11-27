@@ -229,15 +229,21 @@ jobs:
           fail_ci_if_error: true
 
   # Required check candidate (owner must add the job name to branch protection).
-  # No path filter: every PR runs every `test/mutation/*.jl` harness (#75).
-  mutation:
-    name: Mutation tests - Julia 1.13 - ubuntu-latest - x64
+  # No path filter: every PR runs every `test/mutation/*.jl` harness (#75), sharded 1/3..3/3.
+  mutation_shard:
+    name: Mutation tests (shard ${{ matrix.shard }}/3) - Julia 1.13 - ubuntu-latest - x64
     needs: [runic, aqua, jetls]
     permissions:
       contents: read
       actions: write # julia-depot-cache save on main push
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      AGENTRULELINT_MUTATION_SHARD: ${{ matrix.shard }}/3
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -258,6 +264,22 @@ jobs:
       - name: Run mutation harnesses
         shell: bash
         run: julia --startup-file=no --project=. test/mutation/run_all.jl
+
+  mutation:
+    name: Mutation tests - Julia 1.13 - ubuntu-latest - x64
+    needs: [mutation_shard]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all mutation shards successful
+        shell: bash
+        run: |
+          result="${{ needs.mutation_shard.result }}"
+          if [ "$result" != "success" ]; then
+            echo "mutation_shard result was $result (expected success)" >&2
+            exit 1
+          fi
 
   # Non-required until #70: fails on protected-path / policy diffs by design (#71).
   dogfood:

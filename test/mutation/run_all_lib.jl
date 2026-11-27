@@ -16,6 +16,37 @@ function discover_mutation_scripts(dir::AbstractString = _MUTATION_RUN_DIR)
     return sort(scripts)
 end
 
+function parse_mutation_shard()
+    raw = get(ENV, "AGENTRULELINT_MUTATION_SHARD", "")
+    if isempty(strip(raw))
+        return nothing
+    end
+    s = strip(raw)
+    m = match(r"^(\d+)/(\d+)$", s)
+    m === nothing && throw(
+        ArgumentError(
+            "AGENTRULELINT_MUTATION_SHARD must be \"i/N\" with positive integers, got $(repr(raw))",
+        ),
+    )
+    i = parse(Int, m.captures[1]::SubString)
+    n = parse(Int, m.captures[2]::SubString)
+    n < 1 && throw(ArgumentError("AGENTRULELINT_MUTATION_SHARD denominator N must be >= 1, got $n"))
+    i < 1 && throw(ArgumentError("AGENTRULELINT_MUTATION_SHARD shard index i must be >= 1, got $i"))
+    i > n && throw(ArgumentError("AGENTRULELINT_MUTATION_SHARD shard index i must be <= N, got $i/$n"))
+    return (i, n)
+end
+
+function select_mutation_shard(scripts::Vector{String}, i::Int, n::Int)
+    return [s for (k, s) in enumerate(scripts) if (k - 1) % n == i - 1]
+end
+
+function apply_mutation_shard(scripts::Vector{String})
+    shard = parse_mutation_shard()
+    shard === nothing && return scripts
+    i, n = shard
+    return select_mutation_shard(scripts, i, n)
+end
+
 function parse_mutation_jobs()
     raw = get(ENV, "AGENTRULELINT_MUTATION_JOBS", "")
     if isempty(strip(raw))
@@ -123,10 +154,24 @@ function _dirty_src_after_mutations(root::AbstractString)
 end
 
 function mutation_run_all_main(dir::AbstractString = _MUTATION_RUN_DIR)
-    scripts = discover_mutation_scripts(dir)
-    if isempty(scripts)
+    all_scripts = discover_mutation_scripts(dir)
+    if isempty(all_scripts)
         println(stderr, "mutation run_all: zero mutation files found under $dir")
         return 1
+    end
+
+    shard = parse_mutation_shard()
+    scripts = apply_mutation_shard(all_scripts)
+    harness_line = join([basename(s) for s in scripts], ", ")
+    if shard !== nothing
+        i, n = shard
+        println("mutation run_all: shard $i/$n; harnesses: $harness_line")
+    else
+        println("mutation run_all: harnesses: $harness_line")
+    end
+    if isempty(scripts)
+        println("mutation run_all: no harnesses assigned to this shard")
+        return 0
     end
 
     jobs = parse_mutation_jobs()
