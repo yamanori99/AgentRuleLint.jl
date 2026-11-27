@@ -20,14 +20,16 @@ run_source_mutation(;
                 run(Cmd(["git","-C",dir,"add","-A"]))
                 run(Cmd(["git","-C",dir,"-c","commit.gpgsign=false","commit","-q","-m",m]))
             end
-            write(joinpath(dir,"old.jl"), "a\n")
+            write(joinpath(dir,"src.jl"), "v=1\n")
             commit!("base")
-            run(Cmd(["git","-C",dir,"mv","old.jl","new.jl"]))
-            commit!("rename")
+            run(Cmd(["git","-C",dir,"mv","src.jl","dst.jl"]))
+            write(joinpath(dir,"dst.jl"), "v=1\nx=2\n")
+            commit!("rename-edit")
             scope = AgentRuleLint.build_diff_scope(dir, "HEAD^")
-            lines = AgentRuleLint.diff_changed_lines(scope, "new.jl")
-            isempty(lines) || exit(1)
-            exit(0)
+            lines = AgentRuleLint.diff_changed_lines(scope, "dst.jl")
+            AgentRuleLint.diff_path_status(scope, "dst.jl") == 'R' || exit(2)
+            length(lines) > 1 && exit(0)
+            exit(1)
         catch
             exit(2)
         finally
