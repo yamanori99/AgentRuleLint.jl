@@ -30,12 +30,15 @@ function assert_max_textwidth(
     return nothing
 end
 
-function corpus_human_text(columns::Int)
+function with_columns(f, columns::Union{Nothing, Int})
     old = get(ENV, "COLUMNS", nothing)
-    ENV["COLUMNS"] = string(columns)
     try
-        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
-        return AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
+        if columns === nothing
+            pop!(ENV, "COLUMNS", nothing)
+        else
+            ENV["COLUMNS"] = string(columns)
+        end
+        return f()
     finally
         if old === nothing
             pop!(ENV, "COLUMNS", nothing)
@@ -45,12 +48,44 @@ function corpus_human_text(columns::Int)
     end
 end
 
+function corpus_human_text(columns::Union{Nothing, Int})
+    return with_columns(
+        () -> begin
+            res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
+            AgentRuleLint.format_human(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
+        end,
+        columns,
+    )
+end
+
+function corpus_agent_text(columns::Union{Nothing, Int})
+    return with_columns(
+        () -> begin
+            res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
+            AgentRuleLint.format_agent(res; root = ROOT, io = IOContext(IOBuffer(), :color => false))
+        end,
+        columns,
+    )
+end
+
 @testset "output width" begin
-    @testset "corpus human respects COLUMNS and 80 cap" begin
-        out60 = corpus_human_text(60)
+    @testset "non-TTY human output is identical across COLUMNS" begin
+        outs = [corpus_human_text(c) for c in (nothing, 40, 200)]
+        @test all(o -> o == outs[1], outs)
+    end
+
+    @testset "agent output is identical across COLUMNS" begin
+        outs = [corpus_agent_text(c) for c in (nothing, 40, 200)]
+        @test all(o -> o == outs[1], outs)
+    end
+
+    @testset "corpus human respects pinned output_width and 80 cap" begin
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
+        plain = IOContext(IOBuffer(), :color => false)
+        out60 = AgentRuleLint.format_human(res; root = ROOT, io = plain, output_width = 60)
         assert_max_textwidth(out60, 60; skip_status_headers = true, skip_summary = true)
-        out200 = corpus_human_text(200)
-        assert_max_textwidth(out200, 80; skip_status_headers = true, skip_summary = true)
+        out80 = AgentRuleLint.format_human(res; root = ROOT, io = plain, output_width = 80)
+        assert_max_textwidth(out80, 80; skip_status_headers = true, skip_summary = true)
     end
 
     @testset "long do_not wraps with aligned prefix" begin
@@ -187,10 +222,96 @@ end
         end
     end
 
-    @testset "agent format width (single violation fixture)" begin
+    @testset "agent HIT lines never wrap (no continuation indent)" begin
         res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "split_string.jl")])
-        out = AgentRuleLint.format_agent(res; root = ROOT, io = IOBuffer(), output_width = 60)
-        assert_max_textwidth(out, 60; skip_status_headers = true)
+        out = AgentRuleLint.format_agent(res; root = ROOT, io = IOBuffer())
+        for line in split(out, '\n'; keepempty = false)
+            occursin(r"^HIT .+ \| ", line) || continue
+            @test !occursin(r"^ +", line)
+        end
+    end
+
+    @testset "agent keeps path and message; caps source excerpt only" begin
+        long_path = join(["segment" for _ in 1:24], "/") * ".jl"
+        long_msg = "diagnostic-message-" * ('m'^180)
+        d = AgentRuleLint.Violation(
+            "project/test",
+            :project,
+            :deny,
+            long_path,
+            AgentRuleLint.Span(2, 2, 2, 5),
+            2,
+            "v1:agentmeta",
+            :none,
+            false,
+            long_msg,
+            "short intent",
+            "short do_not",
+        )
+        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :agent, 20, 0, 1)
+        out = AgentRuleLint.format_agent(res; root = ROOT, io = IOBuffer())
+        loc = "$long_path:2:2-2:5"
+        @test occursin("RULE ", out)
+        @test occursin(long_path, out)
+        @test occursin(loc, out)
+        @test occursin(long_msg, out)
+        @test occursin("intent: short intent", out)
+        @test occursin("do_not: short do_not", out)
+        hit_lines = filter(l -> startswith(l, "HIT "), split(out, '\n'; keepempty = false))
+        @test length(hit_lines) == 1
+        @test hit_lines[1] == "HIT $loc | $long_msg"
+    end
+
+    @testset "agent caps long source excerpt with ellipsis" begin
+        excerpt_cap = 24
+        body = "secret"^40
+        rel = "tmp_agent_excerpt/line.jl"
+        absdir = joinpath(ROOT, "tmp_agent_excerpt")
+        mkpath(absdir)
+        write(joinpath(absdir, "line.jl"), body * "\n")
+        try
+            d = AgentRuleLint.Violation(
+                "project/test",
+                :project,
+                :deny,
+                rel,
+                AgentRuleLint.Span(1, 1, 1, length(body)),
+                1,
+                "v1:snip",
+                :none,
+                false,
+                "unused when snippet present",
+                "",
+                "",
+            )
+            res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :agent, 20, 0, 1)
+            out = AgentRuleLint.format_agent(
+                res;
+                root = ROOT,
+                io = IOBuffer(),
+                output_width = excerpt_cap,
+            )
+            hit = only(filter(l -> startswith(l, "HIT "), split(out, '\n'; keepempty = false)))
+            loc = "$rel:1:1-1:$(length(body))"
+            @test startswith(hit, "HIT $loc | ")
+            excerpt = split(hit, " | "; limit = 2)[2]
+            @test textwidth(excerpt) <= excerpt_cap
+            @test endswith(excerpt, "…")
+            @test excerpt != body
+        finally
+            rm(absdir; recursive = true, force = true)
+        end
+    end
+
+    @testset "human pinned output_width still wraps" begin
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus", "split_string.jl")])
+        out = AgentRuleLint.format_human(
+            res;
+            root = ROOT,
+            io = IOContext(IOBuffer(), :color => false),
+            output_width = 72,
+        )
+        assert_max_textwidth(out, 72; skip_status_headers = true, skip_summary = true)
     end
 
     @testset "summary verdict stays one line at narrow width with CLI override" begin

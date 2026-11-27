@@ -6,7 +6,8 @@ function format_agent(
         output_width::Union{Nothing, Int} = nothing,
         _agentrulelint_version::Union{Nothing, AbstractString} = nothing, # test-only: override the displayed version (see test_output_goldens.jl)
     )
-    width = resolve_output_width(io; output_width = output_width)
+    io isa IO || throw(ArgumentError("io must be an IO"))
+    excerpt_cap = resolve_agent_excerpt_cap(; output_width = output_width)
     hit_cap = something(max_hits, result.max_hits_per_rule)
     buf = IOBuffer()
     ceilings = result.ceilings
@@ -28,30 +29,22 @@ function format_agent(
         ceiling = rule_violation_total(ceilings, rid)
         ceiling_s = ceiling > 0 ? string(ceiling) : "-"
         rule_line = "RULE $orig $rid level=$lvl count=$total ceiling=$ceiling_s"
-        for ln in wrap_prose_lines("", "", rule_line, width)
-            println(buf, ln)
-        end
-        !isempty(all_ds[1].intent) &&
-            println_wrapped_labeled(buf, "", "intent: ", all_ds[1].intent, width)
-        !isempty(all_ds[1].do_not) &&
-            println_wrapped_labeled(buf, "", "do_not: ", all_ds[1].do_not, width)
+        println(buf, rule_line)
+        !isempty(all_ds[1].intent) && println(buf, "intent: ", all_ds[1].intent)
+        !isempty(all_ds[1].do_not) && println(buf, "do_not: ", all_ds[1].do_not)
         limit = min(total, hit_cap)
         for i in 1:limit
             d = all_ds[i]
             snip = snippet_for_violation(root, d)
             loc = format_span_loc(d)
-            hit_prefix = "HIT $loc | "
-            cont_prefix = repeat(' ', visible_textwidth(hit_prefix))
-            body = isempty(snip) ? d.message : snip
-            for ln in wrap_prose_lines(hit_prefix, cont_prefix, body, width)
-                println(buf, ln)
+            if isempty(snip)
+                println(buf, "HIT $loc | ", d.message)
+            else
+                excerpt = _agent_hit_excerpt(snip, excerpt_cap)
+                println(buf, "HIT $loc | ", excerpt)
             end
         end
-        total > limit && begin
-            for ln in wrap_prose_lines("", "", "... (+$(total - limit) omitted)", width)
-                println(buf, ln)
-            end
-        end
+        total > limit && println(buf, "... (+$(total - limit) omitted)")
         println(buf)
     end
     return String(take!(buf))
