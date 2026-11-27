@@ -1,6 +1,6 @@
 @testset "test-integrity rule" begin
     root = ROOT
-    cfg = read(joinpath(root, ".AgentRuleLintConfig.toml"), String)
+    cfg = read(joinpath(root, ".AgentRuleLint.jl.toml"), String)
 
     function check_rel(rel)
         return AgentRuleLint.check(root; paths = [rel])
@@ -38,7 +38,7 @@
         @test occursin("hollow or weakened tests", out)
         bad = abspath(mktempdir())
         try
-            write(joinpath(bad, ".AgentRuleLintConfig.toml"), "agentrulelint_version = \"=99.99.99\"\n")
+            write(joinpath(bad, ".AgentRuleLint.jl.toml"), "agentrulelint_version = \"=99.99.99\"\n")
             cd(bad) do
                 @test AgentRuleLint.cli_main(["explain", "test-integrity"]) == 2
             end
@@ -69,7 +69,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
             mkpath(joinpath(dir, "test"))
             write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
             write(joinpath(dir, "test", "case.jl"), "@test 1 == 1\n")
@@ -95,7 +95,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
             mkpath(joinpath(dir, "test"))
             write(joinpath(dir, "test", "approx.jl"), "isapprox(1.0, 2.0; atol=1e-12)\n")
             git_commit_all!(dir, "base")
@@ -114,7 +114,7 @@
     @testset "exit and Base.exit in driver" begin
         dir = abspath(mktempdir())
         try
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
             mkpath(joinpath(dir, "test"))
             write(joinpath(dir, "test", "runtests.jl"), "include(\"early.jl\")\n")
             write(joinpath(dir, "test", "early.jl"), "Base.exit(0)\n@test true\n")
@@ -139,7 +139,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
             mkpath(joinpath(dir, "test"))
             write(joinpath(dir, "test", "runtests.jl"), "# empty\n")
             git_commit_all!(dir, "base")
@@ -168,7 +168,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
             mkpath(joinpath(dir, "test"))
             write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
             write(joinpath(dir, "test", "case.jl"), "@test 1 == 1\n")
@@ -196,7 +196,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
             mkpath(joinpath(dir, "test"))
             write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
             write(joinpath(dir, "test", "case.jl"), "@test 1 == 1\n")
@@ -243,7 +243,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
             mkpath(joinpath(dir, "test"))
             write(joinpath(dir, "test", "runtests.jl"), "include(\"gone.jl\")\n")
             write(joinpath(dir, "test", "gone.jl"), "@test 1 == 1\n")
@@ -267,7 +267,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
             mkpath(joinpath(dir, "test"))
             write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
             write(joinpath(dir, "test", "case.jl"), "@test 1 == 1\n")
@@ -295,7 +295,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
             mkpath(joinpath(dir, "test"))
             write(joinpath(dir, "test", "runtests.jl"), "include(\"gone.jl\")\n")
             write(joinpath(dir, "test", "gone.jl"), "@test 1 == 1\n")
@@ -323,7 +323,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
             mkpath(joinpath(dir, "test"))
             write(
                 joinpath(dir, "test", "pair.jl"),
@@ -361,7 +361,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
             mkpath(joinpath(dir, "test"))
             write(
                 joinpath(dir, "test", "pair.jl"),

@@ -10,7 +10,7 @@ function main()
         run(Cmd(["git", "-C", dir, "config", "user.name", "mut"]))
         ver = string(pkgversion(AgentRuleLint))
         write(
-            joinpath(dir, ".AgentRuleLintConfig.toml"),
+            joinpath(dir, ".AgentRuleLint.jl.toml"),
             """
             agentrulelint_version = \"=$(ver)\"
 

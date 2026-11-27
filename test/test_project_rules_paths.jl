@@ -6,7 +6,7 @@ function tmp_repo(config_body::AbstractString)
     root = abspath(mktempdir())
     ver = string(pkgversion(AgentRuleLint))
     hdr = "agentrulelint_version = \"=$(ver)\"\n\n"
-    write(joinpath(root, ".AgentRuleLintConfig.toml"), hdr * config_body)
+    write(joinpath(root, ".AgentRuleLint.jl.toml"), hdr * config_body)
     return root
 end
 

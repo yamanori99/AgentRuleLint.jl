@@ -6,7 +6,7 @@
     @testset "explain: invalid config exits 2" begin
         dir = mktempdir()
         try
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), "agentrulelint_version = \"=99.99.99\"\n")
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), "agentrulelint_version = \"=99.99.99\"\n")
             err_path = tempname()
             code = cd(dir) do
                 open(err_path, "w") do err_io

@@ -10,7 +10,7 @@
     @testset "config unknown top-level key" begin
         root = mktempdir()
         try
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), minimal_config("oops = true\n"))
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), minimal_config("oops = true\n"))
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
@@ -27,7 +27,7 @@
                 typo = true
                 """,
             )
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), cfg)
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
@@ -47,7 +47,7 @@
                 extra = 1
                 """,
             )
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), cfg)
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
@@ -69,7 +69,7 @@
                     $extra
                     """,
                 )
-                write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+                write(joinpath(root, ".AgentRuleLint.jl.toml"), cfg)
                 err = try
                     AgentRuleLint.check(root)
                     nothing
@@ -93,7 +93,7 @@
                 level = \"mystery\"
                 """,
             )
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), cfg)
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
@@ -104,7 +104,7 @@
         root = mktempdir()
         try
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 minimal_config("presets = [\"not-a-real-preset\"]\n"),
             )
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
@@ -117,7 +117,7 @@
         root = mktempdir()
         try
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 minimal_config("default_format = \"xml\"\n"),
             )
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
@@ -136,7 +136,7 @@
                 on_allow_rule = \"nope\"
                 """,
             )
-            write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+            write(joinpath(root, ".AgentRuleLint.jl.toml"), cfg)
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
         finally
             rm(root, recursive = true, force = true)
@@ -177,7 +177,7 @@
             agentrulelint_version = \"=$(ver)\"
             default_format = \"json\"
             """
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), cfg_head)
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg_head)
             write(joinpath(dir, "ok.jl"), "1\n")
             run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
             run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "j@test"]); dir = dir))
@@ -190,7 +190,7 @@
                 ),
             )
             write(
-                joinpath(dir, ".AgentRuleLintConfig.toml"),
+                joinpath(dir, ".AgentRuleLint.jl.toml"),
                 "agentrulelint_version = \"=$(ver)\"\ndefault_format = \"human\"\n",
             )
             res = AgentRuleLint.check(dir; config_from = "HEAD", paths = ["ok.jl"])
@@ -211,7 +211,7 @@
         try
             write(joinpath(root, "sample.jl"), "x = 1\n")
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 minimal_config("default_format = \"json\"\n"),
             )
             out = joinpath(root, "out.txt")
@@ -230,7 +230,7 @@
         try
             write(joinpath(root, "sample.jl"), "x = 1\n")
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 minimal_config("default_format = \"json\"\n"),
             )
             out = joinpath(root, "out.txt")
@@ -256,7 +256,7 @@
                     $raw
                     """,
                 )
-                write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+                write(joinpath(root, ".AgentRuleLint.jl.toml"), cfg)
                 write(joinpath(root, "sample.jl"), "x = 1\n")
                 @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)
                 cd(root) do
@@ -272,7 +272,7 @@
         root = mktempdir()
         try
             write(
-                joinpath(root, ".AgentRuleLintConfig.toml"),
+                joinpath(root, ".AgentRuleLint.jl.toml"),
                 minimal_config("max_hits_per_rule = \"twenty\"\n"),
             )
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(root)

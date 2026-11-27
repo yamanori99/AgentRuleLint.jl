@@ -11,7 +11,7 @@
         intent = \"test\"
         do_not = \"test\"
         """
-        write(joinpath(root, ".AgentRuleLintConfig.toml"), cfg)
+        write(joinpath(root, ".AgentRuleLint.jl.toml"), cfg)
     end
 
     function materialize_toml_fixtures!(root::AbstractString)

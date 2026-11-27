@@ -64,7 +64,7 @@ One change per PR. CI green.
 
 Until [#70](https://github.com/yamanori99/AgentRuleLint.jl/issues/70) lands an
 approval path agents cannot forge, every PR that edits protected paths (including
-`.AgentRuleLintConfig.toml`, and the broader set #70 will add) fails
+`.AgentRuleLint.jl.toml`, and the broader set #70 will add) fails
 `protected-paths` by design. Merging red PRs without a written rule would
 normalize ignoring the check. Use this procedure instead (tracked in
 [#71](https://github.com/yamanori99/AgentRuleLint.jl/issues/71)):

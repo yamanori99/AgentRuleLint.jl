@@ -1,3 +1,4 @@
+using AgentRuleLint
 using Test
 
 # ROOT comes from ParallelTestRunner init_code in test/runtests.jl.
@@ -46,7 +47,7 @@ end
 
 function _fingerprint_scratch_root()
     scratch = mktempdir()
-    for name in (".AgentRuleLintConfig.toml", "Project.toml", "Manifest.toml")
+    for name in (AgentRuleLint.CONFIG_FILENAME, "Project.toml", "Manifest.toml")
         cp(joinpath(ROOT, name), joinpath(scratch, name))
     end
     corpus_dst = joinpath(scratch, "test", "corpus")

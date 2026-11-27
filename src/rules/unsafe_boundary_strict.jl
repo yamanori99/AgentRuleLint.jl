@@ -4,7 +4,7 @@ Wrong `@inbounds` is undefined behavior; on many hot paths bounds checks are nea
 """
 
 const _UNSAFE_BOUNDARY_STRICT_EXPLAIN_CONFIG = """
-Opt-in via `presets = ["unsafe-boundary/strict"]` in `.AgentRuleLintConfig.toml`.
+Opt-in via `presets = ["unsafe-boundary/strict"]` in `$CONFIG_FILENAME`.
 `[rules."unsafe-boundary/strict"]` without the preset is ConfigError.
 Respects `[rules.unsafe-boundary]` `allow_modules` / `allow_globs` when that rule is configured.
 """

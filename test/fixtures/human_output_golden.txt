@@ -18,6 +18,6 @@ AgentRuleLint v<VERSION> (policy bundle base: origin/main @ 9f2c1a4e, pos: utf8-
 │     forbidden literal matched (folded)
 │     > secret = "INT" * "ERNAL_CODENAME"
 │                ~~~~~~~~~~~~~~~~~~~~~~~~
-└ @ Project .AgentRuleLintConfig.toml ([[project_rules]])
+└ @ Project .AgentRuleLint.jl.toml ([[project_rules]])
 
 Summary: 2 violations across 2 rules (1 [AgentRuleLint], 1 [Project]) — FAILED (exit 1)

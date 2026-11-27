@@ -8,7 +8,7 @@
 # 2. No config file — goldens in test/goldens/output/no_config/
 # 3. Minimal config (rules without intent/do_not) — goldens in
 #    test/goldens/output/minimal_config/ (fixture TOML:
-#    minimal_config/AgentRuleLintConfig.toml)
+#    minimal_config/.AgentRuleLint.jl.toml)
 #
 # #82 / #83: inactive built-in `explain` succeeds with
 # `level: <level> (default when enabled)` and `status: not enabled in this
@@ -124,7 +124,7 @@ function _temp_corpus_root(; config_text::Union{Nothing, AbstractString} = nothi
     mkpath(joinpath(tmp, "test"))
     cp(joinpath(ROOT, "test", "corpus"), joinpath(tmp, "test", "corpus"); force = true)
     if config_text !== nothing
-        write(joinpath(tmp, ".AgentRuleLintConfig.toml"), config_text)
+        write(joinpath(tmp, ".AgentRuleLint.jl.toml"), config_text)
     end
     return tmp
 end
@@ -213,7 +213,7 @@ end
     @testset "no config: check and explain" begin
         tmp = _temp_corpus_root()
         try
-            @assert !isfile(joinpath(tmp, ".AgentRuleLintConfig.toml"))
+            @assert !isfile(joinpath(tmp, ".AgentRuleLint.jl.toml"))
             gdir = joinpath(OUTPUT_GOLDEN_DIR, "no_config")
             _assert_check_goldens(gdir, tmp)
             _assert_explain_goldens(gdir, OUTPUT_GOLDEN_NO_CONFIG_EXPLAIN_IDS; root = tmp)
@@ -226,7 +226,7 @@ end
         # #82: inactive built-ins are explainable; status marks them as not enabled.
         tmp = _temp_corpus_root()
         try
-            @assert !isfile(joinpath(tmp, ".AgentRuleLintConfig.toml"))
+            @assert !isfile(joinpath(tmp, ".AgentRuleLint.jl.toml"))
             gdir = joinpath(OUTPUT_GOLDEN_DIR, "no_config")
             for id in OUTPUT_GOLDEN_NO_CONFIG_INACTIVE_EXPLAIN_IDS
                 text = AgentRuleLint.explain_rule(id; root = tmp)
@@ -331,13 +331,13 @@ end
 
     @testset "minimal config: check and explain" begin
         fixture = read(
-            joinpath(OUTPUT_GOLDEN_DIR, "minimal_config", "AgentRuleLintConfig.toml"),
+            joinpath(OUTPUT_GOLDEN_DIR, "minimal_config", ".AgentRuleLint.jl.toml"),
             String,
         )
         tmp = _temp_corpus_root(; config_text = fixture)
         try
             gdir = joinpath(OUTPUT_GOLDEN_DIR, "minimal_config")
-            cfg = joinpath(tmp, ".AgentRuleLintConfig.toml")
+            cfg = joinpath(tmp, ".AgentRuleLint.jl.toml")
             _assert_check_goldens(gdir, tmp; config_path = cfg)
             _assert_explain_goldens(gdir, OUTPUT_GOLDEN_EXPLAIN_IDS; root = tmp)
         finally

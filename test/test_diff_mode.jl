@@ -36,7 +36,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_project_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
             write(joinpath(dir, "target.jl"), "x = 1\ny = 2\n")
             git_commit_all!(dir, "base")
             write(joinpath(dir, "target.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\ny = 2\n")
@@ -59,7 +59,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_project_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
             write(joinpath(dir, "oldname.jl"), "1\n")
             git_commit_all!(dir, "base")
             mv(joinpath(dir, "oldname.jl"), joinpath(dir, "renamed.jl"))
@@ -86,7 +86,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_project_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
             write(joinpath(dir, "gone.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
             git_commit_all!(dir, "base")
             rm(joinpath(dir, "gone.jl"))
@@ -104,7 +104,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_project_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
             write(joinpath(dir, "merge_me.jl"), "ok = 1\n")
             git_commit_all!(dir, "main base")
             run(setenv(Cmd(["git", "-C", dir, "checkout", "-q", "-b", "side"]); dir = dir))
@@ -142,7 +142,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_project_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
             write(joinpath(dir, "quiet.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
             git_commit_all!(dir, "base")
             run(
@@ -164,7 +164,7 @@
     @testset "fail-closed git errors (exact messages)" begin
         dir = abspath(mktempdir())
         try
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_project_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
             err = try
                 AgentRuleLint.check(dir; diff_base = "HEAD^1")
                 nothing
@@ -207,7 +207,7 @@
         dir = abspath(mktempdir())
         try
             init_git_repo!(dir)
-            write(joinpath(dir, ".AgentRuleLintConfig.toml"), minimal_project_cfg())
+            write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
             write(joinpath(dir, "t.jl"), "1\n")
             git_commit_all!(dir, "base")
             write(joinpath(dir, "t.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")

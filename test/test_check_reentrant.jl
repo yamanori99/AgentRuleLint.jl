@@ -10,7 +10,7 @@ const REENTRANT_MINIMAL_CFG = joinpath(
     "goldens",
     "output",
     "minimal_config",
-    "AgentRuleLintConfig.toml",
+    ".AgentRuleLint.jl.toml",
 )
 const REENTRANT_SPAWN_WORKER = joinpath(@__DIR__, "check_reentrant_spawn_worker.jl")
 
@@ -28,7 +28,7 @@ function _reentrant_temp_root(; config_path::Union{Nothing, AbstractString} = no
     tmp = mktempdir()
     _reentrant_seed_corpus!(tmp)
     if config_path !== nothing
-        cp(config_path, joinpath(tmp, ".AgentRuleLintConfig.toml"); force = true)
+        cp(config_path, joinpath(tmp, ".AgentRuleLint.jl.toml"); force = true)
     end
     return tmp
 end
@@ -88,7 +88,7 @@ end
     @testset "no config file" begin
         tmp = _reentrant_temp_root()
         try
-            @test !isfile(joinpath(tmp, ".AgentRuleLintConfig.toml"))
+            @test !isfile(joinpath(tmp, ".AgentRuleLint.jl.toml"))
             seq = AgentRuleLint.check(tmp; paths = REENTRANT_PATHS)
             push!(spawn_roots, tmp)
             _assert_async_parallel(seq, tmp)

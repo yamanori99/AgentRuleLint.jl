@@ -13,7 +13,7 @@ function strip_ansi_local(s::AbstractString)
 end
 
 function check_result_fixture()
-    cs = AgentRuleLint.ConfigSource(:path, ".AgentRuleLintConfig.toml", "", "")
+    cs = AgentRuleLint.ConfigSource(:path, ".AgentRuleLint.jl.toml", "", "")
     d = AgentRuleLint.Violation(
         "project/no-internal-codename",
         :project,
@@ -288,7 +288,7 @@ end
         try
             ver = string(pkgversion(AgentRuleLint))
             write(
-                joinpath(dir, ".AgentRuleLintConfig.toml"),
+                joinpath(dir, ".AgentRuleLint.jl.toml"),
                 """
                 agentrulelint_version = \"=$(ver)\"
                 presets = [\"shell-safety\"]
