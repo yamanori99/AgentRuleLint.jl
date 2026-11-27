@@ -151,6 +151,10 @@ jobs:
           echo "juliasyntax-master-ci: JuliaLang/julia master=${master}"
           echo "master_sha=${master}" >> "${GITHUB_OUTPUT}"
 
+      - name: Instantiate main project
+        shell: bash
+        run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
+
       - name: Resolve JuliaSyntax from julia master
         shell: bash
         env:
