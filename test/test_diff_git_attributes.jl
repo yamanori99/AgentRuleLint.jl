@@ -244,4 +244,90 @@
             rm(dir, recursive = true, force = true)
         end
     end
+
+    @testset "hunk line counts disagree with numstat throws GitError" begin
+        body = "@@ -10,3 +10,1 @@\n"
+        @test_throws AgentRuleLint.GitError r"path=target\.jl" begin
+            AgentRuleLint._changed_lines_from_diff_output(
+                body,
+                "2\t3\ttarget.jl",
+                "2\t3\ttarget.jl",
+                "target.jl",
+            )
+        end
+    end
+
+    @testset "deletion-only hunk in temp repo" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(
+                joinpath(dir, "target.jl"),
+                "keep = 1\nx = \"FORBIDDEN_DIFF_TOKEN\"\ntail = 3\n",
+            )
+            git_commit_all!(dir, "base")
+            write(joinpath(dir, "target.jl"), "keep = 1\ntail = 3\n")
+            git_commit_all!(dir, "delete middle line")
+            cd(dir) do
+                scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                lines = AgentRuleLint.diff_changed_lines(scope, "target.jl")
+                @test isempty(lines)
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                lit = filter(d -> d.rule_id == "project/diff-literal", res.violations)
+                @test isempty(lit)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "deletion and addition hunks report only new lines" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, "target.jl"), "a = 1\nb = 2\nc = 3\n")
+            git_commit_all!(dir, "base")
+            write(
+                joinpath(dir, "target.jl"),
+                "a = \"FORBIDDEN_DIFF_TOKEN\"\nb = 2\n",
+            )
+            git_commit_all!(dir, "delete tail and edit head")
+            cd(dir) do
+                scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                lines = AgentRuleLint.diff_changed_lines(scope, "target.jl")
+                @test lines == Set([1])
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                lit = filter(
+                    d -> d.rule_id == "project/diff-literal" && !d.suppressed,
+                    res.violations,
+                )
+                @test length(lit) == 1
+                @test first(lit).span.start_line == 1
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "whole file deletion in temp repo" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, "gone.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
+            git_commit_all!(dir, "base")
+            rm(joinpath(dir, "gone.jl"))
+            git_commit_all!(dir, "delete file")
+            cd(dir) do
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                lit = filter(d -> d.rule_id == "project/diff-literal", res.violations)
+                @test isempty(lit)
+                @test res.exit_code == 0
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
 end

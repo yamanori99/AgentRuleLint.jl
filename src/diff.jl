@@ -165,24 +165,36 @@ function git_diff_path_events(root::AbstractString, base::AbstractString)
     return _parse_diff_path_events_payload(String(bytes))
 end
 
-const _HUNK_RE = r"^@@ -\d+(?:,\d+)? \+(\d+)(?:,(\d+))? @@"
+const _HUNK_RE = r"^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@"
 
-function _parse_unified_hunks(body::AbstractString)
+function _parse_unified_hunk_stats(body::AbstractString)
     lines = Set{Int}()
+    nhunks = 0
+    old_sum = 0
+    new_sum = 0
     for line in split(body, '\n'; keepempty = false)
         m = match(_HUNK_RE, line)
         m === nothing && continue
-        cap1 = m.captures[1]
-        cap1 === nothing && continue
-        start_new = parse(Int, cap1)
-        cap2 = m.captures[2]
-        len = cap2 === nothing ? 1 : parse(Int, cap2)
-        len > 0 || continue
-        for ln in start_new:(start_new + len - 1)
+        nhunks += 1
+        cap_old_len = m.captures[2]
+        old_len = cap_old_len === nothing ? 1 : parse(Int, cap_old_len)
+        cap_new_start = m.captures[3]
+        cap_new_start === nothing && continue
+        new_start = parse(Int, cap_new_start)
+        cap_new_len = m.captures[4]
+        new_len = cap_new_len === nothing ? 1 : parse(Int, cap_new_len)
+        old_sum += old_len
+        new_sum += new_len
+        new_len > 0 || continue
+        for ln in new_start:(new_start + new_len - 1)
             push!(lines, ln)
         end
     end
-    return lines
+    return (; lines, nhunks, old_sum, new_sum)
+end
+
+function _parse_unified_hunks(body::AbstractString)
+    return _parse_unified_hunk_stats(body).lines
 end
 
 function _numstat_line_binary(line::AbstractString)
@@ -379,20 +391,33 @@ function _changed_lines_from_diff_output(
     )
     body = String(body)
     path = String(path)
-    lines = _parse_unified_hunks(body)
+    stats = _parse_unified_hunk_stats(body)
+    lines = stats.lines
     _, _, probe_binary = _numstat_totals(numstat_probe)
     if probe_binary && isempty(lines)
         throw(GitError("git diff numstat probe binary for path=$(path) (fail closed)"))
     end
-    add, del, _ = _numstat_totals(numstat_text)
-    if isempty(lines)
-        _diff_mode_only_metadata(body) && return lines
-        _diff_pure_rename_copy_metadata(body) && return lines
-        (add > 0 || del > 0) &&
-            throw(GitError("git diff numstat reports content change without hunks for path=$(path)"))
-        _diff_has_content_delta(body) &&
-            throw(GitError("git diff produced no changed lines for path=$(path) (fail closed)"))
+    add, del, text_binary = _numstat_totals(numstat_text)
+    if stats.nhunks > 0
+        # Rename/copy use 0/0 numstat while `--text` unified diffs show file contents.
+        skip_rename_numstat = add == 0 && del == 0 && _diff_has_content_delta(body)
+        if !text_binary && !skip_rename_numstat && (stats.new_sum != add || stats.old_sum != del)
+            throw(
+                GitError(
+                    "git diff hunk line counts disagree with numstat for path=$(path): " *
+                        "hunks new=$(stats.new_sum) old=$(stats.old_sum); " *
+                        "numstat add=$(add) del=$(del)",
+                ),
+            )
+        end
+        return lines
     end
+    _diff_mode_only_metadata(body) && return lines
+    _diff_pure_rename_copy_metadata(body) && return lines
+    (add > 0 || del > 0) &&
+        throw(GitError("git diff numstat reports content change without hunks for path=$(path)"))
+    _diff_has_content_delta(body) &&
+        throw(GitError("git diff produced no changed lines for path=$(path) (fail closed)"))
     return lines
 end
 
