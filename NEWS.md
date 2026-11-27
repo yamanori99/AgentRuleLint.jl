@@ -4,6 +4,18 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 
 ## Unreleased (0.1.0-DEV)
 
+### **[CI-breaking]** Diff scope uses `git diff --text`; `.gitattributes` and `.gitmodules` protected
+
+`check --diff` passes `--text` on all git diff invocations so changed-line selection does
+not follow repository `.gitattributes`. A `git diff --numstat` probe without `--text`
+that reports `-\t-` for a path is treated as binary; modified paths without line hunks
+then fail closed with `GitError` (exit 2), except mode-only or pure rename/copy metadata.
+
+`protected-paths` now auto-forbids edits to `.gitattributes` and `.gitmodules`.
+
+Repos that change those files without review may see new `protected-paths` findings or
+exit 2 when diff scope cannot resolve changed lines.
+
 ### `exit_severity` and `--exit-severity`
 
 `check` can raise the fail threshold to `deny` or `forbid` via config

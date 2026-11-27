@@ -6,6 +6,8 @@ const AUTO_PROTECTED_EXACT = Set(
     [
         ".AgentRuleLintConfig.toml",
         ".JETLSConfig.toml",
+        ".gitattributes",
+        ".gitmodules",
         "JuliaManifest.toml",
         "LocalPreferences.toml",
     ],
@@ -30,6 +32,10 @@ function auto_protected_reason(path::AbstractString)
     p = normalize_path(path)
     p == ".AgentRuleLintConfig.toml" &&
         return "AgentRuleLint policy must not be weakened by agents."
+    p == ".gitattributes" &&
+        return "`.gitattributes` controls git diff and merge behavior and must not be weakened."
+    p == ".gitmodules" &&
+        return "`.gitmodules` submodule configuration requires explicit human review."
     _under_agentrulelint(p) && return "`.agentrulelint/` integrity files require explicit human review."
     p == ".JETLSConfig.toml" &&
         return "JETLS diagnostic settings require explicit human review."
@@ -258,8 +264,8 @@ Runs only with `--diff <base>`. Reports nothing on a full-tree `check` without `
 
 Auto-protected paths include `.AgentRuleLintConfig.toml`, `.agentrulelint/**`
 (except `.agentrulelint/ceilings.toml` when the diff is monotonic non-increasing),
-`.JETLSConfig.toml`, `Manifest*.toml`, `JuliaManifest.toml`, `LocalPreferences.toml`,
-and every repo-relative `Project.toml`.
+`.gitattributes`, `.gitmodules`, `.JETLSConfig.toml`, `Manifest*.toml`, `JuliaManifest.toml`,
+`LocalPreferences.toml`, and every repo-relative `Project.toml`.
 
 `project_toml_policy = "semantic"` (default) allows adding `[deps]` entries and `[compat]`
 for newly added deps. Any change to `[sources]` or `[workspace]`, compat removal, or any
