@@ -4,7 +4,7 @@
 
 ## Test plan
 
-- [ ] Local pre-push gate (Runic, trailing newlines, `git diff --check`, `Pkg.test()`)
+- [ ] Local pre-push gate: [`.agents/skills/pre-push-gate/SKILL.md`](../.agents/skills/pre-push-gate/SKILL.md)
 - [ ] CI green on this head (or only `protected-paths` red per interim procedure)
 
 ## Protected paths changed

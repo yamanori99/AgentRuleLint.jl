@@ -7,41 +7,21 @@ description: >
 
 # Rule authoring
 
-## Identity
+IDs are kebab-case slugs, `<preset>/<slug>`, or `project/<slug>`. Never reuse a retired slug.
 
-Canonical rule IDs are **kebab-case slugs only**:
+One file per rule under `src/rules/`. Register it sorted by id in
+`src/rules/builtin_rules.jl`. `intent` and `do_not` live only in that definition
+(guards: `test/test_rule_def_explain_parity.jl`, `test/test_rule_registration.jl`).
 
-- `<slug>`
-- `<preset>/<slug>`
-- `project/<slug>`
+`do_not` names the category of forbidden action, not a list of bypass
+techniques. Technique lists belong in corpus files and test comments.
 
-Never use numeric `JA*` or `JP*` codes. Never reuse a retired slug.
+Ship a positive corpus file and an evasion corpus file. Add a mutation case
+that proves the detector is live. Update Runic invariance when formatting-sensitive
+behavior changes.
 
-## Rule shape
+Rules are pure: no pull-request code execution, no `eval`, no I/O or git inside
+rule logic.
 
-Each rule documents:
-
-- **intent** — what invariant it protects
-- **do_not** — patterns and evasions that must fail
-- **fix** — how to correct a violation
-- **anchor line** — where diagnostics attach in source
-
-Rules are **pure functions**: no pull-request code execution, no `eval`, no I/O or git access inside rule logic.
-
-## Corpus
-
-Ship **golden** (must pass) and **adversarial** (must fail) examples. Adversarial cases cover evasion patterns (concatenation, indirect names, comment tricks).
-
-Add or update **Runic invariance** coverage in `test/test_runic_invariance.jl` when formatting-sensitive behavior changes.
-
-## Non-goals (do not implement as rules)
-
-| ID | Non-goal |
-| --- | --- |
-| NG1 | Runtime test execution inside the linter |
-| NG2 | Network or registry access during `check` |
-| NG3 | Mutating the repo or git state |
-| NG4 | Executing user code from the PR diff |
-| NG5 | Policy that belongs in CI shell gates instead of static rules |
-
-Before merging a new rule, read `AGENTS.md` and `CONTRIBUTING.md` when present on the branch.
+Non-goals: `CONTRIBUTING.md` (“Non-goals (NG1–NG5)”).
+Read `AGENTS.md` before merging a new rule.
