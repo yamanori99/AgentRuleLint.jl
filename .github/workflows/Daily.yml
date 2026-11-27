@@ -175,6 +175,15 @@ jobs:
           export JULIASYNTAX_EXPECTED_TREE="${expected_tree}"
           julia --startup-file=no .github/juliasyntax-master-resolve.jl
 
+      # Ephemeral runner-only commit after resolve rewrites Project.toml/Manifest.toml (#137 test_src_untouched).
+      # contents: read and checkout persist-credentials: false — this commit cannot be pushed.
+      - name: Record ephemeral JuliaSyntax resolve in local git
+        shell: bash
+        run: |
+          set -euo pipefail
+          git add Project.toml Manifest.toml
+          git -c user.name=ci -c user.email=ci@localhost commit -m "ephemeral daily ci: JuliaSyntax at JuliaLang/julia master (runner only, not pushed)"
+
       - name: Instantiate main project
         shell: bash
         run: julia --startup-file=no --project=. -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
