@@ -159,7 +159,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     end
 
     for fc in contexts
-        used = get(used_by_path, fc.parsed.path, Set{Int}())
+        used = used_by_path[fc.parsed.path]
         append!(all_diags, unused_expect_diagnostics(fc.expects, used, fc, policy, all_diags))
     end
 
