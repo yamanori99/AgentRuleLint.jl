@@ -14,7 +14,6 @@ const TOP_LEVEL_CONFIG_KEYS = Set(
     ]
 )
 const VALID_EXIT_SEVERITY = Set([:forbid, :deny, :warn])
-const DEFAULT_EXIT_SEVERITY = :warn
 const RULE_TABLE_KEYS = Set(["level", "intent", "do_not"])
 const EXPECT_AUDIT_RULE_KEYS = Set(["level", "intent", "do_not", "on_allow_rule"])
 const SILENT_CATCH_RULE_KEYS = Set(["level", "intent", "do_not", "warn_counts_as_handling"])

@@ -34,8 +34,8 @@ Assuming `~/.julia/bin` is in your `PATH` you can invoke `agentrulelint` from
 your shell (or `pkg> app add https://github.com/yamanori99/AgentRuleLint.jl` in
 the Pkg REPL).
 
-Exit 0 means no violations, 1 means violations at `warn` or above, 2 a config
-or usage error, 3 an internal error. `exit_severity` in the config, or
+Exit 0 means no finding at or above the threshold (default `warn`), 1 means at
+least one, 2 a config or usage error, 3 an internal error. `exit_severity` in the config, or
 `--exit-severity` for one run, raises the threshold to `deny` or `forbid`;
 `forbid` findings always fail, and a CLI override is shown in the verdict line.
 

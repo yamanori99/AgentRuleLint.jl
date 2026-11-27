@@ -238,7 +238,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
 
     vcount = count(is_violation_hit, all_diags)
     scount = count(d -> d.suppressed, all_diags)
-    threshold, thr_source, baseline = resolve_exit_severity(
+    threshold, thr_source, baseline, baseline_src = resolve_exit_severity(
         policy;
         exit_severity = get(kwargs, :exit_severity, nothing),
     )
@@ -273,6 +273,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         exit_severity = threshold,
         exit_severity_source = thr_source,
         baseline_exit_severity = baseline,
+        baseline_exit_severity_source = baseline_src,
         below_threshold_count = below_n,
         below_threshold_level = below_lvl,
     )

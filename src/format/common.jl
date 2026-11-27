@@ -103,7 +103,7 @@ end
 function verdict_exit_paren(result::CheckResult)
     parts = String["exit $(result.exit_code)"]
     if result.exit_severity_source == :cli && result.exit_severity != result.baseline_exit_severity
-        baseline_word = result.config_source.kind == :builtin ? "default" : "config"
+        baseline_word = result.baseline_exit_severity_source == :default ? "default" : "config"
         push!(
             parts,
             "threshold $(result.exit_severity) from --exit-severity, $(baseline_word) $(result.baseline_exit_severity)",

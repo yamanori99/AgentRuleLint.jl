@@ -58,6 +58,8 @@ end
 
 Base.:(==)(a::CeilingEntry, b::CeilingEntry) = isequal(a, b)
 
+const DEFAULT_EXIT_SEVERITY = :warn
+
 struct CheckResult
     violations::Vector{Violation}
     complete::Bool
@@ -71,6 +73,7 @@ struct CheckResult
     exit_severity::Symbol
     exit_severity_source::Symbol
     baseline_exit_severity::Symbol
+    baseline_exit_severity_source::Symbol
     below_threshold_count::Int
     below_threshold_level::Symbol
 
@@ -84,9 +87,10 @@ struct CheckResult
             suppressed_count::Int,
             violation_count::Int;
             ceilings::CeilingEntry = CeilingEntry(Dict(), Dict()),
-            exit_severity::Symbol = :warn,
+            exit_severity::Symbol = DEFAULT_EXIT_SEVERITY,
             exit_severity_source::Symbol = :default,
-            baseline_exit_severity::Symbol = :warn,
+            baseline_exit_severity::Symbol = DEFAULT_EXIT_SEVERITY,
+            baseline_exit_severity_source::Symbol = :default,
             below_threshold_count::Int = 0,
             below_threshold_level::Symbol = :none,
         )
@@ -103,6 +107,7 @@ struct CheckResult
             exit_severity,
             exit_severity_source,
             baseline_exit_severity,
+            baseline_exit_severity_source,
             below_threshold_count,
             below_threshold_level,
         )

@@ -94,6 +94,40 @@
         end
     end
 
+    @testset "CLI override without config exit_severity labels default baseline" begin
+        root = mktempdir()
+        old = pwd()
+        try
+            cfg = joinpath(root, ".AgentRuleLintConfig.toml")
+            write(cfg, _pin_config())
+            cd(ROOT)
+            mktemp() do path, io
+                redirect_stdout(io) do
+                    code = AgentRuleLint.cli_main(
+                        [
+                            "check",
+                            "--config",
+                            cfg,
+                            "--format",
+                            "human",
+                            "--exit-severity",
+                            "deny",
+                            "test/corpus/unsafe_allow_module.jl",
+                        ],
+                    )
+                    @test code == 0
+                end
+                flush(io)
+                out = replace(read(path, String), r"\s+" => " ")
+                @test occursin("default warn", out)
+                @test !occursin("config warn", out)
+            end
+        finally
+            cd(old)
+            rm(root, recursive = true, force = true)
+        end
+    end
+
     @testset "CLI raise threshold prints override and below-threshold count" begin
         root = mktempdir()
         old = pwd()

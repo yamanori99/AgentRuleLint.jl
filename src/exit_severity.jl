@@ -37,11 +37,12 @@ function _parse_exit_severity_cli(raw)
     return sym
 end
 
-"""Return `(threshold, source, baseline)` with `source` in `:default`, `:config`, `:cli`."""
+"""Return `(threshold, threshold_source, baseline, baseline_source)`."""
 function resolve_exit_severity(policy::PolicyBundle; exit_severity = nothing)
     baseline = policy.exit_severity
+    baseline_src = policy.exit_severity_source
     if exit_severity === nothing
-        return baseline, policy.exit_severity_source, baseline
+        return baseline, baseline_src, baseline, baseline_src
     end
-    return _parse_exit_severity_cli(exit_severity), :cli, baseline
+    return _parse_exit_severity_cli(exit_severity), :cli, baseline, baseline_src
 end
