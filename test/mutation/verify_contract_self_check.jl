@@ -19,10 +19,10 @@ _expect_verify_script_crash("error(\"deliberate\")")
 _expect_verify_script_crash("exit(1)")
 
 # Vacuous verify: always reports detected → control run must exit 3 (harness CRASH).
-vacuous_src = joinpath(@__DIR__, ".vacuous_probe.jl")
-open(vacuous_src, "w") do io
-    println(
-        io,
+mktempdir() do tmp
+    vacuous_src = joinpath(tmp, "vacuous_probe.jl")
+    write(
+        vacuous_src,
         """
         include($(repr(joinpath(@__DIR__, "mutation_lib.jl"))))
         run_source_mutation(;
@@ -34,17 +34,16 @@ open(vacuous_src, "w") do io
         )
         """,
     )
-end
-vacuous_proc = run(
-    ignorestatus(
-        setenv(
-            `$(Base.julia_cmd()) --startup-file=no --project=$(MUTATION_ROOT) $(vacuous_src)`;
-            dir = MUTATION_ROOT,
+    vacuous_proc = run(
+        ignorestatus(
+            setenv(
+                `$(Base.julia_cmd()) --startup-file=no --project=$(MUTATION_ROOT) $(vacuous_src)`;
+                dir = MUTATION_ROOT,
+            ),
         ),
-    ),
-)
-rm(vacuous_src; force = true)
-vacuous_proc.exitcode == 3 ||
-    error("vacuous control expected exit 3, got $(vacuous_proc.exitcode)")
+    )
+    vacuous_proc.exitcode == 3 ||
+        error("vacuous control expected exit 3, got $(vacuous_proc.exitcode)")
+end
 
 println("PASS: verify contract self-check")

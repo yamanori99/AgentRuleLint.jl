@@ -58,7 +58,15 @@ Run a verify subprocess with a strict exit contract:
 """
 function mutation_verify_detected(cmd::Cmd; dir::AbstractString)
     proc = run(ignorestatus(setenv(cmd; dir = dir)))
+    sig = proc.termsignal
     code = proc.exitcode
+    if sig != 0
+        throw(
+            MutationVerifyCrashed(
+                "verify subprocess terminated by signal $sig (exit $code): $cmd",
+            ),
+        )
+    end
     code == 0 && return false
     code == _MUTATION_VERIFY_DETECTED_EXIT && return true
     throw(
