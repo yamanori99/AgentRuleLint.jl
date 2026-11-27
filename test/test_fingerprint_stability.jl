@@ -13,12 +13,6 @@ function sole_fp(res::CheckResult, pred)
 end
 
 function _git_commit_scratch!(scratch::AbstractString)
-    env = Dict(
-        "GIT_AUTHOR_NAME" => "test",
-        "GIT_AUTHOR_EMAIL" => "test@test",
-        "GIT_COMMITTER_NAME" => "test",
-        "GIT_COMMITTER_EMAIL" => "test@test",
-    )
     run(setenv(Cmd(["git", "-C", scratch, "add", "-A"]); dir = scratch))
     run(
         setenv(
@@ -35,9 +29,16 @@ function _git_commit_scratch!(scratch::AbstractString)
                 "--allow-empty",
             ]);
             dir = scratch,
-            env = env,
         ),
     )
+    return nothing
+end
+
+function _init_scratch_git!(scratch::AbstractString)
+    run(setenv(Cmd(["git", "-C", scratch, "init", "-q", "-b", "main"]); dir = scratch))
+    run(setenv(Cmd(["git", "-C", scratch, "config", "user.email", "agentrulelint@test"]); dir = scratch))
+    run(setenv(Cmd(["git", "-C", scratch, "config", "user.name", "agentrulelint"]); dir = scratch))
+    _git_commit_scratch!(scratch)
     return nothing
 end
 
@@ -52,8 +53,7 @@ function _fingerprint_scratch_root()
         joinpath(ROOT, "test", "corpus", "fingerprint_multiline_span.jl"),
         joinpath(corpus_dst, "fingerprint_multiline_span.jl");
     )
-    run(setenv(Cmd(["git", "-C", scratch, "init", "-q", "-b", "main"]); dir = scratch))
-    _git_commit_scratch!(scratch)
+    _init_scratch_git!(scratch)
     return scratch
 end
 
