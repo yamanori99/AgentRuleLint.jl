@@ -284,13 +284,19 @@ jobs:
   mutation-pre:
     # Non-required while Julia 1.14 is a pre-release; early signal for mutation harnesses on upcoming Julia.
     continue-on-error: true
-    name: Mutation tests - Julia 1.14-pre - ubuntu-latest - x64
+    name: Mutation tests (shard ${{ matrix.shard }}/3) - Julia 1.14-pre - ubuntu-latest - x64
     needs: [runic, aqua, jetls]
     permissions:
       contents: read
       actions: write # julia-depot-cache save on main push
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      AGENTRULELINT_MUTATION_SHARD: ${{ matrix.shard }}/3
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
