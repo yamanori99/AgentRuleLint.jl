@@ -55,6 +55,9 @@ const init_code = quote
 end
 
 const _SERIAL_AFTER = [
+    "test_output_width", # ENV["COLUMNS"] / ROOT/tmp_human_width
+    "test_output_formats", # ENV["COLUMNS"]
+    "test_output_goldens", # ROOT dogfood config and corpus neutrality
     "test_parallel_runner_digest_hook", # test/last_failures.txt
     "test_src_untouched", # git status --porcelain -- src
 ]
