@@ -1,8 +1,9 @@
-const _UNUSED_EXPECT_FIXTURE_DIR = joinpath("test", "corpus", "unused_expect_same_line")
-const _UNUSED_EXPECT_UNUSED_REL =
-    joinpath(_UNUSED_EXPECT_FIXTURE_DIR, "line_collision_unused.toml")
-const _UNUSED_EXPECT_USED_REL =
-    joinpath(_UNUSED_EXPECT_FIXTURE_DIR, "line_collision_used.toml")
+const _UNUSED_EXPECT_NEAR_MISS_REL = joinpath("test", "corpus", "expect_text_near_miss.toml")
+const _UNUSED_EXPECT_STANDALONE_REL = joinpath("test", "corpus", "expect_text_standalone.toml")
+const _UNUSED_EXPECT_COLLISION_PATHS = [
+    _UNUSED_EXPECT_STANDALONE_REL,
+    _UNUSED_EXPECT_NEAR_MISS_REL,
+]
 
 @testset "unused expect keyed by (path, line)" begin
 
@@ -14,18 +15,18 @@ const _UNUSED_EXPECT_USED_REL =
         return AgentRuleLint.extract_expect_lines_text(src)
     end
 
-    unused_expects = expect_lines_in_fixture(_UNUSED_EXPECT_UNUSED_REL)
+    unused_expects = expect_lines_in_fixture(_UNUSED_EXPECT_NEAR_MISS_REL)
     @test !isempty(unused_expects)
     @test all(ex -> ex.line == 1, unused_expects)
-    used_expects = expect_lines_in_fixture(_UNUSED_EXPECT_USED_REL)
+    used_expects = expect_lines_in_fixture(_UNUSED_EXPECT_STANDALONE_REL)
     @test !isempty(used_expects)
     @test all(ex -> ex.line == 1, used_expects)
 
-    res = AgentRuleLint.check(ROOT; paths = [_UNUSED_EXPECT_FIXTURE_DIR])
+    res = AgentRuleLint.check(ROOT; paths = _UNUSED_EXPECT_COLLISION_PATHS)
     unused_diags = filter(
         d ->
         d.rule_id == "expect-audit" &&
-            d.path == _UNUSED_EXPECT_UNUSED_REL &&
+            d.path == _UNUSED_EXPECT_NEAR_MISS_REL &&
             d.message == "unused expect",
         res.violations,
     )
@@ -37,7 +38,7 @@ const _UNUSED_EXPECT_USED_REL =
     @test !any(
         d ->
         d.rule_id == "expect-audit" &&
-            d.path == _UNUSED_EXPECT_USED_REL &&
+            d.path == _UNUSED_EXPECT_STANDALONE_REL &&
             d.message == "unused expect",
         res.violations,
     )

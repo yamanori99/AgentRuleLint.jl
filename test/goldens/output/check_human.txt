@@ -18,7 +18,7 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-
 │       ~~~~~~~~~
 └ @ AgentRuleLint (run `agentrulelint explain analysis-incomplete` for details)
 
-┌ Error: [AgentRuleLint] expect-audit [forbid] (32 violations, ceiling 0)
+┌ Error: [AgentRuleLint] expect-audit [forbid] (31 violations, ceiling 0)
 │   intent: Keep suppression comments auditable and fail-closed.
 │   do_not: Use inline or block comment expects to hide violations.
 │
@@ -102,10 +102,10 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-
 │     expect inside runic:off region forbidden
 │     > # agentrulelint-expect: project/no-internal-codename reason="must not s…
 │       ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-│ ... (+12 omitted)
+│ ... (+11 omitted)
 └ @ AgentRuleLint (run `agentrulelint explain expect-audit` for details)
 
-┌ Error: [Project] project/no-internal-codename [deny] (18 violations, ceiling …
+┌ Error: [Project] project/no-internal-codename [deny] (17 violations, ceiling …
 │   intent: Keep internal codenames out of public package files.
 │   do_not: Split or dynamically concatenate forbidden strings to bypass the
 │           check.
@@ -178,10 +178,6 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-
 │     forbidden literal matched (folded)
 │     > secret = "INT" * "ERNAL_CODENAME"
 │                ~~~~~~~~~~~~~~~~~~~~~~~~
-│   test/corpus/unused_expect_same_line/line_collision_unused.toml:3:8-3:24
-│     forbidden literal matched
-│     > hit = "INTERNAL_CODENAME"
-│              ~~~~~~~~~~~~~~~~~
 └ @ Project .AgentRuleLint.jl.toml ([[project_rules]])
 
 ┌ Error: [AgentRuleLint] silent-catch [deny] (14 violations, ceiling 0)
@@ -377,4 +373,4 @@ AgentRuleLint v<VERSION> (policy bundle base: .AgentRuleLint.jl.toml, pos: utf8-
 │                      ~~~~
 └ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
 
-Summary: 91 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED (exit 1)
+Summary: 89 violations across 6 rules (5 [AgentRuleLint], 1 [Project]) — FAILED (exit 1)

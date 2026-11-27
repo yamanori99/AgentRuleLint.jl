@@ -3,8 +3,9 @@
 using AgentRuleLint
 
 const ROOT = normpath(joinpath(@__DIR__, ".."))
-const FIXTURE_DIR = joinpath("test", "corpus", "unused_expect_same_line")
-const UNUSED_REL = joinpath(FIXTURE_DIR, "line_collision_unused.toml")
+const NEAR_MISS_REL = joinpath("test", "corpus", "expect_text_near_miss.toml")
+const STANDALONE_REL = joinpath("test", "corpus", "expect_text_standalone.toml")
+const COLLISION_PATHS = [STANDALONE_REL, NEAR_MISS_REL]
 
 function expect_lines_in_fixture(root::AbstractString, rel::AbstractString)
     bytes = read(joinpath(root, rel))
@@ -12,12 +13,12 @@ function expect_lines_in_fixture(root::AbstractString, rel::AbstractString)
     return AgentRuleLint.extract_expect_lines_text(src)
 end
 
-expected_n = length(expect_lines_in_fixture(ROOT, UNUSED_REL))
-res = AgentRuleLint.check(ROOT; paths = [FIXTURE_DIR])
+expected_n = length(expect_lines_in_fixture(ROOT, NEAR_MISS_REL))
+res = AgentRuleLint.check(ROOT; paths = COLLISION_PATHS)
 got_n = count(
     d ->
     d.rule_id == "expect-audit" &&
-        d.path == UNUSED_REL &&
+        d.path == NEAR_MISS_REL &&
         d.message == "unused expect",
     res.violations,
 )

@@ -1,3 +1,0 @@
-# agentrulelint-expect: project/no-internal-codename reason="unused on line 1"
-ok = "clean"
-hit = "INTERNAL_CODENAME"
