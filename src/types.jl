@@ -58,6 +58,8 @@ end
 
 Base.:(==)(a::CeilingEntry, b::CeilingEntry) = isequal(a, b)
 
+const DEFAULT_EXIT_SEVERITY = :warn
+
 struct CheckResult
     violations::Vector{Violation}
     complete::Bool
@@ -68,6 +70,12 @@ struct CheckResult
     suppressed_count::Int
     violation_count::Int
     ceilings::CeilingEntry
+    exit_severity::Symbol
+    exit_severity_source::Symbol
+    baseline_exit_severity::Symbol
+    baseline_exit_severity_source::Symbol
+    below_threshold_count::Int
+    below_threshold_level::Symbol
 
     function CheckResult(
             violations::Vector{Violation},
@@ -79,6 +87,12 @@ struct CheckResult
             suppressed_count::Int,
             violation_count::Int;
             ceilings::CeilingEntry = CeilingEntry(Dict(), Dict()),
+            exit_severity::Symbol = DEFAULT_EXIT_SEVERITY,
+            exit_severity_source::Symbol = :default,
+            baseline_exit_severity::Symbol = DEFAULT_EXIT_SEVERITY,
+            baseline_exit_severity_source::Symbol = :default,
+            below_threshold_count::Int = 0,
+            below_threshold_level::Symbol = :none,
         )
         return new(
             violations,
@@ -90,6 +104,12 @@ struct CheckResult
             suppressed_count,
             violation_count,
             ceilings,
+            exit_severity,
+            exit_severity_source,
+            baseline_exit_severity,
+            baseline_exit_severity_source,
+            below_threshold_count,
+            below_threshold_level,
         )
     end
 end
@@ -216,6 +236,8 @@ end
 struct PolicyBundle
     agentrulelint_version::VersionNumber
     default_format::Symbol
+    exit_severity::Symbol
+    exit_severity_source::Symbol
     max_hits_per_rule::Int
     presets::Vector{String}
     rules::Dict{String, RuleSpec}

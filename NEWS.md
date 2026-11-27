@@ -4,6 +4,13 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 
 ## Unreleased (0.1.0-DEV)
 
+### `exit_severity` and `--exit-severity`
+
+`check` can raise the fail threshold to `deny` or `forbid` via config
+`exit_severity` or `--exit-severity`. The default remains **`warn`** (same
+exit as today). `forbid` findings always fail. A CLI override is printed on
+the verdict line. JSON summaries add `threshold` and `threshold_source`.
+
 ### **[CI-breaking]** `on_allow_rule = "error"` is a ConfigError
 
 `on_allow_rule` now accepts only the rule-level vocabulary `forbid|deny|warn|allow`.
