@@ -280,22 +280,51 @@
                 body = join(["line" * string(i) for i in 1:20], "\n") * "\n"
                 write(joinpath(dir, "src.jl"), body)
                 git_commit_all!(dir, "base")
-                write(joinpath(dir, "cp.jl"), body * "extra\n")
+                write(joinpath(dir, "cp.jl"), body * "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
                 git_commit_all!(dir, "copy-like add")
                 cd(dir) do
                     scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
-                    st = AgentRuleLint.diff_path_status(scope, "cp.jl")
-                    lines = AgentRuleLint.diff_changed_lines(scope, "cp.jl")
+                    @test AgentRuleLint.diff_path_status(scope, "cp.jl") == 'C'
+                    @test AgentRuleLint.diff_changed_lines(scope, "cp.jl") == Set([21])
                     res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
-                    @test res.exit_code in (0, 1)
-                    if st == 'C'
-                        @test lines == Set([21])
-                    else
-                        @test st == 'A'
-                        ap = joinpath(dir, "cp.jl")
-                        n = isfile(ap) ? count('\n', read(ap, String)) + 1 : 0
-                        @test lines == Set{Int}(1:max(n, 1))
-                    end
+                    lit = filter(
+                        d -> d.rule_id == "project/diff-literal" && d.path == "cp.jl",
+                        res.violations,
+                    )
+                    @test res.exit_code == 1
+                    @test length(lit) == 1
+                    @test first(lit).span.start_line == 21
+                end
+            finally
+                rm(dir, recursive = true, force = true)
+            end
+        end
+
+        @testset "added file line count matches wc -l" begin
+            @test AgentRuleLint._newline_delimited_line_count("a\nb\n") == 2
+            @test AgentRuleLint._newline_delimited_line_count("a\nb") == 2
+            dir = abspath(mktempdir())
+            try
+                init_git_repo!(dir)
+                write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+                write(joinpath(dir, "keep.jl"), "1\n")
+                git_commit_all!(dir, "base")
+                write(joinpath(dir, "new.jl"), "safe\nx = \"FORBIDDEN_DIFF_TOKEN\"\n")
+                git_commit_all!(dir, "add file")
+                wc_line = strip(read(Cmd(["wc", "-l", joinpath(dir, "new.jl")]), String))
+                wc_n = parse(Int, first(split(wc_line)))
+                cd(dir) do
+                    scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                    @test AgentRuleLint.diff_path_status(scope, "new.jl") == 'A'
+                    lines = AgentRuleLint.diff_changed_lines(scope, "new.jl")
+                    @test lines == Set(1:wc_n)
+                    res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                    lit = filter(
+                        d -> d.rule_id == "project/diff-literal" && d.path == "new.jl",
+                        res.violations,
+                    )
+                    @test length(lit) == 1
+                    @test first(lit).span.start_line == 2
                 end
             finally
                 rm(dir, recursive = true, force = true)

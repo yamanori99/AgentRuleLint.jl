@@ -78,6 +78,7 @@ function _git_diff_name_status_cmd(root::AbstractString, base::AbstractString)
             "diff",
             "-z",
             "-M",
+            "--find-copies-harder",
             "--no-ext-diff",
             "--no-textconv",
             "--text",
@@ -86,6 +87,14 @@ function _git_diff_name_status_cmd(root::AbstractString, base::AbstractString)
             base,
         ],
     )
+end
+
+"""Physical newline-delimited line count (`wc -l` semantics for trailing newline)."""
+function _newline_delimited_line_count(payload::AbstractString)
+    s = String(payload)
+    isempty(s) && return 0
+    n = count('\n', s)
+    return endswith(s, '\n') ? n : n + 1
 end
 
 function _parse_diff_name_status_z(parts::Vector{SubString{String}})
@@ -337,6 +346,7 @@ function _git_diff_numstat_cmd(
         "diff",
         "-z",
         "-M",
+        "--find-copies-harder",
         "--numstat",
         "--no-ext-diff",
         "--no-textconv",
@@ -366,6 +376,7 @@ function _git_diff_unified_cmd(
         "diff",
         "-U0",
         "-M",
+        "--find-copies-harder",
         "--no-color",
         "--no-ext-diff",
         "--no-textconv",
@@ -552,7 +563,7 @@ function build_diff_scope(root::AbstractString, base::AbstractString)
         lines = if st == 'A'
             ap = joinpath(root, path)
             if isfile(ap)
-                n = count('\n', read(ap, String)) + 1
+                n = _newline_delimited_line_count(read(ap, String))
                 Set{Int}(1:max(n, 1))
             else
                 Set{Int}()
