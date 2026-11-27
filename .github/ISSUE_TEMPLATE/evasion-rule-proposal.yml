@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        Propose patterns AgentRuleLint should catch or explicitly allow. Explain why JETLS, Runic, Aqua, or ExplicitImports does not already cover this.
+        Propose patterns AgentRuleLint.jl should catch or explicitly allow. Explain why JETLS, Runic, Aqua, or ExplicitImports does not already cover this.
 
   - type: dropdown
     id: rule_id
@@ -31,7 +31,7 @@ body:
   - type: textarea
     id: json_header
     attributes:
-      label: JSON header line (if you ran AgentRuleLint)
+      label: JSON header line (if you ran AgentRuleLint.jl)
       description: Paste `{"type":"header",...}` if available; otherwise write `N/A — proposal only`.
       placeholder: '{"type":"header",...}' or N/A — proposal only
     validations:

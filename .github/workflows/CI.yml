@@ -301,7 +301,7 @@ jobs:
         shell: bash
         run: julia --startup-file=no --project=.linter-base -e 'using Pkg; Pkg.instantiate(); Pkg.precompile()'
 
-      - name: AgentRuleLint check (dogfood)
+      - name: AgentRuleLint.jl check (dogfood)
         shell: bash
         env:
           DOGFOOD_DIR: ${{ runner.temp }}/dogfood

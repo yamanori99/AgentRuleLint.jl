@@ -1,5 +1,5 @@
 name: False positive
-description: A AgentRuleLint rule fired on correct, idiomatic Julia code
+description: An AgentRuleLint.jl rule fired on correct, idiomatic Julia code
 title: "[false-positive] "
 labels: ["false-positive", "triage"]
 body:
