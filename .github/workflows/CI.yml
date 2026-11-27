@@ -304,30 +304,59 @@ jobs:
       - name: AgentRuleLint check (dogfood)
         shell: bash
         env:
-          DOGFOOD_JSON: ${{ runner.temp }}/dogfood.jsonl
+          DOGFOOD_DIR: ${{ runner.temp }}/dogfood
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           set -euo pipefail
           : "${GITHUB_BASE_REF:?GITHUB_BASE_REF unset (pull_request only)}"
+          mkdir -p "${DOGFOOD_DIR}"
           base_sha="$(git merge-base "origin/${GITHUB_BASE_REF}" HEAD)"
           echo "dogfood merge-base: ${base_sha}"
+          linter_sha="$(git -C .linter-base rev-parse HEAD)"
+          pkg_version="$(sed -n -E 's/^version = "([^"]+)".*/\1/p' .linter-base/Project.toml | head -1)"
+          julia_version="$(julia --version | sed -n 's/^julia version \([^ ]*\).*/\1/p')"
           set +e
           julia --startup-file=no --project=.linter-base -m AgentRuleLint check \
             --diff "${base_sha}" \
             --config-from "origin/${GITHUB_BASE_REF}" \
-            --format human
-          check_exit=$?
+            --format human 2>&1 | tee "${DOGFOOD_DIR}/human.log"
+          human_exit="${PIPESTATUS[0]}"
           julia --startup-file=no --project=.linter-base -m AgentRuleLint check \
             --diff "${base_sha}" \
             --config-from "origin/${GITHUB_BASE_REF}" \
             --format json \
-            --output "${DOGFOOD_JSON}"
+            --output "${DOGFOOD_DIR}/dogfood.jsonl" 2> "${DOGFOOD_DIR}/json.stderr"
+          json_exit=$?
           set -e
-          exit "${check_exit}"
+          jq -n \
+            --argjson pr_number "${PR_NUMBER}" \
+            --arg head_sha "${HEAD_SHA}" \
+            --arg merge_base_sha "${base_sha}" \
+            --arg base_ref "${GITHUB_BASE_REF}" \
+            --arg linter_commit_sha "${linter_sha}" \
+            --arg package_version "${pkg_version}" \
+            --arg julia_version "${julia_version}" \
+            --argjson human_exit_code "${human_exit}" \
+            --argjson json_exit_code "${json_exit}" \
+            '{
+              pr_number: $pr_number,
+              head_sha: $head_sha,
+              merge_base_sha: $merge_base_sha,
+              base_ref: $base_ref,
+              linter_commit_sha: $linter_commit_sha,
+              package_version: $package_version,
+              julia_version: $julia_version,
+              human_exit_code: $human_exit_code,
+              json_exit_code: $json_exit_code
+            }' > "${DOGFOOD_DIR}/meta.json"
+          exit "${human_exit}"
 
       - name: Upload dogfood findings
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: dogfood-pr-${{ github.event.pull_request.number }}-${{ github.event.pull_request.head.sha }}
-          path: ${{ runner.temp }}/dogfood.jsonl
+          path: ${{ runner.temp }}/dogfood/
           retention-days: 90
+          if-no-files-found: error
