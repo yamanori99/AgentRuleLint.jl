@@ -3,6 +3,9 @@
 
 const MUTATION_ROOT = normpath(joinpath(@__DIR__, "..", ".."))
 
+"""Child exit when a verify script signals mutation detected (distinct from Julia's default `1` on crash)."""
+const _MUTATION_VERIFY_DETECTED_EXIT = 42  # same contract as `_MUTATION_HITS_EXIT` in mutation_subprocess_helpers.jl
+
 """Mutation applied but fail-closed / detector check still green (survived)."""
 struct MutationSurvived <: Exception
     msg::String
@@ -40,6 +43,34 @@ function assert_real_src_clean(root::AbstractString = MUTATION_ROOT)
     return nothing
 end
 
+"""
+Run a verify subprocess with a strict exit contract:
+
+- `0` → mutation not detected (protection still holds) → return `false`
+- `_MUTATION_VERIFY_DETECTED_EXIT` (42) → mutation detected → return `true`
+- any other code (including Julia's default `1` on parse/load/uncaught errors) → harness crash
+"""
+function mutation_verify_detected(cmd::Cmd; dir::AbstractString)
+    proc = run(ignorestatus(setenv(cmd; dir = dir)))
+    code = proc.exitcode
+    code == 0 && return false
+    code == _MUTATION_VERIFY_DETECTED_EXIT && return true
+    error(
+        "verify subprocess crashed with exit $code " *
+        "(expected 0=not detected or $(_MUTATION_VERIFY_DETECTED_EXIT)=detected): $cmd",
+    )
+end
+
+function mutation_verify_script(project::AbstractString, script::AbstractString; dir::AbstractString)
+    cmd = _julia_project_cmd(project, "-e", script)
+    return mutation_verify_detected(cmd; dir = dir)
+end
+
+function mutation_verify_driver(project::AbstractString, rel_script::AbstractString; dir::AbstractString)
+    cmd = _julia_project_cmd(project, rel_script)
+    return mutation_verify_detected(cmd; dir = dir)
+end
+
 function _julia_project_cmd(project::AbstractString, args::AbstractString...)
     # Same interpreter as this process; avoid bare `julia` on PATH.
     return Cmd(
@@ -60,6 +91,7 @@ function run_source_mutation(;
         replacement::AbstractString,
         verify::Function,
         replace_count::Integer = 1,
+        extra_patches::Vector{Pair{String, String}} = Pair{String, String}[],
     )
     try
         real_path = joinpath(MUTATION_ROOT, String(rel_path))
@@ -75,22 +107,40 @@ function run_source_mutation(;
             n = count(replacement, patched)
             n < 2 && error("$name: expected ≥2 replacement sites, found $n")
         end
+        for (extra_needle, extra_replacement) in extra_patches
+            occursin(extra_needle, patched) ||
+                error("$name: extra patch needle missing in $rel_path")
+            next = replace(patched, extra_needle => extra_replacement; count = Int(replace_count))
+            next == patched && error("$name: extra patch left source unchanged")
+            patched = next
+        end
 
         tmp = mktempdir()
         try
             cp(MUTATION_ROOT, tmp; force = true)
             path = joinpath(tmp, String(rel_path))
             isfile(path) || error("$name: missing source in temp copy $rel_path")
-            write(path, patched)
-            cmp_proc = run(ignorestatus(`cmp -s $real_path $path`))
-            cmp_proc.exitcode == 0 && error("$name: cmp shows temp copy unchanged after mutation")
             real_status = read(`git -C $(MUTATION_ROOT) status --porcelain -- src`, String)
             isempty(strip(real_status)) ||
                 error("$name: real src/ dirty while mutating temp copy:\n$real_status")
+            if verify(tmp)
+                error("$name: verify is vacuous (reports mutation detected on unmutated copy)")
+            end
+            println("  control: not detected")
+            # Verify may touch the temp tree (probes, configs); reset before mutating.
+            cp(MUTATION_ROOT, tmp; force = true)
+            path = joinpath(tmp, String(rel_path))
+            isfile(path) || error("$name: missing source in temp copy $rel_path")
+            write(path, patched)
+            cmp_proc = run(ignorestatus(`cmp -s $real_path $path`))
+            cmp_proc.exitcode == 0 && error("$name: cmp shows temp copy unchanged after mutation")
             load_cmd = _julia_project_cmd(tmp, "-e", "using AgentRuleLint")
             load_proc = run(ignorestatus(setenv(load_cmd; dir = tmp)))
             load_proc.exitcode != 0 && error("$name: using AgentRuleLint failed after mutation")
-            verify(tmp) || throw(MutationSurvived("$name: fail-closed check still passed after mutation"))
+            if !verify(tmp)
+                throw(MutationSurvived("$name: fail-closed check still passed after mutation"))
+            end
+            println("  mutated: detected")
             println("PASS: ", name)
         finally
             rm(tmp; recursive = true, force = true)

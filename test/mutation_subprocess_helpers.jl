@@ -3,7 +3,7 @@
 const _MUTATION_JULIA = joinpath(Sys.BINDIR, Base.julia_exename())
 
 """Child exit when violations match; distinct from Julia's default `1` on load/crash."""
-const _MUTATION_HITS_EXIT = 42
+const _MUTATION_HITS_EXIT = 42  # must match `_MUTATION_VERIFY_DETECTED_EXIT` in mutation/mutation_lib.jl
 
 function _mutation_child_cmd(project::AbstractString, script::AbstractString)
     return Cmd(

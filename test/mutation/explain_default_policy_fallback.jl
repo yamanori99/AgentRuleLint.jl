@@ -8,8 +8,5 @@ run_source_mutation(;
     # After inactive-builtin explain, both explain_rule_unknown and explain_rule
     # call resolve_policy; patching only the first leaves ConfigError intact.
     replace_count = typemax(Int),
-    verify = root -> begin
-        cmd = _julia_project_cmd(root, "test/test_explain_invalid_config.jl")
-        return !success(run(ignorestatus(setenv(cmd; dir = root))))
-    end,
+    verify = root -> mutation_verify_driver(root, "test/test_explain_invalid_config.jl"; dir = root),
 )
