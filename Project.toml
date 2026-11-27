@@ -14,7 +14,7 @@ StyledStrings = "f489334b-da3d-4c2e-b8f0-e476e12c162b"
 TOML = "fa267f1f-6049-4f14-aa54-33bafae1ed76"
 
 [sources]
-JuliaSyntax = {rev = "bf1cda3cf6755bf3ba89e8c86efd6a71c0120725", subdir = "JuliaSyntax", url = "https://github.com/JuliaLang/julia"}
+JuliaSyntax = {rev = "00299c08ce5591b7390c8c3592d888b39933f1bc", subdir = "JuliaSyntax", url = "https://github.com/JuliaLang/julia"}
 
 [compat]
 JuliaSyntax = "2"
