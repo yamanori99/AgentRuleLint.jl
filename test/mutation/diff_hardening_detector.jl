@@ -4,7 +4,7 @@ using AgentRuleLint
 
 function main()
     dir = mktempdir()
-    try
+    return try
         run(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]))
         run(Cmd(["git", "-C", dir, "config", "user.email", "mut@test"]))
         run(Cmd(["git", "-C", dir, "config", "user.name", "mut"]))

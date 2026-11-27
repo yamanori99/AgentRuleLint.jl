@@ -75,9 +75,9 @@
 
     @testset "protected-paths on gitattributes and gitmodules alone" begin
         for (rel, content, label) in (
-            (".gitattributes", "*.jl -diff\n", "gitattributes"),
-            (".gitmodules", "[submodule \"x\"]\n\tpath = vendor\n\turl = https://example.invalid/x.git\n", "gitmodules"),
-        )
+                (".gitattributes", "*.jl -diff\n", "gitattributes"),
+                (".gitmodules", "[submodule \"x\"]\n\tpath = vendor\n\turl = https://example.invalid/x.git\n", "gitmodules"),
+            )
             dir = abspath(mktempdir())
             try
                 init_git_repo!(dir)
