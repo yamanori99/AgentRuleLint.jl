@@ -1,4 +1,5 @@
 include("mutation_lib.jl")
+using AgentRuleLint
 
 run_source_mutation(;
     name = "config legacy filename fallback",

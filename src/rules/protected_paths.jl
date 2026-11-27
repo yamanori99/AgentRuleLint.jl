@@ -263,7 +263,7 @@ Group: integrity. Level: forbid (no inline expects).
 
 Runs only with `--diff <base>`. Reports nothing on a full-tree `check` without `--diff`.
 
-Auto-protected paths include `$CONFIG_FILENAME`, legacy `$LEGACY_CONFIG_FILENAME` (rename required), `.agentrulelint/**`
+Auto-protected paths include `$CONFIG_FILENAME`, the retired legacy config filename at repo root (rename required), `.agentrulelint/**`
 (except `.agentrulelint/ceilings.toml` when the diff is monotonic non-increasing),
 `.gitattributes`, `.gitmodules`, `.JETLSConfig.toml`, `Manifest*.toml`, `JuliaManifest.toml`,
 `LocalPreferences.toml`, and every repo-relative `Project.toml`.
