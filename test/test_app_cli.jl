@@ -30,8 +30,19 @@ function _stage_package_for_apps_develop(root::String)
     pkg_dir = joinpath(staging, "AgentRuleLint")
     mkpath(pkg_dir)
     cp(joinpath(root, "Project.toml"), joinpath(pkg_dir, "Project.toml"))
+    manifest = joinpath(root, "Manifest.toml")
+    isfile(manifest) && cp(manifest, joinpath(pkg_dir, "Manifest.toml"))
     cp(joinpath(root, "src"), joinpath(pkg_dir, "src"))
     return staging, pkg_dir
+end
+
+function _seed_depot_for_offline_apps!(dst_depot::String, src_depot::String)
+    for sub in ("registries", "clones", "packages")
+        src = joinpath(src_depot, sub)
+        isdir(src) || continue
+        cp(src, joinpath(dst_depot, sub); force = true)
+    end
+    return nothing
 end
 
 @testset "Pkg app vs -m AgentRuleLint" begin
@@ -50,6 +61,7 @@ end
         depot = mktempdir()
         try
             _, staging_root = _stage_package_for_apps_develop(_APP_ROOT)
+            _seed_depot_for_offline_apps!(depot, first(DEPOT_PATH))
             develop = addenv(
                 Cmd(
                     [
@@ -62,6 +74,7 @@ end
                 ),
                 "JULIA_DEPOT_PATH" => depot,
                 "JULIA_LOAD_PATH" => "@:@stdlib",
+                "JULIA_PKG_OFFLINE" => "true",
             )
             develop_proc = run(ignorestatus(develop), wait = true)
             @test develop_proc.exitcode == 0
