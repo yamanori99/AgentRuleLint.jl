@@ -6,14 +6,11 @@ function _git_isolation_child_script(helpers_path::AbstractString)
         hostile = mktempdir()
         dir = mktempdir()
         try
-            write(joinpath(hostile, ".gitconfig"), "[diff]\\n\\trenames = false\\n")
             rename_diff_literal_isolation_fixture(dir)
-            clean = withenv("HOME" => mktempdir()) do
-                active_violation_paths(AgentRuleLint.check(dir; diff_base = "HEAD^1"))
-            end
-            hostile_sig = withenv("HOME" => hostile) do
-                active_violation_paths(AgentRuleLint.check(dir; diff_base = "HEAD^1"))
-            end
+            hostile_renames_global_gitconfig!(hostile)
+            base = GIT_ISOLATION_DIFF_BASE
+            clean = git_check_isolation_signature(dir, base, mktempdir())
+            hostile_sig = git_check_isolation_signature(dir, base, hostile)
             clean == hostile_sig || exit(42)
             exit(0)
         finally

@@ -55,14 +55,36 @@ function active_violation_paths(res::AgentRuleLint.CheckResult)
     return sort(tup)
 end
 
+"""Observed `CheckResult` fields plus diff path events that drive diff filtering."""
+function git_check_isolation_signature(dir::AbstractString, diff_base::AbstractString, home::AbstractString)
+    dir = abspath(String(dir))
+    base = String(diff_base)
+    return withenv("HOME" => home) do
+        res = _git.check(dir; diff_base = base)
+        active = _git.active_violations(res.violations)
+        viols = sort(Tuple{String, String, String}[(d.rule_id, d.path, d.message) for d in active])
+        events = _git.git_diff_path_events(dir, base)
+        evs = sort(Tuple{Char, String, String}[(e.status, e.path, e.old_path) for e in events])
+        return (viols = viols, events = evs)
+    end
+end
+
+function hostile_renames_global_gitconfig!(hostile_home::AbstractString)
+    open(joinpath(hostile_home, ".gitconfig"), "w") do io
+        println(io, "[diff]")
+        println(io, "\trenames = false")
+    end
+    return nothing
+end
+
 function rename_diff_literal_isolation_fixture(dir::AbstractString)
     init_git_repo!(dir)
     write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
-    write(joinpath(dir, "src.jl"), "v=1\n")
+    write(joinpath(dir, "src.jl"), "v=1\nx=\"FORBIDDEN_DIFF_TOKEN\"\n")
     git_commit_all!(dir, "base")
     _git.run_git_cmd(dir, "mv", "src.jl", "dst.jl"; cwd = dir)
     git_commit_all!(dir, "rename only")
-    write(joinpath(dir, "dst.jl"), "v=1\nx=\"FORBIDDEN_DIFF_TOKEN\"\n")
-    git_commit_all!(dir, "add literal")
     return nothing
 end
+
+const GIT_ISOLATION_DIFF_BASE = "HEAD^1"

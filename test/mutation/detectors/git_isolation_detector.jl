@@ -6,17 +6,15 @@ using AgentRuleLint
 include(joinpath(@__DIR__, "..", "..", "git_test_helpers.jl"))
 
 const _HITS_EXIT = 42
+const _DIFF_ISOLATION_BASE = GIT_ISOLATION_DIFF_BASE
 
 function compare_signatures(hostile_home::String)
     dir = mktempdir()
     try
+        hostile_renames_global_gitconfig!(hostile_home)
         rename_diff_literal_isolation_fixture(dir)
-        clean = withenv("HOME" => mktempdir()) do
-            active_violation_paths(AgentRuleLint.check(dir; diff_base = "HEAD^1"))
-        end
-        hostile = withenv("HOME" => hostile_home) do
-            active_violation_paths(AgentRuleLint.check(dir; diff_base = "HEAD^1"))
-        end
+        clean = git_check_isolation_signature(dir, _DIFF_ISOLATION_BASE, mktempdir())
+        hostile = git_check_isolation_signature(dir, _DIFF_ISOLATION_BASE, hostile_home)
         return clean == hostile
     finally
         rm(dir, recursive = true, force = true)
@@ -27,10 +25,6 @@ function main()
     return AgentRuleLint.git_run_scope() do
         hostile = mktempdir()
         return try
-            write(
-                joinpath(hostile, ".gitconfig"),
-                "[diff]\n\trenames = false\n",
-            )
             compare_signatures(hostile) && exit(0)
             exit(_HITS_EXIT)
         catch err
