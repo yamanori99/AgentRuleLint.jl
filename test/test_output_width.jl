@@ -32,21 +32,8 @@ function assert_max_textwidth(
 end
 
 function with_columns(f, columns::Union{Nothing, Int})
-    old = get(ENV, "COLUMNS", nothing)
-    try
-        if columns === nothing
-            pop!(ENV, "COLUMNS", nothing)
-        else
-            ENV["COLUMNS"] = string(columns)
-        end
-        return f()
-    finally
-        if old === nothing
-            pop!(ENV, "COLUMNS", nothing)
-        else
-            ENV["COLUMNS"] = old
-        end
-    end
+    cols = columns === nothing ? nothing : string(columns)
+    return withenv(f, "COLUMNS" => cols)
 end
 
 function corpus_human_text(columns::Union{Nothing, Int})

@@ -55,9 +55,6 @@ const init_code = quote
 end
 
 const _SERIAL_AFTER = [
-    "test_output_width", # ENV["COLUMNS"]
-    "test_output_formats", # ENV["COLUMNS"]
-    "test_output_goldens", # ROOT/.AgentRuleLintConfig.toml (parallel tests rewrite it)
     "test_parallel_runner_digest_hook", # test/last_failures.txt
     "test_src_untouched", # git status --porcelain -- src
 ]
