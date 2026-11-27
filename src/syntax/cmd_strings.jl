@@ -1,4 +1,3 @@
-using JuliaSyntax: GreenNode, head, is_infix_op_call, kind, span
 
 const _CMD_WRAPPER_CALLEES = Set(["run", "open", "read", "pipeline", "Cmd"])
 
@@ -8,13 +7,13 @@ function _is_cmd_constructor(fname::AbstractString)
 end
 
 function _cmdstring_text(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "cmdstring" || return nothing
+    kind(node) == KCmdstring || return nothing
     hasinterp = false
     parts = String[]
     for (c, p) in _child_positions(node, pos)[1]
-        if summary(c) == "CmdString"
+        if kind(c) == KCmdString
             push!(parts, _node_text(src, p, c))
-        elseif string(kind(c)) == "\$" || summary(c) == "interpolation"
+        elseif syntax_interpolation_child(c)
             hasinterp = true
         end
     end
@@ -24,7 +23,7 @@ function _cmdstring_text(node::GreenNode, src::AbstractString, pos::Int)
 end
 
 function _collect_cmd_from_vect(node::GreenNode, src::AbstractString, pos::Int, depth::Int, budget::FoldBudget)
-    summary(node) == "vect" || return String[]
+    kind(node) == KVect || return String[]
     strings = _fold_vect_strings(node, src, pos, depth, budget)
     return strings === nothing ? String[] : strings
 end
@@ -34,13 +33,12 @@ function _collect_cmd_from_call(node::GreenNode, src::AbstractString, pos::Int, 
     _is_cmd_constructor(fname) || return FoldedStringExpr[]
     out = FoldedStringExpr[]
     for (arg, ap) in zip(args, argpos)
-        s = summary(arg)
-        if s == "vect"
+        if kind(arg) == KVect
             strings = _collect_cmd_from_vect(arg, src, ap, 0, budget)
             isempty(strings) && continue
             val = join(strings, " ")
-            push!(out, FoldedStringExpr(val, ap, ap + span(arg) - 1))
-        elseif s == "string" || s == "cmdstring"
+            push!(out, FoldedStringExpr(val, ap, ap + syntax_span(arg) - 1))
+        elseif kind(arg) == KStringExpr || kind(arg) == KCmdstring
             folded = try_fold_expr(arg, src, ap, 0, budget)
             folded !== nothing && push!(out, folded)
         end
@@ -49,18 +47,17 @@ function _collect_cmd_from_call(node::GreenNode, src::AbstractString, pos::Int, 
 end
 
 function _shell_call_parts(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "call" || return ("", GreenNode[], Int[])
-    is_infix_op_call(head(node)) && return ("", GreenNode[], Int[])
+    kind(node) == KCall || return ("", GreenNode[], Int[])
+    syntax_is_infix_op_call(node) && return ("", GreenNode[], Int[])
     fname = ""
     args = GreenNode[]
     argpos = Int[]
     for (c, p) in _child_positions(node, pos)[1]
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         if isempty(fname)
-            s = summary(c)
-            if s == "."
+            if kind(c) == KDot
                 fname = _shell_dot_callee(c, src, p)
-            elseif is_leaf(c)
+            elseif syntax_is_leaf(c)
                 fname = _identifier_name(c, src, p)
             else
                 return ("", GreenNode[], Int[])
@@ -76,10 +73,10 @@ function _shell_call_parts(node::GreenNode, src::AbstractString, pos::Int)
 end
 
 function _shell_dot_callee(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "." || return ""
+    kind(node) == KDot || return ""
     parts = String[]
     for (cc, cpp) in _child_positions(node, pos)[1]
-        is_leaf(cc) && push!(parts, _identifier_name(cc, src, cpp))
+        syntax_is_leaf(cc) && push!(parts, _identifier_name(cc, src, cpp))
     end
     isempty(parts) && return ""
     txt = join(parts, ".")
@@ -94,21 +91,19 @@ function _walk_cmd_strings!(
         budget::FoldBudget,
         out::Vector{FoldedStringExpr},
     )
-    s = summary(node)
-    if s == "cmdstring"
+    if kind(node) == KCmdstring
         cs = _cmdstring_text(node, src, pos)
         cs !== nothing && push!(out, cs)
-    elseif s == "call"
+    elseif kind(node) == KCall
         fname, args, argpos = _shell_call_parts(node, src, pos)
         if _is_cmd_constructor(fname)
             append!(out, _collect_cmd_from_call(node, src, pos, budget))
         elseif fname in _CMD_WRAPPER_CALLEES
             for (arg, ap) in zip(args, argpos)
-                as = summary(arg)
-                if as == "cmdstring"
+                if kind(arg) == KCmdstring
                     cs = _cmdstring_text(arg, src, ap)
                     cs !== nothing && push!(out, cs)
-                elseif as == "call"
+                elseif kind(arg) == KCall
                     afname, _, _ = _shell_call_parts(arg, src, ap)
                     _is_cmd_constructor(afname) &&
                         append!(out, _collect_cmd_from_call(arg, src, ap, budget))
@@ -117,7 +112,7 @@ function _walk_cmd_strings!(
         end
     end
     for (c, p) in _child_positions(node, pos)[1]
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         _walk_cmd_strings!(c, src, p, budget, out)
     end
     return nothing

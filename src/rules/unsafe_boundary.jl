@@ -1,4 +1,3 @@
-using JuliaSyntax: GreenNode, head, is_infix_op_call, span
 
 const _INDIRECT_EVAL_MODULES = Set(["Base", "Core"])
 
@@ -54,22 +53,21 @@ function _is_boundary_value_ref(refname::AbstractString)
     return leaf == "parse" && qual in ("Meta", "Base.Meta", "Core.Meta")
 end
 
-function _value_ref_name(node::GreenNode, src::AbstractString, pos::Int)
-    s = summary(node)
-    if s == "."
+function _value_ref_name(node::SyntaxTree, src::AbstractString, pos::Int)
+    if syntax_kind(node) == KDot
         return _dot_callee_name(node, src, pos)
-    elseif s == "Identifier"
+    elseif syntax_kind(node) == KIdentifier
         return _identifier_name(node, src, pos)
     end
     return ""
 end
 
-function _assignment_binding_parts(node::GreenNode, pos::Int)
-    summary(node) == "=" || return (nothing, 0, nothing, 0)
+function _assignment_binding_parts(node::SyntaxTree, pos::Int)
+    syntax_kind(node) == KAssign || return (nothing, 0, nothing, 0)
     lhs = rhs = nothing
     lpos = rpos = 0
     for (c, p) in _walk_kids(node, pos)
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         if lhs === nothing
             lhs = c
             lpos = p
@@ -82,29 +80,29 @@ function _assignment_binding_parts(node::GreenNode, pos::Int)
     return (lhs, lpos, rhs, rpos)
 end
 
-function _lhs_binding_ident(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "Identifier" || return ""
+function _lhs_binding_ident(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KIdentifier || return ""
     return _identifier_name(node, src, pos)
 end
 
-function _walk_kids(node::GreenNode, pos::Int)
+function _walk_kids(node::SyntaxTree, pos::Int)
     return _child_positions(node, pos)[1]
 end
 
-function _macro_ref_name(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "macro_name" || return ""
+function _macro_ref_name(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KMacroName || return ""
     parts = String[]
     for (c, p) in _walk_kids(node, pos)
-        is_leaf(c) && push!(parts, _identifier_name(c, src, p))
+        syntax_is_leaf(c) && push!(parts, _identifier_name(c, src, p))
     end
     if !isempty(parts)
         return all(p -> p == "@", parts) ? "@" : (parts[1] == "@" ? "@" * join(parts[2:end]) : join(parts, ""))
     end
     for (c, p) in _walk_kids(node, pos)
-        if summary(c) == "."
+        if syntax_kind(c) == KDot
             ids = String[]
             for (cc, cpp) in _walk_kids(c, p)
-                is_leaf(cc) && push!(ids, _identifier_name(cc, src, cpp))
+                syntax_is_leaf(cc) && push!(ids, _identifier_name(cc, src, cpp))
             end
             return join(ids, ".")
         end
@@ -112,23 +110,22 @@ function _macro_ref_name(node::GreenNode, src::AbstractString, pos::Int)
     return ""
 end
 
-function _macrocall_name(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "macrocall" || return ""
+function _macrocall_name(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KMacrocall || return ""
     mname = ""
     for (c, p) in _walk_kids(node, pos)
-        s = summary(c)
-        if s == "."
+        if syntax_kind(c) == KDot
             parts = String[]
             macro_leaf = ""
             for (cc, cpp) in _walk_kids(c, p)
-                if summary(cc) == "macro_name"
+                if syntax_kind(cc) == KMacroName
                     macro_leaf = _macro_ref_name(cc, src, cpp)
-                elseif is_leaf(cc)
+                elseif syntax_is_leaf(cc)
                     push!(parts, _identifier_name(cc, src, cpp))
                 end
             end
             !isempty(macro_leaf) && return join(parts, ".") * ".@" * macro_leaf
-        elseif s == "macro_name"
+        elseif syntax_kind(c) == KMacroName
             mname = _macro_ref_name(c, src, p)
         end
     end
@@ -137,21 +134,21 @@ function _macrocall_name(node::GreenNode, src::AbstractString, pos::Int)
     return "@" * mname
 end
 
-function _dot_callee_parts(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "." || return String[]
+function _dot_callee_parts(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KDot || return String[]
     parts = String[]
     for (cc, cpp) in _walk_kids(node, pos)
-        if summary(cc) == "."
+        if syntax_kind(cc) == KDot
             append!(parts, _dot_callee_parts(cc, src, cpp))
-        elseif summary(cc) == "Identifier"
+        elseif syntax_kind(cc) == KIdentifier
             push!(parts, _identifier_name(cc, src, cpp))
         end
     end
     return parts
 end
 
-function _dot_callee_name(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "." || return ""
+function _dot_callee_name(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KDot || return ""
     parts = _dot_callee_parts(node, src, pos)
     isempty(parts) && return ""
     txt = join(parts, ".")
@@ -159,26 +156,25 @@ function _dot_callee_name(node::GreenNode, src::AbstractString, pos::Int)
     return txt
 end
 
-function _call_expr_parts(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "call" || return ("", GreenNode[], Int[])
-    is_infix_op_call(head(node)) && return ("", GreenNode[], Int[])
+function _call_expr_parts(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KCall || return ("", SyntaxTree[], Int[])
+    syntax_is_infix_op_call(node) && return ("", SyntaxTree[], Int[])
     fname = ""
-    args = GreenNode[]
+    args = SyntaxTree[]
     argpos = Int[]
     for (c, p) in _walk_kids(node, pos)
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         if isempty(fname)
-            s = summary(c)
-            if s == "."
+            if syntax_kind(c) == KDot
                 fname = _dot_callee_name(c, src, p)
-                isempty(fname) && return ("", GreenNode[], Int[])
-            elseif is_leaf(c) || s == "macro"
+                isempty(fname) && return ("", SyntaxTree[], Int[])
+            elseif syntax_is_leaf(c) || syntax_kind(c) == KMacro
                 fname = _identifier_name(c, src, p)
             else
-                return ("", GreenNode[], Int[])
+                return ("", SyntaxTree[], Int[])
             end
         else
-            sk = string(kind(c))
+            sk = string(syntax_kind(c))
             sk in ("()", "inertparen", ",") && continue
             push!(args, c)
             push!(argpos, p)
@@ -187,46 +183,45 @@ function _call_expr_parts(node::GreenNode, src::AbstractString, pos::Int)
     return (fname, args, argpos)
 end
 
-function _quote_symbol_name(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "quote" || return nothing
+function _quote_symbol_name(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KQuote || return nothing
     for (c, p) in _walk_kids(node, pos)
-        JuliaSyntax.is_trivia(head(c)) && continue
-        summary(c) == "Identifier" && return _identifier_name(c, src, p)
-        summary(c) == "quote" && return _quote_symbol_name(c, src, p)
+        syntax_is_trivia(c) && continue
+        syntax_kind(c) == KIdentifier && return _identifier_name(c, src, p)
+        syntax_kind(c) == KQuote && return _quote_symbol_name(c, src, p)
     end
     return nothing
 end
 
-function _expr_has_string_interpolation(node::GreenNode, pos::Int)
-    summary(node) == "string" && return _string_node_interpolated(node, pos)
+function _expr_has_string_interpolation(node::SyntaxTree, pos::Int)
+    syntax_kind(node) == KStringExpr && return _string_node_interpolated(node, pos)
     for (c, p) in _walk_kids(node, pos)
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         _expr_has_string_interpolation(c, p) && return true
     end
     return false
 end
 
-function _is_static_eval_arg(node::GreenNode, src::AbstractString, pos::Int)
-    s = summary(node)
-    if s == "string"
+function _is_static_eval_arg(node::SyntaxTree, src::AbstractString, pos::Int)
+    if syntax_kind(node) == KStringExpr
         return !_string_node_interpolated(node, pos)
-    elseif s in ("Integer", "Float", "character")
+    elseif syntax_kind(node) in (KInteger, KFloat, KCharExpr)
         return true
-    elseif s == "quote"
+    elseif syntax_kind(node) == KQuote
         sym = _quote_symbol_name(node, src, pos)
         sym !== nothing && return true
         for (c, p) in _walk_kids(node, pos)
-            summary(c) == "parens" || continue
+            syntax_kind(c) == KParens || continue
             for (cc, _) in _walk_kids(c, p)
-                summary(cc) == "Identifier" && return true
+                syntax_kind(cc) == KIdentifier && return true
             end
         end
         return false
-    elseif s == "tuple" || s == "vect"
+    elseif syntax_kind(node) == KTuple || syntax_kind(node) == KVect
         any = false
         for (c, p) in _walk_kids(node, pos)
-            JuliaSyntax.is_trivia(head(c)) && continue
-            sk = string(kind(c))
+            syntax_is_trivia(c) && continue
+            sk = string(syntax_kind(c))
             sk in ("()", ",") && continue
             any = true
             _is_static_eval_arg(c, src, p) || return false
@@ -237,19 +232,18 @@ function _is_static_eval_arg(node::GreenNode, src::AbstractString, pos::Int)
 end
 
 """Top-level `@eval` over quotes / literals without runtime interpolation (excluded)."""
-function _top_level_literal_at_eval(node::GreenNode, src::AbstractString, pos::Int, at_toplevel::Bool)
+function _top_level_literal_at_eval(node::SyntaxTree, src::AbstractString, pos::Int, at_toplevel::Bool)
     at_toplevel || return false
-    summary(node) != "macrocall" && return false
+    syntax_kind(node) != KMacrocall && return false
     mname = _macrocall_name(node, src, pos)
     _matches_qualified_macro(mname, "eval") || return false
-    args = GreenNode[]
+    args = SyntaxTree[]
     argpos = Int[]
     seen_name = false
     for (c, p) in _walk_kids(node, pos)
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         if !seen_name
-            s = summary(c)
-            if s in ("macro_name", "macro", ".")
+            if syntax_kind(c) in (KMacroName, KMacro, KDot)
                 seen_name = true
                 continue
             end
@@ -264,11 +258,11 @@ function _top_level_literal_at_eval(node::GreenNode, src::AbstractString, pos::I
     return true
 end
 
-function _module_decl_ident(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "module" || return nothing
+function _module_decl_ident(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KModule || return nothing
     for (c, p) in _walk_kids(node, pos)
-        JuliaSyntax.is_trivia(head(c)) && continue
-        summary(c) == "Identifier" && return _identifier_name(c, src, p)
+        syntax_is_trivia(c) && continue
+        syntax_kind(c) == KIdentifier && return _identifier_name(c, src, p)
     end
     return nothing
 end
@@ -319,21 +313,21 @@ end
 
 function _indirect_eval_field_call(
         fname::AbstractString,
-        args::Vector{GreenNode},
+        args::Vector{SyntaxTree},
         argpos::Vector{Int},
         src::AbstractString,
     )
     fname == "getfield" || fname == "getproperty" || return false
     length(args) < 2 && return false
     modname = ""
-    if summary(args[1]) == "Identifier"
+    if syntax_kind(args[1]) == KIdentifier
         modname = _identifier_name(args[1], src, argpos[1])
     end
     modname in _INDIRECT_EVAL_MODULES || return false
     return _quote_symbol_name(args[2], src, argpos[2]) == "eval"
 end
 
-function _eval_call_is_runtime(node::GreenNode, src::AbstractString, pos::Int, args, argpos)
+function _eval_call_is_runtime(node::SyntaxTree, src::AbstractString, pos::Int, args, argpos)
     _expr_has_string_interpolation(node, pos) && return true
     isempty(args) && return true
     for (c, p) in zip(args, argpos)
@@ -357,36 +351,34 @@ function _allow_site(ctx::UnsafeBoundaryWalk)
     return _in_allowed_module(ctx.module_stack, ctx.allow_modules)
 end
 
-function _record_hit!(ctx::UnsafeBoundaryWalk, pos::Int, node::GreenNode, msg::String)
+function _record_hit!(ctx::UnsafeBoundaryWalk, pos::Int, node::SyntaxTree, msg::String)
     _allow_site(ctx) && return
-    byte_end = pos + span(node) - 1
+    byte_end = pos + syntax_span(node) - 1
     push!(ctx.hits, (pos, byte_end, msg))
     return nothing
 end
 
-function _walk_unsafe_boundary!(node::GreenNode, pos::Int, ctx::UnsafeBoundaryWalk)
-    s = summary(node)
-
-    if s == "module"
+function _walk_unsafe_boundary!(node::SyntaxTree, pos::Int, ctx::UnsafeBoundaryWalk)
+    if syntax_kind(node) == KModule
         ident = _module_decl_ident(node, ctx.source, pos)
         if ident !== nothing
             push!(ctx.module_stack, ident)
             for (c, p) in _walk_kids(node, pos)
-                JuliaSyntax.is_trivia(head(c)) && continue
-                summary(c) == "block" && _walk_unsafe_boundary!(c, p, ctx)
+                syntax_is_trivia(c) && continue
+                syntax_kind(c) == KBlock && _walk_unsafe_boundary!(c, p, ctx)
             end
             pop!(ctx.module_stack)
             return
         end
     end
 
-    if s == "function"
+    if syntax_kind(node) == KFunction
         old_top = ctx.at_toplevel
         ctx.at_toplevel = false
         head_call_seen = false
         for (c, p) in _walk_kids(node, pos)
-            JuliaSyntax.is_trivia(head(c)) && continue
-            if !head_call_seen && summary(c) == "call"
+            syntax_is_trivia(c) && continue
+            if !head_call_seen && syntax_kind(c) == KCall
                 head_call_seen = true
                 _, args, argpos = _call_expr_parts(c, ctx.source, p)
                 for (ac, ap) in zip(args, argpos)
@@ -400,7 +392,7 @@ function _walk_unsafe_boundary!(node::GreenNode, pos::Int, ctx::UnsafeBoundaryWa
         return
     end
 
-    if s == "=" && !ctx.macro_only
+    if syntax_kind(node) == KAssign && !ctx.macro_only
         lhs, lpos, rhs, rpos = _assignment_binding_parts(node, pos)
         if lhs !== nothing && rhs !== nothing
             lhs_name = _lhs_binding_ident(lhs, ctx.source, lpos)
@@ -414,7 +406,7 @@ function _walk_unsafe_boundary!(node::GreenNode, pos::Int, ctx::UnsafeBoundaryWa
         end
     end
 
-    if s == "macrocall"
+    if syntax_kind(node) == KMacrocall
         mname = _macrocall_name(node, ctx.source, pos)
         macro_label = _unsafe_macro_label(mname, ctx.macro_suffixes)
         if !isempty(macro_label)
@@ -425,7 +417,7 @@ function _walk_unsafe_boundary!(node::GreenNode, pos::Int, ctx::UnsafeBoundaryWa
                 _record_hit!(ctx, pos, node, "unsafe boundary escape ($macro_label)")
             end
         end
-    elseif s == "call" && !ctx.macro_only
+    elseif syntax_kind(node) == KCall && !ctx.macro_only
         fname, args, argpos = _call_expr_parts(node, ctx.source, pos)
         if haskey(ctx.dangerous_aliases, fname)
             _record_hit!(ctx, pos, node, "call via value alias ($fname)")
@@ -451,14 +443,14 @@ function _walk_unsafe_boundary!(node::GreenNode, pos::Int, ctx::UnsafeBoundaryWa
         end
     end
 
-    if s == "module"
+    if syntax_kind(node) == KModule
         return
     end
 
-    child_toplevel = ctx.at_toplevel && s == "toplevel"
+    child_toplevel = ctx.at_toplevel && syntax_kind(node) == KToplevel
     for (c, p) in _walk_kids(node, pos)
-        JuliaSyntax.is_trivia(head(c)) && continue
-        if child_toplevel && summary(c) != "module"
+        syntax_is_trivia(c) && continue
+        if child_toplevel && syntax_kind(c) != KModule
             saved = ctx.at_toplevel
             ctx.at_toplevel = true
             _walk_unsafe_boundary!(c, p, ctx)

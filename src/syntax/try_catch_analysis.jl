@@ -1,6 +1,4 @@
-using JuliaSyntax: GreenNode, children, head, kind, span, summary
 
-const _STMT_TRIVIA = ("NewlineWs", "SemicolonWs")
 
 struct TryCatchSite
     try_pos::Int
@@ -11,10 +9,9 @@ struct TryCatchSite
 end
 
 function _catch_binding_name(node::GreenNode, src::AbstractString, pos::Int)
-    s = summary(node)
-    if s == "Placeholder"
+    if kind(node) == KPlaceholder
         return :anonymous
-    elseif s == "Identifier"
+    elseif kind(node) == KIdentifier
         nm = _identifier_name(node, src, pos)
         isempty(nm) && return :anonymous
         return Symbol(nm)
@@ -23,11 +20,11 @@ function _catch_binding_name(node::GreenNode, src::AbstractString, pos::Int)
 end
 
 function _try_catch_site(node::GreenNode, pos::Int, src::AbstractString)::Union{Nothing, TryCatchSite}
-    summary(node) == "try" || return nothing
+    kind(node) == KTry || return nothing
     catch_node = nothing
     catch_pos = 0
     for (c, p) in _child_positions(node, pos)[1]
-        if summary(c) == "catch"
+        if kind(c) == KCatch
             catch_node = c
             catch_pos = p
         end
@@ -37,10 +34,9 @@ function _try_catch_site(node::GreenNode, pos::Int, src::AbstractString)::Union{
     catch_body = nothing
     catch_body_pos = 0
     for (c, p) in _child_positions(catch_node, catch_pos)[1]
-        s = summary(c)
-        if s == "Identifier" || s == "Placeholder"
+        if kind(c) == KIdentifier || kind(c) == KPlaceholder
             catch_var = _catch_binding_name(c, src, p)
-        elseif s == "block"
+        elseif kind(c) == KBlock
             catch_body = c
             catch_body_pos = p
         end
@@ -68,34 +64,33 @@ end
 function _block_statements(block::GreenNode, pos::Int)
     out = Tuple{GreenNode, Int}[]
     for (c, p) in _child_positions(block, pos)[1]
-        summary(c) in _STMT_TRIVIA && continue
+        kind(c) in _STMT_TRIVIA_KINDS && continue
         push!(out, (c, p))
     end
     return out
 end
 
 function _callee_name(node::GreenNode, pos::Int, src::AbstractString)
-    summary(node) != "call" && return ""
+    kind(node) != KCall && return ""
     for (c, _) in _child_positions(node, pos)[1]
-        summary(c) == "Identifier" && return _identifier_name(c, src, pos)
+        kind(c) == KIdentifier && return _identifier_name(c, src, pos)
     end
     return ""
 end
 
 function _call_first_identifier_arg(node::GreenNode, pos::Int, src::AbstractString)
-    summary(node) != "call" && return ""
+    kind(node) != KCall && return ""
     saw_paren = false
     for (c, p) in _child_positions(node, pos)[1]
-        s = summary(c)
-        if s == "("
+        if kind(c) == KOpenParen
             saw_paren = true
             continue
         end
         if !saw_paren
             continue
         end
-        s == "Identifier" && return _identifier_name(c, src, p)
-        s == "," && continue
+        kind(c) == KIdentifier && return _identifier_name(c, src, p)
+        kind(c) == KComma && continue
         break
     end
     return ""
@@ -104,14 +99,14 @@ end
 function _catch_var_type_test(lhs::GreenNode, lpos::Int, src::AbstractString, catch_var::Union{Nothing, Symbol})
     (catch_var === nothing || catch_var == :anonymous) && return false
     vname = String(catch_var)
-    if summary(lhs) == "call"
+    if kind(lhs) == KCall
         cn = _callee_name(lhs, lpos, src)
         if cn == "isa"
             return _call_first_identifier_arg(lhs, lpos, src) == vname
         end
         ids = String[]
         for (c, p) in _child_positions(lhs, lpos)[1]
-            summary(c) == "Identifier" && push!(ids, _identifier_name(c, src, p))
+            kind(c) == KIdentifier && push!(ids, _identifier_name(c, src, p))
         end
         return length(ids) >= 3 && ids[1] == vname && ids[2] == "isa"
     end
@@ -119,18 +114,18 @@ function _catch_var_type_test(lhs::GreenNode, lpos::Int, src::AbstractString, ca
 end
 
 function _or_chain_catchvar_isa_rethrow(node::GreenNode, pos::Int, src::AbstractString, catch_var::Union{Nothing, Symbol})
-    summary(node) != "||" && return false
+    kind(node) != KOr && return false
     saw_or = false
     lhs = nothing
     lhs_pos = 0
     rhs = nothing
     rhs_pos = 0
     for (c, p) in _child_positions(node, pos)[1]
-        if summary(c) == "||"
+        if kind(c) == KOr
             saw_or = true
             continue
         end
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         if !saw_or && lhs === nothing
             lhs = c
             lhs_pos = p
@@ -142,7 +137,7 @@ function _or_chain_catchvar_isa_rethrow(node::GreenNode, pos::Int, src::Abstract
     end
     (lhs === nothing || rhs === nothing) && return false
     _catch_var_type_test(lhs, lhs_pos, src, catch_var) || return false
-    return summary(rhs) == "call" && _callee_name(rhs, rhs_pos, src) == "rethrow"
+    return kind(rhs) == KCall && _callee_name(rhs, rhs_pos, src) == "rethrow"
 end
 
 function _is_rethrow_or_throw(node::GreenNode, pos::Int, src::AbstractString)
@@ -155,11 +150,11 @@ function _propagating_call(node::GreenNode, pos::Int, src::AbstractString)
 end
 
 function _macrocall_name(node::GreenNode, pos::Int, src::AbstractString)
-    summary(node) != "macrocall" && return ""
+    kind(node) != KMacrocall && return ""
     for (c, p) in _child_positions(node, pos)[1]
-        summary(c) == "macro_name" || continue
+        kind(c) == KMacroName || continue
         for (cc, cp) in _child_positions(c, p)[1]
-            summary(cc) == "Identifier" && return _identifier_name(cc, src, cp)
+            kind(cc) == KIdentifier && return _identifier_name(cc, src, cp)
         end
     end
     return ""
@@ -167,9 +162,9 @@ end
 
 function _macrocall_has_exception_kw(node::GreenNode, pos::Int, src::AbstractString)
     for (c, cp) in _child_positions(node, pos)[1]
-        summary(c) == "=" || continue
+        kind(c) == KAssign || continue
         for (kc, kp) in _child_positions(c, cp)[1]
-            summary(kc) == "Identifier" || continue
+            kind(kc) == KIdentifier || continue
             _identifier_name(kc, src, kp) == "exception" && return true
         end
     end
@@ -177,7 +172,7 @@ function _macrocall_has_exception_kw(node::GreenNode, pos::Int, src::AbstractStr
 end
 
 function _macro_is_warn(node::GreenNode, pos::Int, src::AbstractString)
-    return summary(node) == "macrocall" && _macrocall_name(node, pos, src) == "warn"
+    return kind(node) == KMacrocall && _macrocall_name(node, pos, src) == "warn"
 end
 
 function _macro_warn_has_exception_kw(node::GreenNode, pos::Int, src::AbstractString)
@@ -195,18 +190,17 @@ function _stmt_is_warn_only(node::GreenNode, pos::Int, src::AbstractString; warn
 end
 
 function _stmt_unconditional_return(node::GreenNode)
-    return summary(node) == "return"
+    return kind(node) == KReturn
 end
 
 function _else_block_after_else_keyword(node::GreenNode, pos::Int)
     pending = false
     for (c, p) in _child_positions(node, pos)[1]
-        s = summary(c)
-        if s == "else"
+        if kind(c) == KElse
             pending = true
             continue
         end
-        if pending && s == "block"
+        if pending && kind(c) == KBlock
             return c, p
         end
         pending = false
@@ -215,8 +209,8 @@ function _else_block_after_else_keyword(node::GreenNode, pos::Int)
 end
 
 function _is_elseif_clause(node::GreenNode)
-    summary(node) != "elseif" && return false
-    ch = children(node)
+    kind(node) != KElseif && return false
+    ch = syntax_children(node)
     return ch !== nothing && length(ch) > 1
 end
 
@@ -229,7 +223,7 @@ function _elseif_chain_final_else(elseif_node::GreenNode, pos::Int)
 end
 
 function _if_final_else_block(node::GreenNode, pos::Int)
-    summary(node) != "if" && return nothing, 0
+    kind(node) != KIf && return nothing, 0
     for (c, p) in _child_positions(node, pos)[1]
         _is_elseif_clause(c) || continue
         return _elseif_chain_final_else(c, p)
@@ -252,19 +246,18 @@ function _expr_always_propagates(
         src::AbstractString,
         catch_var::Union{Nothing, Symbol},
     )
-    s = summary(node)
-    if s == "call"
+    if kind(node) == KCall
         return _propagating_call(node, pos, src)
-    elseif s == "||"
+    elseif kind(node) == KOr
         return _or_chain_catchvar_isa_rethrow(node, pos, src, catch_var)
-    elseif s == "if"
+    elseif kind(node) == KIf
         return _if_else_propagates(node, pos, src, catch_var)
     end
     return false
 end
 
 function _if_without_else(node::GreenNode, pos::Int)
-    summary(node) != "if" && return false
+    kind(node) != KIf && return false
     return _if_final_else_block(node, pos)[1] === nothing
 end
 
@@ -295,10 +288,10 @@ function _catch_body_swallows(
     for (i, (stmt, sp)) in enumerate(stmts)
         reachable || break
         _stmt_may_propagate(stmt, sp, src, catch_var) && return false
-        summary(stmt) == "if" && _if_else_propagates(stmt, sp, src, catch_var) && return false
+        kind(stmt) == KIf && _if_else_propagates(stmt, sp, src, catch_var) && return false
         _stmt_acceptable_warn_handling(stmt, sp, src; warn_counts = warn_counts_as_handling) && continue
         any_non_handling = true
-        if summary(stmt) == "if" && _if_without_else(stmt, sp)
+        if kind(stmt) == KIf && _if_without_else(stmt, sp)
             later_propagates = any(
                 j -> _stmt_may_propagate(stmts[j][1], stmts[j][2], src, catch_var),
                 (i + 1):length(stmts),
