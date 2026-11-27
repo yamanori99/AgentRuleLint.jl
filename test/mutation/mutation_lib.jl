@@ -97,10 +97,13 @@ end
 
 function _julia_project_cmd(project::AbstractString, args::AbstractString...)
     # Same interpreter as this process; avoid bare `julia` on PATH.
+    # existing: reuse pkgimages where valid (fast spawn). Fail-closed if stale: an image
+    # from before the temp-copy patch loads unmutated src, mutated verify gets "not detected",
+    # and run_source_mutation throws MutationSurvived — not a false PASS.
     return Cmd(
         [
             Base.julia_cmd().exec...,
-            "--compiled-modules=no",
+            "--compiled-modules=existing",
             "--startup-file=no",
             "--project=$(project)",
             args...,
