@@ -11,23 +11,22 @@ run_source_mutation(;
     verify = root -> begin
         script = raw"""
         using AgentRuleLint
-        body = "@@ -10,3 +10,2 @@\n"
+        body = "@@ -1,1 +1,2 @@\n+line\n"
         try
             AgentRuleLint._changed_lines_from_diff_output(
                 body,
-                "1\t0\ttarget.jl",
-                "1\t0\ttarget.jl",
+                "0\t0\ttarget.jl\n",
+                "0\t0\ttarget.jl\n",
                 "target.jl",
             )
             exit(1)
         catch err
             err isa AgentRuleLint.GitError || rethrow(err)
-            occursin("path=target.jl", err.msg) || exit(1)
+            occursin("disagree with numstat", err.msg) || exit(1)
             exit(0)
         end
         """
         cmd = _julia_project_cmd(root, "-e", script)
-        proc = run(ignorestatus(setenv(cmd; dir = root)))
-        proc.exitcode != 0
+        return !success(run(ignorestatus(setenv(cmd; dir = root))))
     end,
 )
