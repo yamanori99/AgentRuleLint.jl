@@ -84,7 +84,7 @@ include("mutation_subprocess_helpers.jl")
                 "using AgentRuleLint",
                 "r = AgentRuleLint.check($(repr(root)); paths=[joinpath(\"test\", \"corpus\", $corpus)])",
                 "h = filter(d -> d.rule_id == $(repr(rule_id)) && occursin($(repr(msg_needle)), d.message), r.violations)",
-                "exit(isempty(h) ? 0 : 1)",
+                "exit(isempty(h) ? 0 : $(_MUTATION_HITS_EXIT))",
             ],
             '\n',
         )
@@ -122,6 +122,19 @@ include("mutation_subprocess_helpers.jl")
     end
 
     repo_root = dirname(@__DIR__)
+
+    @testset "mutation child exit code contract" begin
+        tmp = mktempdir()
+        try
+            cp(repo_root, tmp; force = true)
+            crash = "throw(ArgumentError(\"mutation subprocess probe\"))"
+            code = _mutation_child_exitcode(tmp, crash; dir = repo_root)
+            @test code != 0
+            @test code != _MUTATION_HITS_EXIT
+        finally
+            rm(tmp, recursive = true, force = true)
+        end
+    end
 
     @testset "golden corpus hits" begin
         for file in _UNSAFE_POSITIVE
@@ -362,7 +375,7 @@ include("mutation_subprocess_helpers.jl")
                                 "p = joinpath(root, \"test\", \"corpus\", \"unsafe_allow_module.jl\")",
                                 "r = AgentRuleLint.check(root; paths=[p])",
                                 "h = filter(d -> d.rule_id == \"unsafe-boundary\", r.violations)",
-                                "exit(isempty(h) ? 0 : 1)",
+                                "exit(isempty(h) ? 0 : $(_MUTATION_HITS_EXIT))",
                             ],
                             '\n',
                         )
@@ -382,7 +395,7 @@ include("mutation_subprocess_helpers.jl")
                             @test isempty(hits)
                             write(rule_path, patched)
                             code = _mutation_child_exitcode(shared_tmp, allow_script; dir = repo_root)
-                            @test code == 1
+                            @test code == _MUTATION_HITS_EXIT
                         finally
                             write(rule_path, unsafe_orig)
                             rm(cfg_root, recursive = true, force = true)
@@ -459,7 +472,7 @@ include("mutation_subprocess_helpers.jl")
                         "using AgentRuleLint",
                         "r = AgentRuleLint.check($(repr(globs_root)); paths=[joinpath(\"test\", \"corpus\", \"unsafe_ccall.jl\")])",
                         "h = filter(d -> d.rule_id == \"unsafe-boundary\", r.violations)",
-                        "exit(isempty(h) ? 0 : 1)",
+                        "exit(isempty(h) ? 0 : $(_MUTATION_HITS_EXIT))",
                     ],
                     '\n',
                 )
@@ -479,7 +492,7 @@ include("mutation_subprocess_helpers.jl")
                     @test isempty(hits)
                     write(builtin_path, patched)
                     code = _mutation_child_exitcode(shared_tmp, globs_script; dir = repo_root)
-                    @test code == 1
+                    @test code == _MUTATION_HITS_EXIT
                 finally
                     write(builtin_path, builtin_orig)
                     rm(globs_root, recursive = true, force = true)
