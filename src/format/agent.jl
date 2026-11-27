@@ -6,6 +6,7 @@ function format_agent(
         output_width::Union{Nothing, Int} = nothing,
         _agentrulelint_version::Union{Nothing, AbstractString} = nothing, # test-only: override the displayed version (see test_output_goldens.jl)
     )
+    io isa IO || throw(ArgumentError("io must be an IO"))
     excerpt_cap = resolve_agent_excerpt_cap(; output_width = output_width)
     hit_cap = something(max_hits, result.max_hits_per_rule)
     buf = IOBuffer()
