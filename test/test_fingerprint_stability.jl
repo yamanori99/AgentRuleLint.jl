@@ -12,20 +12,68 @@ function sole_fp(res::CheckResult, pred)
     return only(fps)
 end
 
+function _git_commit_scratch!(scratch::AbstractString)
+    run(setenv(Cmd(["git", "-C", scratch, "add", "-A"]); dir = scratch))
+    run(
+        setenv(
+            Cmd(
+                [
+                    "git",
+                    "-C",
+                    scratch,
+                    "-c",
+                    "commit.gpgsign=false",
+                    "commit",
+                    "-q",
+                    "-m",
+                    "snap",
+                    "--allow-empty",
+                ]
+            );
+            dir = scratch,
+        ),
+    )
+    return nothing
+end
+
+function _init_scratch_git!(scratch::AbstractString)
+    run(setenv(Cmd(["git", "-C", scratch, "init", "-q", "-b", "main"]); dir = scratch))
+    run(setenv(Cmd(["git", "-C", scratch, "config", "user.email", "agentrulelint@test"]); dir = scratch))
+    run(setenv(Cmd(["git", "-C", scratch, "config", "user.name", "agentrulelint"]); dir = scratch))
+    _git_commit_scratch!(scratch)
+    return nothing
+end
+
+function _fingerprint_scratch_root()
+    scratch = mktempdir()
+    for name in (".AgentRuleLintConfig.toml", "Project.toml", "Manifest.toml")
+        cp(joinpath(ROOT, name), joinpath(scratch, name))
+    end
+    corpus_dst = joinpath(scratch, "test", "corpus")
+    mkpath(corpus_dst)
+    cp(
+        joinpath(ROOT, "test", "corpus", "fingerprint_multiline_span.jl"),
+        joinpath(corpus_dst, "fingerprint_multiline_span.jl")
+    )
+    _init_scratch_git!(scratch)
+    return scratch
+end
+
 @testset "diagnostic fingerprint stability (line-independent)" begin
     corpus_tmp = joinpath("test", "corpus", "fingerprint_tmp")
     project_rel = joinpath(corpus_tmp, "project_hit.jl")
     expect_rel = joinpath(corpus_tmp, "expect_hit.jl")
+    scratch = _fingerprint_scratch_root()
 
     function write_and_check(rel::AbstractString, content::AbstractString)
-        abs = joinpath(ROOT, rel)
+        abs = joinpath(scratch, rel)
         mkpath(dirname(abs))
         write(abs, content)
-        return AgentRuleLint.check(ROOT; paths = [rel])
+        return AgentRuleLint.check(scratch; paths = [rel])
     end
 
     try
-        mkpath(joinpath(ROOT, corpus_tmp))
+        mkpath(joinpath(scratch, corpus_tmp))
 
         @testset "project rule: blank lines above do not change fingerprint" begin
             base = "hit = \"INTERNAL_CODENAME\"\n"
@@ -114,7 +162,8 @@ end
                 d -> d.rule_id == "project/no-internal-codename" && !d.suppressed,
             )
             write_and_check(project_rel, shifted)
-            cd(ROOT) do
+            _git_commit_scratch!(scratch)
+            cd(scratch) do
                 @test AgentRuleLint.cli_main(["report", fp]) == 0
             end
         end
@@ -158,8 +207,8 @@ end
                 d -> d.rule_id == "project/no-internal-codename" && !d.suppressed,
             )
             @test fp0 == fp1
-            out_abs = joinpath(ROOT, corpus_tmp, "cli_out_fingerprint.txt")
-            cd(ROOT) do
+            out_abs = joinpath(scratch, corpus_tmp, "cli_out_fingerprint.txt")
+            cd(scratch) do
                 @test AgentRuleLint.cli_main(["check", uni_rel, "--output", out_abs]) == 1
             end
             @test isfile(out_abs)
@@ -184,8 +233,8 @@ end
                 "# agentrulelint-expect: project/no-internal-codename reason=\"other-reason\"\n\nhit = \"INTERNAL_CODENAME\"\n"
             fp_alt = sole_fp(write_and_check(uni_rel, alt), pred)
             @test fp0 != fp_alt
-            out_abs = joinpath(ROOT, corpus_tmp, "cli_out_unicode.txt")
-            cd(ROOT) do
+            out_abs = joinpath(scratch, corpus_tmp, "cli_out_unicode.txt")
+            cd(scratch) do
                 @test AgentRuleLint.cli_main(["check", uni_rel, "--output", out_abs]) == 1
             end
             @test isfile(out_abs)
@@ -205,7 +254,7 @@ end
 
         @testset "multi-line span uses multi-line anchor text branch" begin
             multi_rel = joinpath("test", "corpus", "fingerprint_multiline_span.jl")
-            res = AgentRuleLint.check(ROOT; paths = [multi_rel])
+            res = AgentRuleLint.check(scratch; paths = [multi_rel])
             hits = filter(
                 d -> d.rule_id == "project/no-internal-codename" && !d.suppressed,
                 res.violations,
@@ -214,12 +263,12 @@ end
             d = first(hits)
             @test d.span.start_line != d.span.end_line
             @test startswith(d.fingerprint, "v1:")
-            lines = String[String(l) for l in split(AgentRuleLint.normalize_source(read(joinpath(ROOT, multi_rel), String)), '\n')]
+            lines = String[String(l) for l in split(AgentRuleLint.normalize_source(read(joinpath(scratch, multi_rel), String)), '\n')]
             anchor = AgentRuleLint.violation_anchor_text(lines, d)
             @test !isempty(anchor)
             @test occursin("INTERNAL_CODENAME", anchor)
         end
     finally
-        rm(joinpath(ROOT, corpus_tmp); force = true, recursive = true)
+        rm(scratch; force = true, recursive = true)
     end
 end

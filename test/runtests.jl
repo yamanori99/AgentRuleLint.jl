@@ -46,6 +46,7 @@ const init_code = quote
     const ROOT = $(ROOT)
     const CORPUS = $(joinpath(ROOT, "test", "corpus"))
     include($(joinpath(TEST_DIR, "failure_digest.jl")))
+    include($(joinpath(TEST_DIR, "suite_git_status_exclusions.jl")))
     include($(joinpath(TEST_DIR, "golden_test_helpers.jl")))
     include($(joinpath(TEST_DIR, "mutation_subprocess_helpers.jl")))
     using AgentRuleLint
@@ -56,7 +57,7 @@ end
 
 const _SERIAL_AFTER = [
     "test_parallel_runner_digest_hook", # test/last_failures.txt
-    "test_src_untouched", # git status --porcelain -- src
+    "test_src_untouched", # git status --porcelain --untracked-files=all (see suite_git_status_exclusions.jl)
 ]
 
 function run_agentrulelint_tests()
