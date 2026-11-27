@@ -195,13 +195,9 @@ end
         res = human_fixture_result([joinpath("test", "corpus")])
         plain = IOContext(IOBuffer(), :color => false)
         out_narrow = AgentRuleLint.format_human(res; root = ROOT, io = plain)
-        old = get(ENV, "COLUMNS", nothing)
-        ENV["COLUMNS"] = "60"
-        try
+        withenv("COLUMNS" => "60") do
             out_cols = AgentRuleLint.format_human(res; root = ROOT, io = plain)
             @test out_narrow == out_cols
-        finally
-            old === nothing ? pop!(ENV, "COLUMNS", nothing) : (ENV["COLUMNS"] = old)
         end
     end
 
