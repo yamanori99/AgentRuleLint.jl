@@ -2,7 +2,7 @@ using AgentRuleLint
 using ParallelTestRunner
 using Test
 
-import ParallelTestRunner: parse_args, filter_tests!, runtests
+import ParallelTestRunner: filter_tests!, parse_args, runtests
 
 const TEST_DIR = @__DIR__
 const ROOT = dirname(TEST_DIR)
@@ -11,16 +11,7 @@ include(joinpath(TEST_DIR, "failure_digest.jl"))
 const _FAILURE_DIGEST_TS = Ref{Union{Nothing, Test.DefaultTestSet}}(nothing)
 
 function _arl_ptr_with_testset_impl(f, testset)
-    @static if VERSION >= v"1.13.0-DEV.1044"
-        Test.@with_testset testset f()
-    else
-        Test.push_testset(testset)
-        try
-            f()
-        finally
-            Test.pop_testset()
-        end
-    end
+    Test.@with_testset testset f()
     return nothing
 end
 
