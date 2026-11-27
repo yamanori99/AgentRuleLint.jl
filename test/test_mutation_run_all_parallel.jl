@@ -31,9 +31,9 @@
     end
 
     withenv("AGENTRULELINT_MUTATION_JOBS" => "0") do
-        @test_throws ErrorException parse_mutation_jobs()
+        @test_throws ArgumentError parse_mutation_jobs()
     end
     withenv("AGENTRULELINT_MUTATION_JOBS" => "nope") do
-        @test_throws ErrorException parse_mutation_jobs()
+        @test_throws ArgumentError parse_mutation_jobs()
     end
 end

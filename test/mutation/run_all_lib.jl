@@ -22,11 +22,14 @@ function parse_mutation_jobs()
         return max(1, min(3, Sys.CPU_THREADS ÷ 2))
     end
     m = match(r"^(\d+)$", strip(raw))
-    m === nothing && error(
-        "AGENTRULELINT_MUTATION_JOBS must be a positive integer, got $(repr(raw))",
+    m === nothing && throw(
+        ArgumentError(
+            "AGENTRULELINT_MUTATION_JOBS must be a positive integer, got $(repr(raw))",
+        ),
     )
     n = parse(Int, m.captures[1]::SubString)
-    n <= 0 && error("AGENTRULELINT_MUTATION_JOBS must be positive, got $n")
+    n <= 0 &&
+        throw(ArgumentError("AGENTRULELINT_MUTATION_JOBS must be positive, got $n"))
     return n
 end
 
@@ -103,6 +106,16 @@ function print_mutation_report(results)
     return failed
 end
 
+"""Print dirty `src/` status after mutation harnesses; return whether the tree is dirty."""
+function _dirty_src_after_mutations(root::AbstractString)
+    status = read(`git -C $(root) status --porcelain -- src`, String)
+    if isempty(strip(status))
+        return false
+    end
+    println(stderr, "real src/ is dirty after mutation harness:\n", status)
+    return true
+end
+
 function mutation_run_all_main(dir::AbstractString = _MUTATION_RUN_DIR)
     scripts = discover_mutation_scripts(dir)
     if isempty(scripts)
@@ -117,12 +130,7 @@ function mutation_run_all_main(dir::AbstractString = _MUTATION_RUN_DIR)
 
     failed = print_mutation_report(results)
 
-    try
-        assert_real_src_clean(_MUTATION_REPO_ROOT)
-    catch err
-        println(stderr, err)
-        return 1
-    end
+    _dirty_src_after_mutations(_MUTATION_REPO_ROOT) && return 1
 
     wall = round(time() - wall0; digits = 1)
     sum_elapsed = round(sum(r.elapsed for r in results); digits = 1)
