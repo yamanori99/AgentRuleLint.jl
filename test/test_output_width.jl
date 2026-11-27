@@ -12,9 +12,19 @@ function is_status_header_line(line::AbstractString)
     return startswith(line, "AGENTRULELINT ") || startswith(line, "AgentRuleLint v")
 end
 
-function assert_max_textwidth(text::AbstractString, limit::Int; skip_status_headers::Bool = false)
+function is_summary_line(line::AbstractString)
+    return startswith(line, "Summary:")
+end
+
+function assert_max_textwidth(
+        text::AbstractString,
+        limit::Int;
+        skip_status_headers::Bool = false,
+        skip_summary::Bool = false,
+    )
     for line in ansi_stripped_lines(text)
         skip_status_headers && is_status_header_line(line) && continue
+        skip_summary && is_summary_line(line) && continue
         @test textwidth(line) <= limit
     end
     return nothing
@@ -67,6 +77,15 @@ end
     @testset "agent output is identical across COLUMNS" begin
         outs = [corpus_agent_text(c) for c in (nothing, 40, 200)]
         @test all(o -> o == outs[1], outs)
+    end
+
+    @testset "corpus human respects pinned output_width and 80 cap" begin
+        res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
+        plain = IOContext(IOBuffer(), :color => false)
+        out60 = AgentRuleLint.format_human(res; root = ROOT, io = plain, output_width = 60)
+        assert_max_textwidth(out60, 60; skip_status_headers = true, skip_summary = true)
+        out80 = AgentRuleLint.format_human(res; root = ROOT, io = plain, output_width = 80)
+        assert_max_textwidth(out80, 80; skip_status_headers = true, skip_summary = true)
     end
 
     @testset "long do_not wraps with aligned prefix" begin
@@ -292,7 +311,52 @@ end
             io = IOContext(IOBuffer(), :color => false),
             output_width = 72,
         )
-        assert_max_textwidth(out, 72; skip_status_headers = true)
+        assert_max_textwidth(out, 72; skip_status_headers = true, skip_summary = true)
+    end
+
+    @testset "summary verdict stays one line at narrow width with CLI override" begin
+        root = mktempdir()
+        old = pwd()
+        try
+            v = string(pkgversion(AgentRuleLint))
+            cfg = joinpath(root, ".AgentRuleLintConfig.toml")
+            write(
+                cfg,
+                """
+                agentrulelint_version = \"=$(v)\"
+                default_format = \"human\"
+                [rules.expect-audit]
+                level = \"forbid\"
+                on_allow_rule = \"warn\"
+                [rules.unsafe-boundary]
+                level = \"warn\"
+                allow_modules = []
+                allow_globs = []
+                """,
+            )
+            cd(ROOT)
+            res = AgentRuleLint.check(
+                ROOT;
+                paths = [joinpath("test", "corpus", "unsafe_allow_module.jl")],
+                config_path = cfg,
+                exit_severity = :forbid,
+            )
+            out = AgentRuleLint.format_human(
+                res;
+                root = ROOT,
+                io = IOContext(IOBuffer(), :color => false),
+                output_width = 40,
+            )
+            summary_lines = filter(is_summary_line, ansi_stripped_lines(out))
+            @test length(summary_lines) == 1
+            s = summary_lines[1]
+            @test occursin("threshold forbid from --exit-severity", s)
+            @test occursin("below threshold", s)
+            assert_max_textwidth(out, 40; skip_status_headers = true, skip_summary = true)
+        finally
+            cd(old)
+            rm(root, recursive = true, force = true)
+        end
     end
 
 end

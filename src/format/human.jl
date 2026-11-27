@@ -91,9 +91,7 @@ function format_human(
     status = result.exit_code == 0 ? "PASSED" : "FAILED"
     by_origin = human_summary_by_origin(groups)
     summary =
-        "Summary: $(result.violation_count) violations across $rule_hits rules ($by_origin) — $status (exit $(result.exit_code))"
-    for ln in wrap_prose_lines("", "", summary, width)
-        println(buf, ln)
-    end
+        "Summary: $(result.violation_count) violations across $rule_hits rules ($by_origin) — $status $(verdict_exit_paren(result))"
+    println(buf, summary)
     return String(take!(buf))
 end

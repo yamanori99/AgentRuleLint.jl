@@ -345,5 +345,4 @@ details)
 │                      ~~~~
 └ @ AgentRuleLint (run `agentrulelint explain unsafe-boundary` for details)
 
-Summary: 71 violations across 6 rules (5 [AgentRuleLint], 1 [Preset]) — FAILED
-(exit 1)
+Summary: 71 violations across 6 rules (5 [AgentRuleLint], 1 [Preset]) — FAILED (exit 1)

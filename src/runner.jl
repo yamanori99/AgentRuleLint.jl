@@ -238,7 +238,23 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
 
     vcount = count(is_violation_hit, all_diags)
     scount = count(d -> d.suppressed, all_diags)
-    exit = vcount > 0 ? 1 : 0
+    threshold, thr_source, baseline, baseline_src = resolve_exit_severity(
+        policy;
+        exit_severity = get(kwargs, :exit_severity, nothing),
+    )
+    exit = check_exit_code(all_diags, threshold)
+    below = Violation[
+        d for d in all_diags if
+            is_violation_hit(d) && !violation_counts_toward_exit(d, threshold)
+    ]
+    below_n = length(below)
+    below_lvl = if below_n == 0
+        :none
+    elseif all(d -> d.level == below[1].level, below)
+        below[1].level
+    else
+        :mixed
+    end
     empty_ceilings = CeilingEntry(
         Dict{String, Dict{String, Int}}(),
         Dict{String, Dict{String, Int}}(),
@@ -254,6 +270,12 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         scount,
         vcount;
         ceilings = display_ceilings,
+        exit_severity = threshold,
+        exit_severity_source = thr_source,
+        baseline_exit_severity = baseline,
+        baseline_exit_severity_source = baseline_src,
+        below_threshold_count = below_n,
+        below_threshold_level = below_lvl,
     )
     return result, contexts
 end

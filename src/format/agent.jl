@@ -18,6 +18,8 @@ function format_agent(
     ver = something(_agentrulelint_version, string(AGENTRULELINT_VERSION))
     headline =
         "AGENTRULELINT $status v$ver base=$base pos=utf8-codepoint-1based violations=$(result.violation_count) rules=$rule_hits"
+    extras = verdict_exit_paren(result)
+    extras != "(exit $(result.exit_code))" && (headline *= " $extras")
     println(buf, headline)
     println(buf)
     for (rid, all_ds) in groups
