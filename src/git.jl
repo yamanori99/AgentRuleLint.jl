@@ -86,12 +86,13 @@ function ensure_git_runtime!(root::AbstractString)
         rt = tls[_TLS_RUNTIME]
         !isempty(rt.version) && return rt
     end
+    probe_root = (r = abspath(String(root)); isdir(r) ? r : pwd())
     exe = Sys.which("git")
     exe === nothing &&
         throw(GitError("git executable not found on PATH; AgentRuleLint requires git >= $GIT_MIN_VERSION"))
     exe = String(exe)
     tls[_TLS_RUNTIME] = (executable = exe, version = "")
-    raw = strip(String(read_git_cmd(root, "--version"; error_prefix = "git --version failed")))
+    raw = strip(String(read_git_cmd(probe_root, "--version"; error_prefix = "git --version failed")))
     ver = _parse_git_version_output(exe, raw)
     ver < GIT_MIN_VERSION &&
         throw(

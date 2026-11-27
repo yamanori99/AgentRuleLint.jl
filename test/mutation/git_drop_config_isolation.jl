@@ -7,8 +7,8 @@ assert_detector_alive(_julia_project_cmd(MUTATION_ROOT, _GIT_ISOLATION_DETECTOR)
 run_source_mutation(;
     name = "git config isolation env removed",
     rel_path = "src/git.jl",
-    needle = "return addenv(`$g $tail`, _git_isolated_env()...)",
-    replacement = "return `$g $tail`",
+    needle = raw"return addenv(`$g $tail`, _git_isolated_env()...)",
+    replacement = raw"return `$g $tail`",
     replace_count = 1,
     verify = root -> begin
         cmd = _julia_project_cmd(root, _GIT_ISOLATION_DETECTOR)
