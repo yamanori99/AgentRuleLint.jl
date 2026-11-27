@@ -33,6 +33,16 @@ do_not = "Add allow_globs or allow_modules rather than hiding eval, ccall, or un
 [rules."unsafe-boundary/strict"]
 level = "warn"
 
+[rules.protected-paths]
+level = "forbid"
+paths = [
+  { glob = "AGENTS.md", reason = "Agent instructions must not be weakened by agents." },
+  { glob = "CONTRIBUTING.md", reason = "Contribution and admission policy must not be weakened by agents." },
+  { glob = "SECURITY.md", reason = "Security policy must not be weakened by agents." },
+  { glob = ".agents/**", reason = "Agent skills must not be weakened by agents." },
+  { glob = ".github/workflows/**", reason = "CI gates must not be weakened by agents." },
+]
+
 [[project_rules]]
 id = "no-internal-codename"
 level = "deny"
