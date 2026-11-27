@@ -7,43 +7,21 @@ description: >
 
 # Rule authoring
 
-## Identity
+IDs are kebab-case slugs, `<preset>/<slug>`, or `project/<slug>`. Never reuse a retired slug.
 
-Canonical rule IDs are **kebab-case slugs only**:
+One file per rule under `src/rules/`. Register it sorted by id in
+`src/rules/builtin_rules.jl`. `intent` and `do_not` live only in that definition
+(guards: `test/test_rule_def_explain_parity.jl`, `test/test_rule_registration.jl`).
 
-- `<slug>`
-- `<preset>/<slug>`
-- `project/<slug>`
+`do_not` names the category of forbidden action, not a list of bypass
+techniques. Technique lists belong in corpus files and test comments.
 
-Never use numeric `JA*` or `JP*` codes. Never reuse a retired slug.
+Ship a positive corpus file and an evasion corpus file. Add a mutation case
+that proves the detector is live. Update Runic invariance when formatting-sensitive
+behavior changes.
 
-## Workflow (current tree)
+Rules are pure: no pull-request code execution, no `eval`, no I/O or git inside
+rule logic.
 
-One `RuleDef` per rule in `src/rules/<name>.jl`. Register it in the sorted
-`RULE_DEFS` tuple in `src/rules/builtin_rules.jl` (explicit includes; no glob).
-`intent` and `do_not` live **only** on that `RuleDef` (config may override at
-load; explain parity is `test/test_rule_def_explain_parity.jl`). Completeness
-(source, test, coverage paths) is `test/test_rule_registration.jl`.
-
-Ship a **positive** corpus file and an **evasion** corpus file. Add a **mutation**
-case that proves the detector is live (Pkg.test subprocess and/or
-`test/mutation/`). Update Runic invariance in `test/test_runic_invariance.jl`
-when formatting-sensitive behavior changes.
-
-`do_not` names the **category** of forbidden action, not a list of bypass
-techniques; technique lists belong in corpus files and test comments.
-
-Rules are **pure functions**: no pull-request code execution, no `eval`, no I/O or git access inside rule logic.
-
-`fix`, `may`, and `docs_url` are planned `RuleDef` fields in #110, not present today.
-
-## Corpus
-
-Golden examples must pass; adversarial examples must fail (concatenation, indirect names, comment tricks).
-
-## Non-goals
-
-Do not implement NG1–NG5 as rules. The definitions live only in
-`CONTRIBUTING.md` (“Non-goals (NG1–NG5)”).
-
-Before merging a new rule, read `AGENTS.md` and `CONTRIBUTING.md` when present on the branch.
+Non-goals: `CONTRIBUTING.md` (“Non-goals (NG1–NG5)”).
+Read `AGENTS.md` before merging a new rule.

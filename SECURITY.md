@@ -2,9 +2,7 @@
 
 ## Supported versions
 
-| Version | Supported |
-| --- | --- |
-| 0.1.x (0.1.0-DEV) | Yes |
+0.1.x (0.1.0-DEV) is supported.
 
 ## Reporting a vulnerability
 
@@ -22,18 +20,9 @@ before public disclosure.
 Report **exploitable** weaknesses in AgentRuleLint’s trust model, including but not
 limited to:
 
-- Bypassing **`protected-paths`** so agents can silently weaken
-  `.AgentRuleLintConfig.toml`, `.JETLSConfig.toml`, workflow files, `Manifest*.toml`,
-  or other designated protected paths without failing the check.
+- Any way to make a rule pass, or the verdict change, without the violation being fixed or visibly suppressed.
 - Abusing **`--config-from`** or git merge/diff handling to make CI compare against
   attacker-controlled policy while appearing to use base policy.
-- Circumventing **`# agentrulelint-expect:` (`expect-audit`)** or **ceiling ratchet (`ceiling-ratchet`)** in
-  ways that hide violations in CI.
-- **`analysis-incomplete`**: exhausting the constant-fold budget so later findings are dropped.
-- **`scope-paths` / `--allow-paths`**: widening or forging the trusted path allowlist so out-of-scope diffs pass.
-- **`test-integrity`**: hollowing tests so the suite stays green while coverage of the invariant is gone.
-- **`unsafe-boundary`**: hiding `eval` / `ccall` / `unsafe_*` (aliases, split strings, `Expr(:call, …)`).
-- **CLI presentation flags** that hide agent guidance or change the verdict without stating the override on the verdict line.
 - Composite action / pinned-environment bypass that runs unreviewed code with
   repository write implications.
 - Information disclosure via diagnostic output when that crosses a documented
@@ -51,7 +40,7 @@ limited to:
 
 Please include:
 
-1. AgentRuleLint version (`AgentRuleLint.AGENTRULELINT_VERSION` or package version).
+1. AgentRuleLint version (package version).
 2. Julia version.
 3. Minimal reproduction steps (config + file diff or command line).
 4. Impact: what an agent or PR could do that maintainers intended to block.
