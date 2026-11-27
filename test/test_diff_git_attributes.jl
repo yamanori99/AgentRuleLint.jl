@@ -285,11 +285,16 @@
                 cd(dir) do
                     scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
                     st = AgentRuleLint.diff_path_status(scope, "cp.jl")
-                    if st != 'C'
-                        @test_broken error("git name-status was $(st), not copy")
-                    else
-                        lines = AgentRuleLint.diff_changed_lines(scope, "cp.jl")
+                    lines = AgentRuleLint.diff_changed_lines(scope, "cp.jl")
+                    res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                    @test res.exit_code in (0, 1)
+                    if st == 'C'
                         @test lines == Set([21])
+                    else
+                        @test st == 'A'
+                        ap = joinpath(dir, "cp.jl")
+                        n = isfile(ap) ? count('\n', read(ap, String)) + 1 : 0
+                        @test lines == Set{Int}(1:max(n, 1))
                     end
                 end
             finally
