@@ -7,6 +7,7 @@ import ParallelTestRunner: filter_tests!, parse_args, runtests
 const TEST_DIR = @__DIR__
 const ROOT = dirname(TEST_DIR)
 include(joinpath(TEST_DIR, "failure_digest.jl"))
+include(joinpath(TEST_DIR, "parallel_testsuite_config.jl"))
 
 const _FAILURE_DIGEST_TS = Ref{Union{Nothing, Test.DefaultTestSet}}(nothing)
 
@@ -28,24 +29,6 @@ if !isdefined(ParallelTestRunner, :__ARL_WITH_TESTSET_HOOKED)
         end,
     )
 end
-
-const _MUTATION_HELPER_ONLY_TESTS = Set(
-    [
-        "test_expect_text_mutation_blank",
-        "test_expect_text_mutation_malformed",
-        "test_expect_text_mutation_unanchored",
-        "test_explain_invalid_config",
-        "test_integrity_mutation_broad_throws",
-        "test_integrity_mutation_exit",
-        "test_integrity_mutation_runtests",
-        "test_integrity_mutation_skip",
-        "test_integrity_mutation_tol",
-        "test_integrity_mutation_trivial",
-        "test_silent_catch_mutation_detector",
-    ]
-)
-
-const _PROBE_ONLY_TESTS = Set(["test_digest_deliberate_fail"])
 
 function build_testsuite()
     tests = Dict{String, Expr}()
@@ -72,18 +55,17 @@ const init_code = quote
 end
 
 const _SERIAL_AFTER = [
-    "test_output_width",
-    "test_output_formats",
-    "test_output_goldens",
-    "test_aqua",
-    "test_runic_invariance",
-    "test_parallel_runner_digest_hook",
-    "test_src_untouched",
+    "test_output_width", # ENV["COLUMNS"]
+    "test_output_formats", # ENV["COLUMNS"]
+    "test_output_goldens", # ROOT/.AgentRuleLint.jl.toml (parallel tests rewrite it)
+    "test_parallel_runner_digest_hook", # test/last_failures.txt
+    "test_src_untouched", # git status --porcelain -- src
 ]
 
 function run_agentrulelint_tests()
     testsuite = build_testsuite()
     args = parse_args(ARGS)
+    # Probe-only suites (e.g. test_digest_deliberate_fail) stay out of the default run.
     if filter_tests!(testsuite, args) && isempty(args.positionals)
         for probe in _PROBE_ONLY_TESTS
             delete!(testsuite, probe)

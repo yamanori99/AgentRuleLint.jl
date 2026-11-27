@@ -38,3 +38,6 @@ JuliaLocalPreferences.toml
 
 # Overwritten at the end of every Pkg.test() run (see test/failure_digest.jl)
 test/last_failures.txt
+
+# Detached worktree of origin/main for local dogfood (see pre-push-gate skill)
+.linter-base/
