@@ -297,7 +297,9 @@ jobs:
         run: |
           set -euo pipefail
           : "${GITHUB_BASE_REF:?GITHUB_BASE_REF unset (pull_request only)}"
+          base_sha="$(git merge-base "origin/${GITHUB_BASE_REF}" HEAD)"
+          echo "dogfood merge-base: ${base_sha}"
           julia --startup-file=no --project=. -m AgentRuleLint check \
-            --diff "origin/${GITHUB_BASE_REF}" \
+            --diff "${base_sha}" \
             --config-from "origin/${GITHUB_BASE_REF}" \
             --format human
