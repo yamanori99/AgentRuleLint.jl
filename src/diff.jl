@@ -23,19 +23,6 @@ end
 const _DIFF_NAME_STATUS_SINGLE = Set(['A', 'M', 'D', 'T'])
 const _DIFF_NAME_STATUS_PAIR = Set(['R', 'C'])
 
-function _git_root(path::AbstractString)
-    root = abspath(String(path))
-    isdir(root) || throw(GitError("not a directory: $root"))
-    cmd = Cmd(["git", "-C", root, "rev-parse", "--show-toplevel"])
-    try
-        return strip(String(_read_git_cmd(cmd; error_prefix = "not a git repository: $root")))
-    catch err
-        err isa InterruptException && rethrow()
-        err isa GitError && rethrow()
-        throw(GitError("not a git repository: $root: $(format_error(err))"))
-    end
-end
-
 function normalize_path(p::AbstractString)
     s = replace(String(p), '\\' => '/')
     startswith(s, "./") && (s = s[3:end])
@@ -46,14 +33,13 @@ function verify_diff_base_ref(root::AbstractString, base::AbstractString)
     root = _git_root(root)
     ref = String(base)
     spec = string(ref, "^{commit}")
-    cmd = Cmd(["git", "-C", root, "rev-parse", "--verify", "--end-of-options", spec])
     prefix = if ref == DEFAULT_DIFF_BASE
-        "diff base ref not available: HEAD^1 (shallow clone or single-parent HEAD)"
+        "--diff requires git: diff base ref not available: HEAD^1 (shallow clone or single-parent HEAD)"
     else
-        "diff base ref not available: $ref"
+        "--diff requires git: diff base ref not available: $ref"
     end
     try
-        _read_git_cmd(cmd; error_prefix = prefix)
+        read_git_cmd(root, "rev-parse", "--verify", "--end-of-options", spec; error_prefix = prefix)
         return ref
     catch err
         err isa InterruptException && rethrow()
@@ -68,23 +54,19 @@ function resolve_diff_base_arg(raw)
 end
 
 function _git_diff_name_status_cmd(root::AbstractString, base::AbstractString)
-    return Cmd(
-        [
-            "git",
-            "-C",
-            root,
-            "-c",
-            "diff.renames=true",
-            "diff",
-            "-z",
-            "-M",
-            "--no-ext-diff",
-            "--no-textconv",
-            "--text",
-            "--name-status",
-            "--end-of-options",
-            base,
-        ],
+    return git_cmd(
+        root,
+        "-c",
+        "diff.renames=true",
+        "diff",
+        "-z",
+        "-M",
+        "--no-ext-diff",
+        "--no-textconv",
+        "--text",
+        "--name-status",
+        "--end-of-options",
+        base,
     )
 end
 
@@ -155,7 +137,7 @@ function git_diff_name_status(root::AbstractString, base::AbstractString)
     root = _git_root(root)
     base = verify_diff_base_ref(root, base)
     cmd = _git_diff_name_status_cmd(root, base)
-    prefix = "git diff failed for base=$(base)"
+    prefix = "--diff requires git: git diff failed for base=$(base)"
     bytes = try
         _read_git_cmd(cmd; error_prefix = prefix)
     catch err
@@ -171,7 +153,7 @@ function git_diff_path_events(root::AbstractString, base::AbstractString)
     root = _git_root(root)
     base = verify_diff_base_ref(root, base)
     cmd = _git_diff_name_status_cmd(root, base)
-    prefix = "git diff failed for base=$(base)"
+    prefix = "--diff requires git: git diff failed for base=$(base)"
     bytes = try
         _read_git_cmd(cmd; error_prefix = prefix)
     catch err
@@ -346,10 +328,7 @@ function _git_diff_numstat_cmd(
         path = nothing,
         old_path::AbstractString = "",
     )
-    args = [
-        "git",
-        "-C",
-        root,
+    args = String[
         "-c",
         "diff.renames=true",
         "diff",
@@ -365,7 +344,7 @@ function _git_diff_numstat_cmd(
         append!(args, ["--"])
         append!(args, _git_diff_path_args(path_status, String(path), old_path))
     end
-    return Cmd(args)
+    return git_cmd(root, args...)
 end
 
 function _git_diff_unified_cmd(
@@ -375,10 +354,7 @@ function _git_diff_unified_cmd(
         path::AbstractString,
         old_path::AbstractString,
     )
-    args = [
-        "git",
-        "-C",
-        root,
+    args = String[
         "-c",
         "diff.renames=true",
         "diff",
@@ -393,7 +369,7 @@ function _git_diff_unified_cmd(
         "--",
     ]
     append!(args, _git_diff_path_args(path_status, path, old_path))
-    return Cmd(args)
+    return git_cmd(root, args...)
 end
 
 function _git_diff_numstat_maps(root::AbstractString, base::AbstractString, prefix::AbstractString)
@@ -493,7 +469,7 @@ function git_diff_changed_lines(
     base = verify_diff_base_ref(root, base)
     path = normalize_path(relpath)
     unified = _git_diff_unified_cmd(root, base, path_status, path, old_path)
-    prefix = "git diff failed for base=$(base) path=$(path)"
+    prefix = "--diff requires git: git diff failed for base=$(base) path=$(path)"
     body = try
         String(_read_git_cmd(unified; error_prefix = prefix))
     catch err
@@ -559,7 +535,7 @@ function build_diff_scope(root::AbstractString, base::AbstractString)
         ev.status in _DIFF_NAME_STATUS_PAIR && (old_path_for[ev.path] = ev.old_path)
     end
     entries = unique(Tuple{Char, String}[(ev.status, ev.path) for ev in events])
-    prefix = "git diff failed for base=$(base)"
+    prefix = "--diff requires git: git diff failed for base=$(base)"
     text_map, probe_map = _git_diff_numstat_maps(root, base, prefix)
     files = DiffFileContext[]
     for (st, path) in entries

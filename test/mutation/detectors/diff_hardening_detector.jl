@@ -2,12 +2,14 @@
 
 using AgentRuleLint
 
+const run_git_cmd = AgentRuleLint.run_git_cmd
+
 function main()
     dir = mktempdir()
     return try
-        run(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]))
-        run(Cmd(["git", "-C", dir, "config", "user.email", "mut@test"]))
-        run(Cmd(["git", "-C", dir, "config", "user.name", "mut"]))
+        run_git_cmd(dir, "init", "-q", "-b", "main"; cwd = dir)
+        run_git_cmd(dir, "config", "user.email", "mut@test"; cwd = dir)
+        run_git_cmd(dir, "config", "user.name", "mut"; cwd = dir)
         ver = string(pkgversion(AgentRuleLint))
         write(
             joinpath(dir, ".AgentRuleLint.jl.toml"),
@@ -27,12 +29,12 @@ function main()
             """,
         )
         write(joinpath(dir, "target.jl"), "x = 1\n")
-        run(Cmd(["git", "-C", dir, "add", "-A"]))
-        run(Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "base"]))
+        run_git_cmd(dir, "add", "-A"; cwd = dir)
+        run_git_cmd(dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "base"; cwd = dir)
         write(joinpath(dir, ".gitattributes"), "*.jl -diff\n")
         write(joinpath(dir, "target.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
-        run(Cmd(["git", "-C", dir, "add", "-A"]))
-        run(Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "head"]))
+        run_git_cmd(dir, "add", "-A"; cwd = dir)
+        run_git_cmd(dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "head"; cwd = dir)
         alive = try
             res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
             has_literal = any(d -> d.rule_id == "project/diff-literal", res.violations)

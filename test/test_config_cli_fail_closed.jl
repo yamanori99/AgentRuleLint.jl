@@ -179,16 +179,11 @@
             """
             write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg_head)
             write(joinpath(dir, "ok.jl"), "1\n")
-            run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
-            run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "j@test"]); dir = dir))
-            run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "t"]); dir = dir))
-            run(setenv(Cmd(["git", "-C", dir, "add", "."]); dir = dir))
-            run(
-                setenv(
-                    Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "c"]);
-                    dir = dir,
-                ),
-            )
+            run_git_cmd(dir, "init", "-q", "-b", "main"; cwd = dir)
+            run_git_cmd(dir, "config", "user.email", "j@test"; cwd = dir)
+            run_git_cmd(dir, "config", "user.name", "t"; cwd = dir)
+            run_git_cmd(dir, "add", "."; cwd = dir)
+            git_commit_all!(dir, "c")
             write(
                 joinpath(dir, ".AgentRuleLint.jl.toml"),
                 "agentrulelint_version = \"=$(ver)\"\ndefault_format = \"human\"\n",

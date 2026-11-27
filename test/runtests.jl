@@ -50,6 +50,9 @@ const init_code = quote
     include($(joinpath(TEST_DIR, "golden_test_helpers.jl")))
     include($(joinpath(TEST_DIR, "mutation_subprocess_helpers.jl")))
     using AgentRuleLint
+    const run_git_cmd = AgentRuleLint.run_git_cmd
+    const read_git_cmd = AgentRuleLint.read_git_cmd
+    include($(joinpath(TEST_DIR, "git_test_helpers.jl")))
     using Test
     using Aqua
     using JSON

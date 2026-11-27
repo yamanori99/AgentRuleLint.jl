@@ -3,24 +3,6 @@ SCOPE_RULE = "scope-paths"
 @testset "scope-paths and --allow-paths" begin
     scope_root = dirname(@__DIR__)
 
-    function init_git_repo!(dir)
-        run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "agentrulelint@test"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "agentrulelint"]); dir = dir))
-        return nothing
-    end
-
-    function git_commit_all!(dir, msg)
-        run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
-        run(
-            setenv(
-                Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", msg]);
-                dir = dir,
-            ),
-        )
-        return nothing
-    end
-
     function minimal_cfg()
         ver = string(pkgversion(AgentRuleLint))
         return """

@@ -1,22 +1,4 @@
 @testset "diff mode (--diff)" begin
-    function init_git_repo!(dir)
-        run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "agentrulelint@test"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "agentrulelint"]); dir = dir))
-        return nothing
-    end
-
-    function git_commit_all!(dir, msg)
-        run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
-        run(
-            setenv(
-                Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", msg]);
-                dir = dir,
-            ),
-        )
-        return nothing
-    end
-
     function minimal_project_cfg()
         ver = string(pkgversion(AgentRuleLint))
         return """
@@ -107,10 +89,10 @@
             write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
             write(joinpath(dir, "merge_me.jl"), "ok = 1\n")
             git_commit_all!(dir, "main base")
-            run(setenv(Cmd(["git", "-C", dir, "checkout", "-q", "-b", "side"]); dir = dir))
+            run_git_cmd(dir, "checkout", "-q", "-b", "side"; cwd = dir)
             write(joinpath(dir, "side_only.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
             git_commit_all!(dir, "side commit")
-            run(setenv(Cmd(["git", "-C", dir, "checkout", "-q", "main"]); dir = dir))
+            run_git_cmd(dir, "checkout", "-q", "main"; cwd = dir)
             run(
                 setenv(
                     Cmd(
@@ -145,11 +127,16 @@
             write(joinpath(dir, ".AgentRuleLint.jl.toml"), minimal_project_cfg())
             write(joinpath(dir, "quiet.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
             git_commit_all!(dir, "base")
-            run(
-                setenv(
-                    Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "--allow-empty", "-q", "-m", "empty"]);
-                    dir = dir,
-                ),
+            run_git_cmd(
+                dir,
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "--allow-empty",
+                "-q",
+                "-m",
+                "empty";
+                cwd = dir,
             )
             cd(dir) do
                 res = AgentRuleLint.check(dir; diff_base = "HEAD^1")

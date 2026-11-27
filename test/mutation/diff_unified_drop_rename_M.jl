@@ -14,12 +14,12 @@ run_source_mutation(;
         using AgentRuleLint
         dir = mktempdir()
         try
-            run(Cmd(["git","-C",dir,"init","-q","-b","main"]))
-            run(Cmd(["git","-C",dir,"config","user.email","t@t"]))
-            run(Cmd(["git","-C",dir,"config","user.name","t"]))
+            AgentRuleLint.run_git_cmd(dir, "init", "-q", "-b", "main"; cwd = dir)
+            AgentRuleLint.run_git_cmd(dir, "config", "user.email", "t@t"; cwd = dir)
+            AgentRuleLint.run_git_cmd(dir, "config", "user.name", "t"; cwd = dir)
             function commit!(m)
-                run(Cmd(["git","-C",dir,"add","-A"]))
-                run(Cmd(["git","-C",dir,"-c","commit.gpgsign=false","commit","-q","-m",m]))
+                AgentRuleLint.run_git_cmd(dir, "add", "-A"; cwd = dir)
+                AgentRuleLint.run_git_cmd(dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", m; cwd = dir)
             end
             ver = string(pkgversion(AgentRuleLint))
             cfg =
@@ -28,7 +28,7 @@ run_source_mutation(;
             write(joinpath(dir, $cfg_file), cfg)
             write(joinpath(dir,"src.jl"), "x = \\\"FORBIDDEN_DIFF_TOKEN\\\"\\n")
             commit!("base")
-            run(Cmd(["git","-C",dir,"mv","src.jl","dst.jl"]))
+            AgentRuleLint.run_git_cmd(dir, "mv", "src.jl", "dst.jl"; cwd = dir)
             write(joinpath(dir,"dst.jl"), "x = \\\"FORBIDDEN_DIFF_TOKEN\\\"\\nedit\\n")
             commit!("edit")
             try

@@ -28,7 +28,7 @@ function _filter_disallowed_git_status(status::AbstractString)
 end
 
 @testset "repository tree untouched by tests" begin
-    status = read(`git -C $(ROOT) status --porcelain --untracked-files=all`, String)
+    status = git_repo_status_porcelain(ROOT; untracked_all = true)
     violations = _filter_disallowed_git_status(status)
     @test isempty(violations)
     if !isempty(violations)
@@ -39,6 +39,6 @@ end
 end
 
 @testset "src/ untouched by tests" begin
-    status = read(`git -C $(ROOT) status --porcelain -- src`, String)
+    status = git_repo_status_porcelain(ROOT; paths = ["src"])
     @test isempty(strip(status))
 end

@@ -10,24 +10,6 @@ using Test
         """
     end
 
-    function init_git_repo!(dir)
-        run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "c@test"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "c"]); dir = dir))
-        return nothing
-    end
-
-    function git_commit_all!(dir, msg)
-        run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
-        run(
-            setenv(
-                Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", msg]);
-                dir = dir,
-            ),
-        )
-        return nothing
-    end
-
     function expect_rename_config_error(f)
         try
             f()

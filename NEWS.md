@@ -4,6 +4,16 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 
 ## Unreleased (0.1.0-DEV)
 
+### **[CI-breaking]** Bundled git (Git_jll); host git version and user config ignored
+
+All git reads use **Git_jll** with config isolation (`GIT_CONFIG_NOSYSTEM`, empty global config,
+`GIT_OPTIONAL_LOCKS=0`, and related env). System `git` on `PATH` is not used. Plain `check` on a
+non-repository directory fails closed (exit 2) with a `GitError` naming the feature (for example
+**manifest-sync**). There is no `AGENTRULELINT_GIT` escape hatch.
+
+CI that relied on a specific host git version or on `diff.renames` / hooks in user git config may
+see different behavior after upgrade.
+
 ### **[CI-breaking]** Config file renamed to `.AgentRuleLint.jl.toml`
 
 AgentRuleLint reads only `.AgentRuleLint.jl.toml`. Leaving `.AgentRuleLintConfig.toml`

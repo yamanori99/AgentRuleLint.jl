@@ -30,12 +30,12 @@
         dir = abspath(mktempdir())
         cp(src, dir; force = true)
         materialize_toml_fixtures!(dir)
-        run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "t@test"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "t"]); dir = dir))
+        run_git_cmd(dir, "init", "-q", "-b", "main"; cwd = dir)
+        run_git_cmd(dir, "config", "user.email", "t@test"; cwd = dir)
+        run_git_cmd(dir, "config", "user.name", "t"; cwd = dir)
         copy_config!(dir)
-        run(Cmd(["git", "-C", dir, "add", "-A"]))
-        run(setenv(Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"]); dir = dir))
+        run_git_cmd(dir, "add", "-A"; cwd = dir)
+        git_commit_all!(dir, "init")
         return dir
     end
 
@@ -243,7 +243,7 @@
     end
 
     @testset "manifest_sync corpus fixtures are not tracked as Project/Manifest" begin
-        for p in split(strip(read(Cmd(`git -C $ROOT ls-files`), String)), '\n'; keepempty = false)
+        for p in split(strip(git_read(ROOT, "ls-files")), '\n'; keepempty = false)
             startswith(p, "test/corpus/manifest_sync/") || continue
             @test endswith(p, ".toml.fixture")
         end
@@ -260,12 +260,12 @@
             proj = joinpath(dir, "other", "Project.toml")
             proj_text = read(proj, String)
             write(proj, replace(proj_text, "Foo" => "Bar", "22222222" => "33333333"))
-            run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
-            run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "t@test"]); dir = dir))
-            run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "t"]); dir = dir))
+            run_git_cmd(dir, "init", "-q", "-b", "main"; cwd = dir)
+            run_git_cmd(dir, "config", "user.email", "t@test"; cwd = dir)
+            run_git_cmd(dir, "config", "user.name", "t"; cwd = dir)
             copy_config!(dir)
-            run(Cmd(["git", "-C", dir, "add", "-A"]))
-            run(setenv(Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "init"]); dir = dir))
+            run_git_cmd(dir, "add", "-A"; cwd = dir)
+            git_commit_all!(dir, "init")
             viols = ms_violations(dir)
             @test any(
                 v -> startswith(v.path, "other/") && occursin("missing from manifest", v.message),

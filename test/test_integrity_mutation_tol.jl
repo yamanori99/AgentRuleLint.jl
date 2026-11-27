@@ -1,30 +1,20 @@
 using AgentRuleLint
 
+include(joinpath(@__DIR__, "git_test_helpers.jl"))
+
 const ROOT = normpath(joinpath(@__DIR__, ".."))
 cfg = read(joinpath(ROOT, ".AgentRuleLint.jl.toml"), String)
 dir = abspath(mktempdir())
 try
-    run(`git -C $dir init -q -b main`)
-    run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "m@t"]); dir = dir))
-    run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "m"]); dir = dir))
+    init_git_repo!(dir)
     write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
     mkpath(joinpath(dir, "test"))
     write(joinpath(dir, "test", "approx.jl"), "isapprox(1.0, 2.0; atol=1.0e-12)\n")
-    run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
-    run(
-        setenv(
-            Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "base"]);
-            dir = dir,
-        ),
-    )
+    run_git_cmd(dir, "add", "-A"; cwd = dir)
+    git_commit_all!(dir, "base")
     write(joinpath(dir, "test", "approx.jl"), "isapprox(1.0, 2.0; atol=1.0e-3)\n")
-    run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
-    run(
-        setenv(
-            Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "loose"]);
-            dir = dir,
-        ),
-    )
+    run_git_cmd(dir, "add", "-A"; cwd = dir)
+    git_commit_all!(dir, "loose")
     res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
     ok = any(d -> occursin("tolerance loosened", d.message), res.violations)
     exit(ok ? 0 : 2)

@@ -1,22 +1,4 @@
 @testset "ceiling ratchet" begin
-    function init_git_repo!(dir)
-        run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "agentrulelint@test"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "agentrulelint"]); dir = dir))
-        return nothing
-    end
-
-    function git_commit_all!(dir, msg)
-        run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
-        run(
-            setenv(
-                Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", msg]);
-                dir = dir,
-            ),
-        )
-        return nothing
-    end
-
     function minimal_cfg()
         ver = string(pkgversion(AgentRuleLint))
         return """
@@ -223,11 +205,7 @@
                 """,
             )
             git_commit_all!(dir, "commit with ceilings blob")
-            blob_sha = strip(
-                String(
-                    read(Cmd(["git", "-C", dir, "rev-parse", "HEAD:.agentrulelint/ceilings.toml"])),
-                ),
-            )
+            blob_sha = strip(git_read(dir, "rev-parse", "HEAD:.agentrulelint/ceilings.toml"))
             obj_path = joinpath(dir, ".git", "objects", blob_sha[1:2], blob_sha[3:end])
             rm(obj_path; force = true)
             cd(dir) do

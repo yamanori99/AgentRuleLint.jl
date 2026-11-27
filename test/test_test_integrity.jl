@@ -47,24 +47,6 @@
         end
     end
 
-    function init_git_repo!(dir)
-        run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "ti@test"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "ti"]); dir = dir))
-        return nothing
-    end
-
-    function git_commit_all!(dir, msg)
-        run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
-        run(
-            setenv(
-                Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", msg]);
-                dir = dir,
-            ),
-        )
-        return nothing
-    end
-
     @testset "diff: skip count and runtests removal" begin
         dir = abspath(mktempdir())
         try
@@ -173,7 +155,7 @@
             write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
             write(joinpath(dir, "test", "case.jl"), "@test 1 == 1\n")
             git_commit_all!(dir, "base")
-            run(setenv(Cmd(["git", "-C", dir, "mv", "test/case.jl", "test/renamed.jl"]); dir = dir))
+            run_git_cmd(dir, "mv", "test/case.jl", "test/renamed.jl"; cwd = dir)
             write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
             git_commit_all!(dir, "rename only")
             cd(dir) do
@@ -201,7 +183,7 @@
             write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
             write(joinpath(dir, "test", "case.jl"), "@test 1 == 1\n")
             git_commit_all!(dir, "base")
-            run(setenv(Cmd(["git", "-C", dir, "mv", "test/case.jl", "test/renamed.jl"]); dir = dir))
+            run_git_cmd(dir, "mv", "test/case.jl", "test/renamed.jl"; cwd = dir)
             write(joinpath(dir, "test", "runtests.jl"), "include(\"renamed.jl\")\n")
             git_commit_all!(dir, "rename and fix driver")
             cd(dir) do
@@ -272,7 +254,7 @@
             write(joinpath(dir, "test", "runtests.jl"), "include(\"case.jl\")\n")
             write(joinpath(dir, "test", "case.jl"), "@test 1 == 1\n")
             git_commit_all!(dir, "base")
-            run(setenv(Cmd(["git", "-C", dir, "mv", "test/runtests.jl", "test/driver.jl"]); dir = dir))
+            run_git_cmd(dir, "mv", "test/runtests.jl", "test/driver.jl"; cwd = dir)
             write(joinpath(dir, "test", "driver.jl"), "include(\"case.jl\")\n")
             git_commit_all!(dir, "rename driver")
             cd(dir) do

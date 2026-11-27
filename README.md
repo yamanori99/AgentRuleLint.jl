@@ -39,6 +39,13 @@ least one, 2 a config or usage error, 3 an internal error. `exit_severity` in th
 `--exit-severity` for one run, raises the threshold to `deny` or `forbid`;
 `forbid` findings always fail, and a CLI override is shown in the verdict line.
 
+AgentRuleLint uses a **bundled git** ([Git_jll](https://github.com/JuliaBinaryWrappers/Git_jll.jl))
+for repository reads. Host `git` version and user git config (`~/.gitconfig`, system config) are
+ignored. Plain `check` needs a git repository for **manifest-sync** (tracked `Project.toml` /
+`Manifest.toml` pairs). **`check --diff`**, **`--config-from`**, ceiling ratchet, protected-path
+base comparison, and scope-paths also read git history. Only the repository root you pass is trusted
+via `safe.directory` (not worktrees or submodules as separate roots).
+
 Agents run `agentrulelint check --format agent`.
 Run `agentrulelint explain <rule-id>` for a rule's level, intent, and
 configuration.

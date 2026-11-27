@@ -41,10 +41,10 @@ end
 
 function git_ls_tracked_files(root::AbstractString)
     root = abspath(String(root))
-    cmd = Cmd(["git", "-C", root, "ls-files", "-z", "--end-of-options"])
-    prefix = "git ls-files failed for $(root)"
+    _git_feature_not_repository(root, MANIFEST_SYNC_RULE)
+    prefix = "$MANIFEST_SYNC_RULE requires git: git ls-files failed for $(root)"
     bytes = try
-        _read_git_cmd(cmd; error_prefix = prefix)
+        read_git_cmd(root, "ls-files", "-z", "--end-of-options"; error_prefix = prefix)
     catch err
         err isa InterruptException && rethrow()
         err isa GitError && rethrow()
