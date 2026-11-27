@@ -47,35 +47,21 @@ function resolve_human_output_width(io::IO = stdout; output_width::Union{Nothing
     return tty_column_width(io)
 end
 
-"""
-    resolve_agent_line_cap(; output_width=nothing) -> Int
+const AGENT_EXCERPT_CAP = OUTPUT_WIDTH_CAP
 
-Agent/json output never wraps; long fields truncate on one line at this cap.
-Default is `OUTPUT_WIDTH_CAP`. Pass `output_width` only in tests.
 """
-function resolve_agent_line_cap(; output_width::Union{Nothing, Int} = nothing)
-    return something(output_width, OUTPUT_WIDTH_CAP)
+    resolve_agent_excerpt_cap(; output_width=nothing) -> Int
+
+Cap for the source excerpt on agent `HIT` lines only (#80). Default
+`AGENT_EXCERPT_CAP`. Pass `output_width` only in tests.
+"""
+function resolve_agent_excerpt_cap(; output_width::Union{Nothing, Int} = nothing)
+    return something(output_width, AGENT_EXCERPT_CAP)
 end
 
-function println_capped_line(buf::IO, text::AbstractString, cap::Int)
-    if visible_textwidth(text) <= cap
-        println(buf, text)
-    else
-        println(buf, _truncate_chars(text, cap, with_ellipsis = true))
-    end
-    return nothing
-end
-
-function println_capped_labeled(
-        buf::IO,
-        margin::AbstractString,
-        label::AbstractString,
-        text::AbstractString,
-        cap::Int,
-    )
-    prefix = string(margin, label)
-    println_capped_line(buf, string(prefix, text), cap)
-    return nothing
+function _agent_hit_excerpt(body::AbstractString, cap::Int)
+    visible_textwidth(body) <= cap && return body
+    return _truncate_chars(body, cap, with_ellipsis = true)
 end
 
 function _prose_budget(prefix::AbstractString, width::Int)
