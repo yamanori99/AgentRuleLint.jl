@@ -101,31 +101,44 @@
         end
     end
 
-    @testset "numstat binary probe fails closed without hunks" begin
-        err = try
-            AgentRuleLint._changed_lines_from_diff_output("", "", "-\t-\ttarget.jl", "target.jl")
-            nothing
-        catch e
-            e
+    @testset "numstat map missing path throws GitError" begin
+        @test_throws AgentRuleLint.GitError r"missing path=missing\.jl" begin
+            AgentRuleLint._numstat_lines_for_path(
+                Dict("other.jl" => "1\t0\tother.jl"),
+                Dict("other.jl" => "1\t0\tother.jl"),
+                "missing.jl",
+                true,
+            )
         end
-        @test err isa AgentRuleLint.GitError
-        @test occursin("numstat probe binary", AgentRuleLint.sprint(showerror, err))
+    end
+
+    @testset "malformed numstat -z record throws GitError" begin
+        @test_throws AgentRuleLint.GitError r"malformed git diff --numstat -z" begin
+            AgentRuleLint._parse_numstat_z_by_path("only-one-field\0path.jl")
+        end
+    end
+
+    @testset "malformed numstat line throws GitError" begin
+        @test_throws AgentRuleLint.GitError r"malformed git diff --numstat" begin
+            AgentRuleLint._numstat_totals("not-a-number\talso-bad\tpath.jl\n")
+        end
+    end
+
+    @testset "numstat binary probe fails closed without hunks" begin
+        @test_throws AgentRuleLint.GitError r"numstat probe binary" begin
+            AgentRuleLint._changed_lines_from_diff_output("", "", "-\t-\ttarget.jl", "target.jl")
+        end
     end
 
     @testset "numstat text change without hunks fails closed" begin
-        err = try
+        @test_throws AgentRuleLint.GitError r"without hunks" begin
             AgentRuleLint._changed_lines_from_diff_output(
                 "",
                 "2\t1\ttarget.jl",
                 "2\t1\ttarget.jl",
                 "target.jl",
             )
-            nothing
-        catch e
-            e
         end
-        @test err isa AgentRuleLint.GitError
-        @test occursin("without hunks", AgentRuleLint.sprint(showerror, err))
     end
 
     @testset "mode-only diff allows empty changed lines" begin
@@ -147,6 +160,71 @@
         """
         lines = AgentRuleLint._changed_lines_from_diff_output(body, "0\t0\tnew.jl", "", "new.jl")
         @test isempty(lines)
+    end
+
+    @testset "unicode path with space uses batched numstat keys" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            rel = "café x.jl"
+            write(joinpath(dir, rel), "1\n")
+            git_commit_all!(dir, "base")
+            write(joinpath(dir, rel), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
+            git_commit_all!(dir, "change")
+            cd(dir) do
+                scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                lines = AgentRuleLint.diff_changed_lines(scope, rel)
+                @test 1 in lines
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                @test any(d -> d.rule_id == "project/diff-literal" && d.path == rel, res.violations)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "rename with edit reports changed lines" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, "src.jl"), "v = 1\n")
+            git_commit_all!(dir, "base")
+            run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
+            write(joinpath(dir, "dst.jl"), "v = 1\nx = \"FORBIDDEN_DIFF_TOKEN\"\n")
+            git_commit_all!(dir, "rename-edit")
+            cd(dir) do
+                scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                lines = AgentRuleLint.diff_changed_lines(scope, "dst.jl")
+                @test !isempty(lines)
+                res = AgentRuleLint.check(dir; diff_base = "HEAD^1")
+                lit = filter(d -> d.rule_id == "project/diff-literal", res.violations)
+                @test any(d -> d.path == "dst.jl", lit)
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
+    end
+
+    @testset "batched numstat with gitattributes -diff on modified file" begin
+        dir = abspath(mktempdir())
+        try
+            init_git_repo!(dir)
+            write(joinpath(dir, ".AgentRuleLintConfig.toml"), hardening_cfg())
+            write(joinpath(dir, "target.jl"), "x = 1\n")
+            git_commit_all!(dir, "base")
+            write(joinpath(dir, ".gitattributes"), "*.jl -diff\n")
+            write(joinpath(dir, "target.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
+            git_commit_all!(dir, "attrs")
+            cd(dir) do
+                scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
+                lines = AgentRuleLint.diff_changed_lines(scope, "target.jl")
+                @test 1 in lines
+            end
+        finally
+            rm(dir, recursive = true, force = true)
+        end
     end
 
     @testset "mode-only change in temp repo" begin
