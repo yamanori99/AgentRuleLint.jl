@@ -1,6 +1,6 @@
 using Test
 
-const ROOT = dirname(@__DIR__)
+# ROOT comes from ParallelTestRunner init_code in test/runtests.jl.
 
 function violation_fps(res::CheckResult, pred)
     return [d.fingerprint for d in res.violations if pred(d)]

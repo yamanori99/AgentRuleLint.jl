@@ -1,6 +1,6 @@
 using Test
 
-const ROOT = dirname(@__DIR__)
+# ROOT comes from ParallelTestRunner init_code in test/runtests.jl.
 
 function tmp_repo(config_body::AbstractString)
     root = abspath(mktempdir())
@@ -211,14 +211,9 @@ end
         try
             mkpath(joinpath(root, "data"))
             write(joinpath(root, "data", "payload.bin"), UInt8[0xff, 0xfe, 0xfd])
-            err = nothing
-            try
-                AgentRuleLint.check(root)
-            catch e
-                err = e
-            end
-            @test err isa AgentRuleLint.ParseError
-            @test occursin("file is not valid UTF-8: data/payload.bin", err.msg)
+            @test_throws AgentRuleLint.ParseError r"file is not valid UTF-8: data/payload.bin" AgentRuleLint.check(
+                root,
+            )
             cd(root) do
                 @test AgentRuleLint.cli_main(["check"]) == 2
             end

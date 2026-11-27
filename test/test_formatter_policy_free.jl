@@ -1,7 +1,8 @@
 using AgentRuleLint
 using Test
 
-const ROOT = dirname(@__DIR__)
+# ROOT comes from ParallelTestRunner init_code in test/runtests.jl.
+
 const FORMAT_DIR = joinpath(ROOT, "src", "format")
 const FORMAT_POLICY_ALLOWLIST = ("report.jl",)
 

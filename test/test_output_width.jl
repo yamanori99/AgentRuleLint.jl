@@ -1,8 +1,9 @@
 using AgentRuleLint
 using Test
-const textwidth = Base.Unicode.textwidth
 
-const ROOT = dirname(@__DIR__)
+# ROOT comes from ParallelTestRunner init_code in test/runtests.jl.
+
+const textwidth = Base.Unicode.textwidth
 
 function ansi_stripped_lines(text::AbstractString)
     return split(replace(text, r"\e\[[0-9;]*m" => ""), '\n'; keepempty = false)

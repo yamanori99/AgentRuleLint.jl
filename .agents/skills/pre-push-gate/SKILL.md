@@ -25,6 +25,20 @@ Read `.github/actions-lint.env` before bumping tool versions.
 
 ## When the package tree exists
 
+Dogfood (same as CI, before tests):
+
+```bash
+set -o pipefail
+JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -m AgentRuleLint check --diff "$(git merge-base origin/main HEAD)" --config-from origin/main --format agent 2>&1 | tee /tmp/agentrulelint-dogfood.log
+```
+
+Read the **entire** `tee` output (or `/tmp/agentrulelint-dogfood.log`). Do **not**
+use `tail`; the closing summary line does not repeat every `HIT` with path and
+span — you need the full agent format body to locate and fix each finding.
+
+Expect only `protected-paths` on PRs that touch protected files; fix every other
+finding before push.
+
 ```bash
 set -o pipefail; JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
 ```
@@ -38,7 +52,21 @@ JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. test/mutat
 
 Every harness must PASS. On `Pkg.test` failure, read the digest at the end of
 the log or `test/last_failures.txt`. Do not re-run the full suite only to see
-which tests failed. Re-run the affected file, then the full suite once.
+which tests failed.
+
+List discovered per-file tests:
+
+```bash
+JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test(test_args=["--list"])'
+```
+
+Re-run one file by name (example: `test_output_formats`), then the full suite
+once on the final tree:
+
+```bash
+JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test(test_args=["test_output_formats"])'
+set -o pipefail; JULIA_LOAD_PATH="@:@stdlib" julia +1.13 --startup-file=no --project=. -e 'using Pkg; Pkg.test()' 2>&1 | tee /tmp/agentrulelint-test.log
+```
 
 ## Hygiene
 

@@ -2,7 +2,8 @@ using AgentRuleLint
 using JSON
 using Test
 
-const ROOT = dirname(@__DIR__)
+# ROOT comes from ParallelTestRunner init_code in test/runtests.jl.
+
 const SCHEMA_PATH = joinpath(ROOT, "schemas", "check-jsonl.schema.json")
 const HUMAN_GOLDEN_PATH = joinpath(@__DIR__, "fixtures", "human_output_golden.txt")
 const HUMAN_GOLDEN_CS = AgentRuleLint.ConfigSource(:git_ref, "", "origin/main", "9f2c1a4e")
