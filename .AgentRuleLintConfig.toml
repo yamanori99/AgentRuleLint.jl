@@ -40,7 +40,9 @@ paths = [
   { glob = "CONTRIBUTING.md", reason = "Contribution and admission policy must not be weakened by agents." },
   { glob = "SECURITY.md", reason = "Security policy must not be weakened by agents." },
   { glob = ".agents/**", reason = "Agent skills must not be weakened by agents." },
-  { glob = ".github/workflows/**", reason = "CI gates must not be weakened by agents." },
+  { glob = ".github/**", reason = "CI workflows, composite actions, scripts, tool pins, and repository settings must not be weakened by agents." },
+  { glob = ".cursor/**", reason = "Agent environment setup must not be changed by agents." },
+  { glob = ".claude/**", reason = "Agent configuration and skill links must not be changed by agents." },
 ]
 
 [[project_rules]]
