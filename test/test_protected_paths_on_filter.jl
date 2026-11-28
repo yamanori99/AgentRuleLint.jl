@@ -6,8 +6,8 @@ const _ON_FILTER_RULE = "protected-paths"
     function hits(res)
         return filter(
             d ->
-                d.rule_id == RULE && !d.suppressed &&
-                    d.expect_status != :fulfilled && d.level != :allow,
+            d.rule_id == RULE && !d.suppressed &&
+                d.expect_status != :fulfilled && d.level != :allow,
             res.violations,
         )
     end
@@ -41,10 +41,10 @@ const _ON_FILTER_RULE = "protected-paths"
         root = mktempdir()
         try
             for (extra, fragment) in (
-                ("empty on", "on = []"),
-                ("unknown on", "on = [\"mystery\"]"),
-                ("duplicate on", "on = [\"deleted\", \"deleted\"]"),
-            )
+                    ("empty on", "on = []"),
+                    ("unknown on", "on = [\"mystery\"]"),
+                    ("duplicate on", "on = [\"deleted\", \"deleted\"]"),
+                )
                 cfg = """
                 agentrulelint_version = \"=$(ver)\"
                 [rules.protected-paths]
@@ -223,10 +223,10 @@ const _ON_FILTER_RULE = "protected-paths"
             all_on = "[\"added\", \"modified\", \"deleted\", \"renamed\", \"copied\"]"
             policy = load_guard_policy(dir, all_on)
             for (st, old_p, new_p, path, word) in (
-                ('A', "", "guard/a.jl", "guard/a.jl", "added"),
-                ('M', "", "guard/m.jl", "guard/m.jl", "modified"),
-                ('D', "", "guard/d.jl", "guard/d.jl", "deleted"),
-            )
+                    ('A', "", "guard/a.jl", "guard/a.jl", "added"),
+                    ('M', "", "guard/m.jl", "guard/m.jl", "modified"),
+                    ('D', "", "guard/d.jl", "guard/d.jl", "deleted"),
+                )
                 ev = AgentRuleLint.DiffPathEvent(st, new_p, old_p)
                 h = event_hits(policy, ev)
                 @test length(h) == 1
