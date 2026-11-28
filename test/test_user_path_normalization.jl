@@ -46,6 +46,7 @@
             init_git_repo!(root)
             git_commit_all!(root, "init")
             write(joinpath(root, "src", "touch.jl"), "x = 2\n")
+            git_commit_all!(root, "change")
             glob_bs = "src\\**"
             glob_sl = "src/**"
             res_bs = AgentRuleLint.check(
