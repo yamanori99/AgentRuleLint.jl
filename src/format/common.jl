@@ -1,5 +1,5 @@
-const HUMAN_LEVEL_RED = (:forbid, :deny)
-const HUMAN_LEVEL_YELLOW = (:warn,)
+const HUMAN_LEVEL_RED = (Level.FORBID, Level.DENY)
+const HUMAN_LEVEL_YELLOW = (Level.WARN,)
 
 function active_violations(vs::Vector{Violation})
     out = Violation[]
@@ -61,7 +61,7 @@ function underline_for_span(line::AbstractString, span::Span; marker::Char = '^'
     return String(take!(buf))
 end
 
-function human_console_level(level::Symbol)
+function human_console_level(level::Level.T)
     return level in HUMAN_LEVEL_YELLOW ? "Warning" : "Error"
 end
 
@@ -111,7 +111,7 @@ function verdict_exit_paren(result::CheckResult)
         baseline_word = result.baseline_exit_severity_source == :default ? "default" : "config"
         push!(
             parts,
-            "threshold $(result.exit_severity) from --exit-severity, $(baseline_word) $(result.baseline_exit_severity)",
+            "threshold $(wire_name(result.exit_severity)) from --exit-severity, $(baseline_word) $(wire_name(result.baseline_exit_severity))",
         )
     end
     below = _below_threshold_phrase(result)

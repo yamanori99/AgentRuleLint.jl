@@ -26,8 +26,8 @@ end
 
 function _test_integrity_level(policy::PolicyBundle)
     rule = get(policy.rules, TEST_INTEGRITY_RULE, nothing)
-    rule === nothing && return :allow
-    return rule.level == :allow ? :allow : rule.level
+    rule === nothing && return Level.ALLOW
+    return rule.level == Level.ALLOW ? Level.ALLOW : rule.level
 end
 
 function _test_integrity_spec(policy::PolicyBundle)
@@ -51,7 +51,7 @@ function _push_test_integrity!(
         msg::String,
     )
     lvl = _test_integrity_level(policy)
-    lvl == :allow && return
+    lvl == Level.ALLOW && return
     intent, do_not = _test_integrity_spec(policy)
     sp = span_from_byte_range(source, byte_start, byte_end)
     push!(
@@ -674,7 +674,7 @@ function _push_deleted_test_file!(
         msg::String,
     )
     lvl = _test_integrity_level(policy)
-    lvl == :allow && return nothing
+    lvl == Level.ALLOW && return nothing
     intent, do_not = _test_integrity_spec(policy)
     report_path = _normalize_test_include_path(deleted_rel)
     if report_path != _normalize_test_include_path(RUNTESTS_REL) && !isempty(anchor_src)
@@ -834,7 +834,7 @@ function run_test_integrity(
         diff_scope = nothing,
     )
     lvl = _test_integrity_level(policy)
-    lvl == :allow && return Violation[]
+    lvl == Level.ALLOW && return Violation[]
     root = abspath(String(root))
     exit_paths = Set{String}()
     runtests_fc = nothing
@@ -912,7 +912,7 @@ end
 const TEST_INTEGRITY_RULE_DEF = RuleDef(
     TEST_INTEGRITY_RULE,
     :agentrulelint,
-    :deny,
+    Level.DENY,
     "Keep tests from being hollowed out or silently disabled.",
     "Replace assertions with trivially true forms, broaden throws, skip without reason, or drop covered tests.",
     Dict{Symbol, String}(),

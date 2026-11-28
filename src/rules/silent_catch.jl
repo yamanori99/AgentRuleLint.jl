@@ -36,7 +36,7 @@ end
 function run_silent_catch(fc::FileContext, policy::PolicyBundle)
     rule = get(policy.rules, SILENT_CATCH_ID, nothing)
     rule === nothing && return Violation[]
-    rule.level == :allow && return Violation[]
+    rule.level == Level.ALLOW && return Violation[]
     path = fc.parsed.path
     source = fc.parsed.normalized
     tree = fc.tree
@@ -89,7 +89,7 @@ end
 const SILENT_CATCH_RULE_DEF = RuleDef(
     SILENT_CATCH_ID,
     :agentrulelint,
-    :warn,
+    Level.WARN,
     "Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths.",
     "Use empty catch bodies, log-only handlers, or partial branches without rethrow to silence errors.",
     Dict{Symbol, String}(:warn_counts_as_handling => "false"),

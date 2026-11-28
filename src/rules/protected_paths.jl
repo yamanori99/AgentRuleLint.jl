@@ -290,7 +290,7 @@ end
 const PROTECTED_PATHS_RULE_DEF = RuleDef(
     PROTECTED_PATHS_RULE,
     :agentrulelint,
-    :forbid,
+    Level.FORBID,
     "Protect designated policy, lockfiles, and workflow paths from silent edits.",
     "Edit protected files, weaken compat, or rename paths to evade review.",
     Dict{Symbol, String}(),

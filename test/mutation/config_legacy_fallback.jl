@@ -7,13 +7,14 @@ run_source_mutation(;
     name = "config legacy filename fallback",
     rel_path = "src/config.jl",
     needle = join(
-        ["    reject_legacy_config_file!(root)", "    cfg = something(config_path, joinpath(abspath(root), CONFIG_FILENAME))"],
+        ["    reject_legacy_config_file!(root)", "    given, cfg = resolve_user_config_path(root, config_path)"],
         '\n',
     ),
     replacement = """    cfg = something(config_path, begin
         p = joinpath(abspath(root), CONFIG_FILENAME)
         isfile(p) ? p : joinpath(abspath(root), LEGACY_CONFIG_FILENAME)
-    end)""",
+    end)
+    given = config_path""",
     verify = root -> begin
         legacy = repr(AgentRuleLint.LEGACY_CONFIG_FILENAME)
         script = """

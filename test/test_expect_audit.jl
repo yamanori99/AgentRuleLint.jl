@@ -40,7 +40,9 @@
 
     function project_hit(path; suppressed = nothing)
         hits = filter(
-            d -> d.rule_id == "project/no-internal-codename" && d.path == path,
+            d ->
+            d.rule_id == "project/no-internal-codename" &&
+                d.path == AgentRuleLint.normalize_path(path),
             check_path(path).violations,
         )
         unsup = filter(!d -> d.suppressed, hits)
@@ -60,7 +62,7 @@
         @test has_diag(rel("expect_above_catch.jl"), d -> occursin("above catch", d.message))
         @test has_diag(
             rel("expect_multiline_call.jl"),
-            d -> occursin("multiline call", d.message) && d.level == :forbid,
+            d -> occursin("multiline call", d.message) && d.level == AgentRuleLint.Level.FORBID,
         )
         @test has_diag(rel("expect_runic_off.jl"), d -> occursin("runic:off", d.message))
         @test !has_diag(

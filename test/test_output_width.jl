@@ -81,7 +81,7 @@ end
         d = AgentRuleLint.Violation(
             "project/test",
             :project,
-            :deny,
+            AgentRuleLint.Level.DENY,
             "x.jl",
             AgentRuleLint.Span(1, 1, 1, 3),
             1,
@@ -109,7 +109,7 @@ end
             d = AgentRuleLint.Violation(
                 "project/test",
                 :project,
-                :deny,
+                AgentRuleLint.Level.DENY,
                 rel,
                 AgentRuleLint.Span(1, 1, 1, 120),
                 1,
@@ -137,7 +137,7 @@ end
         d = AgentRuleLint.Violation(
             "project/test",
             :project,
-            :deny,
+            AgentRuleLint.Level.DENY,
             "x.jl",
             AgentRuleLint.Span(1, 1, 1, 1),
             1,
@@ -171,7 +171,7 @@ end
         d = AgentRuleLint.Violation(
             "project/test",
             :project,
-            :deny,
+            AgentRuleLint.Level.DENY,
             "very/long/path/under/test/corpus/example_name.jl",
             AgentRuleLint.Span(9, 9, 9, 9),
             1,
@@ -192,7 +192,7 @@ end
         d = AgentRuleLint.Violation(
             "project/test",
             :project,
-            :deny,
+            AgentRuleLint.Level.DENY,
             "test/corpus/split_string.jl",
             AgentRuleLint.Span(1, 1, 1, 10),
             1,
@@ -227,7 +227,7 @@ end
         d = AgentRuleLint.Violation(
             "project/test",
             :project,
-            :deny,
+            AgentRuleLint.Level.DENY,
             long_path,
             AgentRuleLint.Span(2, 2, 2, 5),
             2,
@@ -263,7 +263,7 @@ end
             d = AgentRuleLint.Violation(
                 "project/test",
                 :project,
-                :deny,
+                AgentRuleLint.Level.DENY,
                 rel,
                 AgentRuleLint.Span(1, 1, 1, length(body)),
                 1,
