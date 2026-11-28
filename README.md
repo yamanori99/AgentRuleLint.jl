@@ -39,7 +39,7 @@ least one, 2 a config or usage error, 3 an internal error. `exit_severity` in th
 `--exit-severity` for one run, raises the threshold to `deny` or `forbid`;
 `forbid` findings always fail, and a CLI override is shown in the verdict line.
 
-AgentRuleLint uses **`git` on `PATH`** (minimum **2.24**) with config isolation: system and user
+AgentRuleLint uses **`git` on `PATH`** (minimum **2.32**) with config isolation: system and user
 git config (`~/.gitconfig`, `/etc/gitconfig`) are ignored. The resolved git path and version appear
 in human, agent, and JSON output headers. Plain `check` needs a git repository for **manifest-sync**
 (tracked `Project.toml` / `Manifest.toml` pairs). **`check --diff`**, **`--config-from`**, ceiling

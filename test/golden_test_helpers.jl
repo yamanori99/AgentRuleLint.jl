@@ -9,11 +9,11 @@ function _golden_substitute_runtime(
     )
     t = String(text)
     ver = string(AgentRuleLint.AGENTRULELINT_VERSION)
-    t = replace(t, ver => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
     !isempty(git_executable) &&
         (t = replace(t, git_executable => OUTPUT_GOLDEN_GIT_EXECUTABLE_PLACEHOLDER))
     !isempty(git_version) &&
         (t = replace(t, git_version => OUTPUT_GOLDEN_GIT_VERSION_PLACEHOLDER))
+    t = replace(t, ver => OUTPUT_GOLDEN_VERSION_PLACEHOLDER)
     return t
 end
 

@@ -93,22 +93,14 @@
             write(joinpath(dir, "side_only.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\n")
             git_commit_all!(dir, "side commit")
             run_git_cmd(dir, "checkout", "-q", "main"; cwd = dir)
-            run(
-                setenv(
-                    Cmd(
-                        [
-                            "git",
-                            "-C",
-                            dir,
-                            "-c",
-                            "commit.gpgsign=false",
-                            "merge",
-                            "--no-edit",
-                            "side",
-                        ]
-                    );
-                    dir = dir,
-                ),
+            run_git_cmd(
+                dir,
+                "-c",
+                "commit.gpgsign=false",
+                "merge",
+                "--no-edit",
+                "side";
+                cwd = dir,
             )
             cd(dir) do
                 scope = AgentRuleLint.build_diff_scope(dir, "HEAD^1")
