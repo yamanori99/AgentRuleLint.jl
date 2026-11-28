@@ -177,7 +177,7 @@ jobs:
         shell: bash
         run: julia --startup-file=no --project=. --color=yes -e 'using Pkg; Pkg.test()'
 
-  # Sharded 1/3..3/3; aggregate `test` below keeps the required-check job name.
+  # Sharded 1/3..3/3; not a required check — aggregate `test` below is.
   test_shard:
     name: Pkg.test (shard ${{ matrix.shard }}/3) - Julia 1.13 - ubuntu-latest - x64
     needs: [runic, aqua, jetls]

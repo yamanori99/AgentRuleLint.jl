@@ -45,6 +45,18 @@
         @test apply_test_shard(full) == full
     end
 
+    withenv("AGENTRULELINT_TEST_SHARD" => "2/3") do
+        @test parse_test_shard() == (2, 3)
+        sel = select_mutation_shard(full, 2, 3)
+        n = 3
+        lo, hi = length(full) ÷ n, length(full) ÷ n + 1
+        @test length(sel) in (lo, hi)
+        for other in 1:n
+            other == 2 && continue
+            @test isempty(intersect(sel, select_mutation_shard(full, other, n)))
+        end
+    end
+
     for bad in ("nope", "1/", "/3", "1-3", "0/3", "4/3", "1/0", "1/3/5")
         withenv("AGENTRULELINT_TEST_SHARD" => bad) do
             @test_throws ArgumentError parse_test_shard()

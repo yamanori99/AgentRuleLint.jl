@@ -86,6 +86,7 @@ function _run_agentrulelint_tests_body()
             delete!(testsuite, probe)
         end
     end
+    serial_after = [s for s in _SERIAL_AFTER if haskey(testsuite, s)]
     try
         runtests(
             AgentRuleLint,
@@ -93,7 +94,7 @@ function _run_agentrulelint_tests_body()
             testsuite,
             init_code,
             init_worker_code,
-            serial = _SERIAL_AFTER,
+            serial = serial_after,
             serial_position = :after,
         )
     catch err
