@@ -87,6 +87,11 @@ function _path_matches_glob_entry(path::AbstractString, entry::ProtectedGlobEntr
     return occursin(entry.regex, normalize_path(path))
 end
 
+function _on_allows(change_types::Union{Nothing, Set{String}}, word::AbstractString)
+    change_types === nothing && return true
+    return String(word) in change_types
+end
+
 function _filtered_glob_path_words(ev::DiffPathEvent, entry::ProtectedGlobEntry)
     st = ev.status
     old_p = ev.old_path
@@ -296,8 +301,7 @@ function _handle_protected_event(
             for (p, word) in _filtered_glob_path_words(ev, glob_entry)
                 p in seen && continue
                 push!(seen, p)
-                glob_entry.change_types !== nothing &&
-                    word ∉ glob_entry.change_types && continue
+                !_on_allows(glob_entry.change_types, word) && continue
                 !_protected_change_exempt(root, base, p, ev, policy) || continue
                 msg = "$(word) (reason: $(glob_entry.reason))"
                 push!(out, _protected_paths_diag(p, msg, policy))
