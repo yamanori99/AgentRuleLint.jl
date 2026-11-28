@@ -47,9 +47,7 @@ function git_run_scope(f)
     return if Sys.iswindows()
         wdir = mktempdir()
         cfg = joinpath(wdir, "gitconfig")
-        open(cfg, "w") do io
-            # empty global config
-        end
+        touch(cfg)
         tls = _task_tls()
         tls[_TLS_GLOBAL_CONFIG] = cfg
         try
@@ -74,9 +72,13 @@ end
 function _parse_git_version_output(exe::AbstractString, out::AbstractString)
     s = strip(String(out))
     m = match(r"^git version (\d+\.\d+(?:\.\d+)?)", s)
-    m === nothing &&
+    if m === nothing
         throw(GitError("git at $exe produced unparseable --version output: $(repr(s))"))
-    return VersionNumber(m.captures[1])
+    end
+    ver_s = m.captures[1]
+    ver_s === nothing &&
+        throw(GitError("git at $exe produced unparseable --version output: $(repr(s))"))
+    return VersionNumber(ver_s)
 end
 
 """Probe PATH git via the isolated entry point; cache for this run."""
