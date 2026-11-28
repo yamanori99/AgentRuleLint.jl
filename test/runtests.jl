@@ -9,6 +9,7 @@ const ROOT = dirname(TEST_DIR)
 include(joinpath(TEST_DIR, "failure_digest.jl"))
 include(joinpath(TEST_DIR, "parallel_testsuite_config.jl"))
 include(joinpath(TEST_DIR, "shard_select.jl"))
+include(joinpath(TEST_DIR, "github_actions_log.jl"))
 
 const _FAILURE_DIGEST_TS = Ref{Union{Nothing, Test.DefaultTestSet}}(nothing)
 
@@ -87,6 +88,8 @@ function _run_agentrulelint_tests_body()
         end
     end
     serial_after = [s for s in _SERIAL_AFTER if haskey(testsuite, s)]
+    suite_stdout =
+        github_actions_log_groups_enabled() ? GitHubActionsTestLogIO(Base.stdout) : Base.stdout
     try
         runtests(
             AgentRuleLint,
@@ -96,6 +99,7 @@ function _run_agentrulelint_tests_body()
             init_worker_code,
             serial = serial_after,
             serial_position = :after,
+            stdout = suite_stdout,
         )
     catch err
         err isa InterruptException && rethrow()
