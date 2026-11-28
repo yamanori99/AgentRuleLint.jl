@@ -1,13 +1,12 @@
 #!/usr/bin/env bash
 # Trailing-newline audit on all tracked text files and git diff --check on a commit range.
 #
-#   ./scripts/whitespace-gate.sh
 #   WHITESPACE_GATE_DIFF_RANGE='origin/main...HEAD' ./scripts/whitespace-gate.sh
 #
-# Range rule (WHITESPACE_GATE_DIFF_RANGE overrides):
-#   pull_request CI: origin/${GITHUB_BASE_REF}...HEAD (PR commits vs merge-base)
-#   push CI: ${GITHUB_BEFORE}..${GITHUB_SHA} when before is not the empty sha
-#   otherwise: origin/main...HEAD when origin/main exists, else HEAD~1..HEAD
+# Range rule (WHITESPACE_GATE_DIFF_RANGE overrides everything):
+#   pull_request CI: origin/${GITHUB_BASE_REF}...HEAD
+#   push CI: ${GITHUB_BEFORE}..${GITHUB_SHA} (empty GITHUB_BEFORE = new branch; diff --check skipped, printed)
+#   local: origin/main...HEAD when that ref exists; otherwise exit 1 (set WHITESPACE_GATE_DIFF_RANGE)
 #
 # Binary paths are skipped using git's numstat/git-grep -I heuristics (no extension list).
 set -euo pipefail
@@ -17,12 +16,19 @@ root="${WHITESPACE_GATE_REPO:-$(
 )}"
 cd "$root"
 
+EMPTY_SHA="0000000000000000000000000000000000000000"
+
 # Explicit path exclusions: one entry per line as path<TAB>reason (no globs).
 # shellcheck disable=SC2034
-declare -a EXCLUSIONS=()
+declare -a EXCLUSIONS=(
+  $'test/goldens/output/check_agent.txt\tgolden reproduces --format agent output byte-for-byte; output ends with a blank line (to be decided separately)'
+  $'test/goldens/output/minimal_config/check_agent.txt\tgolden reproduces --format agent output byte-for-byte; output ends with a blank line (to be decided separately)'
+  $'test/goldens/output/no_config/check_agent.txt\tgolden reproduces --format agent output byte-for-byte; output ends with a blank line (to be decided separately)'
+)
 
 declare -a NEWLINE_FAILURES=()
 DIFF_CHECK_RANGE=""
+DIFF_CHECK_SKIP_REASON=""
 
 is_excluded() {
   local f="$1"
@@ -96,47 +102,69 @@ diff_range_usable() {
 }
 
 choose_diff_range() {
+  DIFF_CHECK_RANGE=""
+  DIFF_CHECK_SKIP_REASON=""
+
   if [[ -n "${WHITESPACE_GATE_DIFF_RANGE:-}" ]]; then
     if diff_range_usable "${WHITESPACE_GATE_DIFF_RANGE}"; then
       DIFF_CHECK_RANGE="${WHITESPACE_GATE_DIFF_RANGE}"
-    else
-      echo "whitespace-gate: unusable WHITESPACE_GATE_DIFF_RANGE=${WHITESPACE_GATE_DIFF_RANGE}" >&2
-      DIFF_CHECK_RANGE=""
-    fi
-    return 0
-  fi
-  if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" && -n "${GITHUB_BASE_REF:-}" ]]; then
-    git fetch origin "${GITHUB_BASE_REF}" --no-tags 2>/dev/null || true
-    if diff_range_usable "origin/${GITHUB_BASE_REF}...HEAD"; then
-      DIFF_CHECK_RANGE="origin/${GITHUB_BASE_REF}...HEAD"
       return 0
     fi
+    echo "whitespace-gate: unusable WHITESPACE_GATE_DIFF_RANGE=${WHITESPACE_GATE_DIFF_RANGE}" >&2
+    exit 1
   fi
-  if [[ "${GITHUB_EVENT_NAME:-}" == "push" && -n "${GITHUB_BEFORE:-}" ]]; then
-    if [[ "${GITHUB_BEFORE}" != "0000000000000000000000000000000000000000" ]]; then
-      local candidate="${GITHUB_BEFORE}..${GITHUB_SHA:-HEAD}"
-      if diff_range_usable "${candidate}"; then
-        DIFF_CHECK_RANGE="${candidate}"
-        return 0
-      fi
+
+  if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" && -n "${GITHUB_BASE_REF:-}" ]]; then
+    git fetch origin "${GITHUB_BASE_REF}" --no-tags
+    local pr_range="origin/${GITHUB_BASE_REF}...HEAD"
+    if diff_range_usable "${pr_range}"; then
+      DIFF_CHECK_RANGE="${pr_range}"
+      return 0
     fi
+    echo "whitespace-gate: unusable pull_request diff range ${pr_range}" >&2
+    exit 1
   fi
+
+  if [[ "${GITHUB_EVENT_NAME:-}" == "push" ]]; then
+    if [[ "${GITHUB_BEFORE:-}" == "${EMPTY_SHA}" ]]; then
+      DIFF_CHECK_SKIP_REASON="push event with empty GITHUB_BEFORE (new branch)"
+      return 0
+    fi
+    if [[ -z "${GITHUB_BEFORE:-}" ]]; then
+      echo "whitespace-gate: push event missing GITHUB_BEFORE; set WHITESPACE_GATE_DIFF_RANGE" >&2
+      exit 1
+    fi
+    local push_range="${GITHUB_BEFORE}..${GITHUB_SHA:-HEAD}"
+    if diff_range_usable "${push_range}"; then
+      DIFF_CHECK_RANGE="${push_range}"
+      return 0
+    fi
+    echo "whitespace-gate: unusable push diff range ${push_range}" >&2
+    exit 1
+  fi
+
   if diff_range_usable "origin/main...HEAD"; then
     DIFF_CHECK_RANGE="origin/main...HEAD"
     return 0
   fi
-  if diff_range_usable "HEAD~1..HEAD"; then
-    DIFF_CHECK_RANGE="HEAD~1..HEAD"
-    return 0
-  fi
-  DIFF_CHECK_RANGE=""
+
+  echo "whitespace-gate: cannot determine git diff --check range; set WHITESPACE_GATE_DIFF_RANGE" >&2
+  exit 1
 }
 
 run_diff_check() {
   choose_diff_range
-  echo "whitespace-gate: git diff --check range: ${DIFF_CHECK_RANGE:-<skipped (no parent)>}"
-  [[ -n "${DIFF_CHECK_RANGE}" ]] || return 0
-  git diff --check "${DIFF_CHECK_RANGE}"
+  if [[ -n "${DIFF_CHECK_RANGE}" ]]; then
+    echo "whitespace-gate: git diff --check range: ${DIFF_CHECK_RANGE}"
+    git diff --check "${DIFF_CHECK_RANGE}"
+    return 0
+  fi
+  if [[ -n "${DIFF_CHECK_SKIP_REASON}" ]]; then
+    echo "whitespace-gate: git diff --check range: <none> (${DIFF_CHECK_SKIP_REASON})"
+    return 0
+  fi
+  echo "whitespace-gate: git diff --check range: <none>"
+  return 0
 }
 
 audit_trailing_newline

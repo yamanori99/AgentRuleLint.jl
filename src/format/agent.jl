@@ -23,8 +23,7 @@ function format_agent(
     extras != "(exit $(result.exit_code))" && (headline *= " $extras")
     println(buf, headline)
     println(buf)
-    n_rules = length(groups)
-    for (idx, (rid, all_ds)) in enumerate(groups)
+    for (rid, all_ds) in groups
         lvl = all_ds[1].level
         orig = origin_label(all_ds[1].origin)
         total = length(all_ds)
@@ -47,9 +46,7 @@ function format_agent(
             end
         end
         total > limit && println(buf, "... (+$(total - limit) omitted)")
-        idx < n_rules && println(buf)
+        println(buf)
     end
-    out = String(take!(buf))
-    endswith(out, "\n") || (out *= "\n")
-    return out
+    return String(take!(buf))
 end

@@ -42,3 +42,4 @@ HIT test/corpus/silent_catch_nested.jl:2:1-2:14 | return try
 HIT test/corpus/silent_catch_nested.jl:5:1-5:11 | try
 HIT test/corpus/silent_catch_or_true_evasion.jl:2:1-2:14 | return try
 HIT test/corpus/silent_catch_underscore_nothing.jl:2:1-2:14 | return try
+
