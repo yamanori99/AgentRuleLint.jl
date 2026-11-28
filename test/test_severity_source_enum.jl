@@ -37,16 +37,13 @@ end
 
     @testset "count zero" begin
         AgentRuleLint.CheckResult(base_args...)
-        @test_throws ArgumentError AgentRuleLint.CheckResult(
-            base_args...;
-            below_threshold_count = 0,
-            below_threshold_level = AgentRuleLint.Level.WARN,
-        )
-        @test_throws ArgumentError AgentRuleLint.CheckResult(
-            base_args...;
-            below_threshold_count = 0,
-            below_threshold_mixed = true,
-        )
+        for kw in (
+                (below_threshold_count = 0, below_threshold_level = AgentRuleLint.Level.WARN),
+                (below_threshold_count = 0, below_threshold_mixed = true),
+            )
+            err = @test_throws AgentRuleLint.InternalError AgentRuleLint.CheckResult(base_args...; kw...)
+            @test AgentRuleLint.exit_code_for_error(err.value) == 3
+        end
     end
 
     @testset "homogeneous below threshold" begin
@@ -55,11 +52,12 @@ end
             below_threshold_count = 2,
             below_threshold_level = AgentRuleLint.Level.WARN,
         )
-        @test_throws ArgumentError AgentRuleLint.CheckResult(
+        err = @test_throws AgentRuleLint.InternalError AgentRuleLint.CheckResult(
             base_args...;
             below_threshold_count = 2,
             below_threshold_level = nothing,
         )
+        @test AgentRuleLint.exit_code_for_error(err.value) == 3
     end
 
     @testset "mixed below threshold" begin
@@ -68,11 +66,12 @@ end
             below_threshold_count = 2,
             below_threshold_mixed = true,
         )
-        @test_throws ArgumentError AgentRuleLint.CheckResult(
+        err = @test_throws AgentRuleLint.InternalError AgentRuleLint.CheckResult(
             base_args...;
             below_threshold_count = 2,
             below_threshold_mixed = true,
             below_threshold_level = AgentRuleLint.Level.WARN,
         )
+        @test AgentRuleLint.exit_code_for_error(err.value) == 3
     end
 end
