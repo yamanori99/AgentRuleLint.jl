@@ -42,7 +42,7 @@ function format_json(result::CheckResult)
             ),
             "anchor_line" => d.anchor_line,
             "fingerprint" => d.fingerprint,
-            "expect_status" => String(d.expect_status),
+            "expect_status" => wire_name(d.expect_status),
             "suppressed" => d.suppressed,
             "message" => d.message,
         )
@@ -56,7 +56,7 @@ function format_json(result::CheckResult)
         "rules" => length(unique(d.rule_id for d in active_violations(result.violations))),
         "exit_code" => result.exit_code,
         "threshold" => wire_name(result.exit_severity),
-        "threshold_source" => String(result.exit_severity_source),
+        "threshold_source" => wire_name(result.exit_severity_source),
     )
     push!(lines, _json_val(summary))
     return join(lines, '\n') * '\n'
