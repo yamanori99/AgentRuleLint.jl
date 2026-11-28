@@ -24,4 +24,3 @@ run_source_mutation(;
         return mutation_verify_detected(cmd; dir = root)
     end,
 )
-
