@@ -243,7 +243,7 @@ function _git_cmd_argv_prefix(root::AbstractString)
         "core.attributesFile=$(empty_attrs)",
     ]
     # Git_jll on macOS lacks a working UTF-8-MAC iconv (system git has one); git add on NFC
-    # filenames then fails with "precomposed unicode is not supported".
+    # filenames fails with "precomposed unicode is not supported" without this setting.
     # core.precomposeunicode=false disables path normalization so bytes stay as written
     # (NFC stays NFC, NFD stays NFD; ls-files, plain check, and --diff agree). See
     # test/test_git_unicode_path_reporting.jl.
