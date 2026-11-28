@@ -35,7 +35,7 @@ function _parallel_test_output_header_failed(line::AbstractString)
     return occursin("ptr_error", line) || occursin("\e[31m", line)
 end
 
-struct GitHubActionsTestLogIO{T<:IO} <: IO
+struct GitHubActionsTestLogIO{T <: IO} <: IO
     inner::T
     buf::IOBuffer
     group_open::Base.RefValue{Bool}
