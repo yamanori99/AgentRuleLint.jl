@@ -242,7 +242,9 @@ function _git_cmd_argv_prefix(root::AbstractString)
         "-c",
         "core.attributesFile=$(empty_attrs)",
     ]
-    # Git_jll on macOS lacks working UTF-8-MAC iconv; skip precomposition normalization.
+    # Git_jll lacks a working UTF-8-MAC iconv (system git on macOS does); git add on NFC
+    # filenames otherwise fails with "precomposed unicode is not supported" unless we disable
+    # HFS+ precomposition normalization (git then uses decomposed paths on disk).
     Sys.isapple() && push!(prefix, "-c", "core.precomposeunicode=false")
     return prefix
 end
