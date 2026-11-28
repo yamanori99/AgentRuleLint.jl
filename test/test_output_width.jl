@@ -17,18 +17,28 @@ function is_summary_line(line::AbstractString)
     return startswith(line, "Summary:")
 end
 
+function is_code_gutter_line(line::AbstractString)
+    return occursin("> ", line)
+end
+
 function assert_max_textwidth(
         text::AbstractString,
         limit::Int;
         skip_status_headers::Bool = false,
         skip_summary::Bool = false,
+        skip_code_gutter::Bool = false,
     )
     for line in ansi_stripped_lines(text)
         skip_status_headers && is_status_header_line(line) && continue
         skip_summary && is_summary_line(line) && continue
+        skip_code_gutter && is_code_gutter_line(line) && continue
         @test textwidth(line) <= limit
     end
     return nothing
+end
+
+function human_code_gutter_lines(text::AbstractString)
+    return filter(l -> occursin("> ", l), split(text, '\n'; keepempty = false))
 end
 
 function with_columns(f, columns::Union{Nothing, Int})
@@ -71,9 +81,21 @@ end
         res = AgentRuleLint.check(ROOT; paths = [joinpath("test", "corpus")])
         plain = IOContext(IOBuffer(), :color => false)
         out60 = AgentRuleLint.format_human(res; root = ROOT, io = plain, output_width = 60)
-        assert_max_textwidth(out60, 60; skip_status_headers = true, skip_summary = true)
+        assert_max_textwidth(
+            out60,
+            60;
+            skip_status_headers = true,
+            skip_summary = true,
+            skip_code_gutter = true,
+        )
         out80 = AgentRuleLint.format_human(res; root = ROOT, io = plain, output_width = 80)
-        assert_max_textwidth(out80, 80; skip_status_headers = true, skip_summary = true)
+        assert_max_textwidth(
+            out80,
+            80;
+            skip_status_headers = true,
+            skip_summary = true,
+            skip_code_gutter = true,
+        )
     end
 
     @testset "long do_not wraps with aligned prefix" begin
@@ -99,10 +121,11 @@ end
         @test length(do_lines) >= 2
     end
 
-    @testset "long source line truncates in gutter" begin
+    @testset "long source line caps gutter excerpt at AGENT_EXCERPT_CAP" begin
         long_line = "x"^120
         fixture_root = mktempdir()
         rel = "tmp_human_width/x.jl"
+        cap = AgentRuleLint.AGENT_EXCERPT_CAP
         try
             mkpath(joinpath(fixture_root, "tmp_human_width"))
             write(joinpath(fixture_root, rel), long_line * "\n")
@@ -121,15 +144,46 @@ end
                 "",
             )
             res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
-            out = AgentRuleLint.format_human(res; root = fixture_root, output_width = 35)
-            gutter_lines = filter(l -> occursin("> ", l) || occursin('~', l), split(out, '\n'))
-            @test !isempty(gutter_lines)
-            @test all(textwidth.(AgentRuleLint.strip_ansi.(gutter_lines)) .<= 35)
-            @test any(l -> endswith(strip(l), "…"), gutter_lines)
-            @test !any(l -> textwidth(l) > 35, gutter_lines)
+            plain = IOContext(IOBuffer(), :color => false)
+            out_pipe = AgentRuleLint.format_human(res; root = fixture_root, io = plain)
+            out_tty = AgentRuleLint.format_human(
+                res;
+                root = fixture_root,
+                io = plain,
+                output_width = 35,
+            )
+            @test human_code_gutter_lines(out_pipe) == human_code_gutter_lines(out_tty)
+            src_line = only(human_code_gutter_lines(out_pipe))
+            excerpt, _, omitted = AgentRuleLint._human_gutter_excerpt(long_line, cap)
+            @test endswith(src_line, " (+$omitted chars omitted)")
+            @test occursin(excerpt, src_line)
+            @test textwidth(excerpt) <= cap
         finally
             rm(fixture_root, recursive = true, force = true)
         end
+    end
+
+    @testset "fold-budget corpus gutter capped on pipe and pinned width" begin
+        path = joinpath("test", "corpus", "test_integrity_fold_budget.jl")
+        res = AgentRuleLint.check(ROOT; paths = [path])
+        plain = IOContext(IOBuffer(), :color => false)
+        cap = AgentRuleLint.AGENT_EXCERPT_CAP
+        out_pipe = AgentRuleLint.format_human(res; root = ROOT, io = plain)
+        out_pinned = AgentRuleLint.format_human(
+            res;
+            root = ROOT,
+            io = plain,
+            output_width = cap,
+        )
+        gutters_pipe = human_code_gutter_lines(out_pipe)
+        gutters_pin = human_code_gutter_lines(out_pinned)
+        @test gutters_pipe == gutters_pin
+        src_line = only(gutters_pipe)
+        @test length(src_line) < 500
+        @test occursin("chars omitted)", src_line)
+        body_part = split(src_line, "> "; limit = 2)[2]
+        snippet = split(body_part, " (+"; limit = 2)[1]
+        @test textwidth(snippet) <= cap
     end
 
     @testset "CJK prose wraps by textwidth" begin
@@ -301,7 +355,13 @@ end
             io = IOContext(IOBuffer(), :color => false),
             output_width = 72,
         )
-        assert_max_textwidth(out, 72; skip_status_headers = true, skip_summary = true)
+        assert_max_textwidth(
+            out,
+            72;
+            skip_status_headers = true,
+            skip_summary = true,
+            skip_code_gutter = true,
+        )
     end
 
     @testset "summary verdict stays one line at narrow width with CLI override" begin

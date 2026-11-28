@@ -168,10 +168,9 @@ function println_human_code_gutter(
     )
     line_prefix = HUMAN_CODE_PREFIX
     ul_prefix = HUMAN_UNDERLINE_PREFIX
-    budget = width - visible_textwidth(line_prefix)
-    src = _truncate_chars(line, budget, with_ellipsis = true)
-    println(buf, _human_truncate_code(src, line_prefix, width))
-    visible = _src_visible_body(src)
+    excerpt, omit_suffix, _ = _human_gutter_excerpt(line)
+    println(buf, string(line_prefix, excerpt, omit_suffix))
+    visible = _src_visible_body(excerpt)
     ul_body = human_underline_for_display(visible, span; marker = '~')
     !isempty(ul_body) || return nothing
     ul = rstrip(ul_body, ' ')
