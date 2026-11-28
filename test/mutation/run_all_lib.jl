@@ -5,6 +5,7 @@ const _MUTATION_REPO_ROOT = normpath(joinpath(_MUTATION_RUN_DIR, "..", ".."))
 
 include(joinpath(_MUTATION_RUN_DIR, "..", "shard_lib.jl"))
 include(joinpath(_MUTATION_RUN_DIR, "mutation_lib.jl"))
+include(joinpath(_MUTATION_RUN_DIR, "..", "github_actions_log.jl"))
 
 function discover_mutation_scripts(dir::AbstractString = _MUTATION_RUN_DIR)
     skip = Set(["mutation_lib.jl", "run_all.jl", "run_all_lib.jl"])
@@ -99,8 +100,13 @@ end
 function print_mutation_report(results)
     failed = 0
     for r in results
+        passed = r.result === :pass
+        if passed
+            github_actions_group_begin(Base.stdout, r.name)
+        end
         r.stdout != "" && print(r.stdout)
-        r.stderr != "" && print(stderr, r.stderr)
+        r.stderr != "" && print(Base.stderr, r.stderr)
+        passed && github_actions_group_end(Base.stdout)
         label = r.result === :pass ? "PASS" : (r.result === :fail ? "FAIL" : "CRASH")
         elapsed = round(r.elapsed; digits = 1)
         status =
