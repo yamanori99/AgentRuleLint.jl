@@ -659,9 +659,9 @@ function resolve_policy(root::AbstractString; config_path = nothing, config_from
     end
     given !== nothing &&
         throw(
-            ConfigError(
-                "config not found: given=$(repr(given)) normalized=$(repr(normalize_path(given)))",
-            ),
-        )
+        ConfigError(
+            "config not found: given=$(repr(given)) normalized=$(repr(normalize_path(given)))",
+        ),
+    )
     return default_policy(root)
 end
