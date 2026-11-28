@@ -54,14 +54,8 @@ const _ON_FILTER_RULE = "protected-paths"
                 ]
                 """
                 write(joinpath(root, ".AgentRuleLint.jl.toml"), cfg)
-                err = try
-                    AgentRuleLint.load_policy(root)
-                    nothing
-                catch e
-                    e
-                end
-                @test err isa AgentRuleLint.ConfigError
-                @test occursin("rules.protected-paths.paths[1].on", sprint(showerror, err))
+                err = @test_throws AgentRuleLint.ConfigError AgentRuleLint.load_policy(root)
+                @test occursin("rules.protected-paths.paths[1].on", sprint(showerror, err.value))
                 @test AgentRuleLint.cli_main(["check", "--config", joinpath(root, ".AgentRuleLint.jl.toml")]) == 2
             end
         finally
