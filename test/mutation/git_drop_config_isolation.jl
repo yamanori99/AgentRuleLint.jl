@@ -8,9 +8,10 @@ run_source_mutation(;
     name = "git config isolation env removed",
     rel_path = "src/git.jl",
     needle = raw"""function git_cmd(root::AbstractString, args::AbstractString...)
-        g = _git_executable_cmd(root)
+        base = _bundled_git_cmd()
+        exe = String(base.exec[1])
         tail = Cmd(vcat(_git_cmd_argv_prefix(root), collect(String, args)))
-        return setenv(`$g $tail`, _git_merged_env())
+        return setenv(`$exe $tail`, _git_merged_env(base))
     end""",
     replacement = raw"""function git_cmd(root::AbstractString, args::AbstractString...)
         r = abspath(String(root))

@@ -5,7 +5,8 @@ const _git = AgentRuleLint
 """
 Git argv/env our entry point sets (no other repo code should bypass `git_cmd`):
 
-- **Every call:** `-C <root>`, `-c safe.directory=<root>`, `-c core.attributesFile=<empty>`; env
+- **Every call:** `-C <root>`, `-c safe.directory=<root>`, `-c core.attributesFile=<empty>`; on macOS
+  also `-c core.precomposeunicode=false` (bundled Git_jll lacks UTF-8-MAC iconv). Env:
   `GIT_CONFIG_NOSYSTEM=1`, `GIT_ATTR_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL` (empty per run),
   `GIT_TERMINAL_PROMPT=0`, `GIT_OPTIONAL_LOCKS=0`, `GIT_PAGER=cat`, `LC_ALL=C`.
 - **`git diff` (name-status / numstat / unified):** `-c diff.renames=true`, `-M`,
