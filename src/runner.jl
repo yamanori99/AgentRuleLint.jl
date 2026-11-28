@@ -255,12 +255,12 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
             is_violation_hit(d) && !violation_counts_toward_exit(d, threshold)
     ]
     below_n = length(below)
-    below_lvl = if below_n == 0
-        :none
+    below_lvl, below_mixed = if below_n == 0
+        nothing, false
     elseif all(d -> d.level == below[1].level, below)
-        Symbol(wire_name(below[1].level))
+        below[1].level, false
     else
-        :mixed
+        nothing, true
     end
     empty_ceilings = CeilingEntry(
         Dict{String, Dict{String, Int}}(),
@@ -283,6 +283,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         baseline_exit_severity_source = baseline_src,
         below_threshold_count = below_n,
         below_threshold_level = below_lvl,
+        below_threshold_mixed = below_mixed,
         git_executable = rt.executable,
         git_version = rt.version,
     )

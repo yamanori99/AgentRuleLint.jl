@@ -483,7 +483,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     else
         DEFAULT_EXIT_SEVERITY
     end
-    exit_src = exit_from_config ? :config : :default
+    exit_src = exit_from_config ? SeveritySource.CONFIG : SeveritySource.DEFAULT
     presets = if haskey(raw, "presets")
         _parse_preset_list(raw["presets"], "presets")
     else
@@ -637,7 +637,7 @@ function default_policy(root::AbstractString)
         ver,
         OutputFormat.HUMAN,
         DEFAULT_EXIT_SEVERITY,
-        :default,
+        SeveritySource.DEFAULT,
         20,
         String[],
         rules,
