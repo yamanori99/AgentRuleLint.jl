@@ -132,7 +132,7 @@ function _ceiling_ratchet_diag(path::String, _rule_id::String, message::String, 
         throw(InternalError("built-in rule $CEILING_RATCHET_RULE missing from policy"))
     return Violation(
         CEILING_RATCHET_RULE,
-        :agentrulelint,
+        Origin.AGENTRULELINT,
         Level.FORBID,
         path,
         Span(1, 1, 1, 1),

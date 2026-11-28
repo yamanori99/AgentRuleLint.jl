@@ -58,7 +58,7 @@ function _push_test_integrity!(
         diags,
         Violation(
             TEST_INTEGRITY_RULE,
-            :agentrulelint,
+            Origin.AGENTRULELINT,
             lvl,
             path,
             sp,
@@ -696,7 +696,7 @@ function _push_deleted_test_file!(
             diags,
             Violation(
                 TEST_INTEGRITY_RULE,
-                :agentrulelint,
+                Origin.AGENTRULELINT,
                 lvl,
                 report_path,
                 sp,
@@ -715,7 +715,7 @@ function _push_deleted_test_file!(
         diags,
         Violation(
             TEST_INTEGRITY_RULE,
-            :agentrulelint,
+            Origin.AGENTRULELINT,
             lvl,
             report_path,
             Span(),
@@ -911,7 +911,7 @@ end
 
 const TEST_INTEGRITY_RULE_DEF = RuleDef(
     TEST_INTEGRITY_RULE,
-    :agentrulelint,
+    Origin.AGENTRULELINT,
     Level.DENY,
     "Keep tests from being hollowed out or silently disabled.",
     "Replace assertions with trivially true forms, broaden throws, skip without reason, or drop covered tests.",
