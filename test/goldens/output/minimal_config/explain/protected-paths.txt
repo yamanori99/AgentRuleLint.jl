@@ -23,7 +23,13 @@ compat string change (loosening is any non-identical string; no semver reasoning
 or any other top-level key change is a violation.
 
 Declared `paths = [{ glob = "...", reason = "..." }]` under `[rules.protected-paths]` use
-project-rule path-glob syntax; the reason appears in the message.
+project-rule path-glob syntax; the reason appears in the message. Each entry may set optional
+`on = ["added", "modified", "deleted", "renamed", "copied"]` to restrict which effective change
+types forbid a finding; omit `on` to forbid every type that would otherwise report. Config-declared
+globs classify renames and copies for matching: rename out of the glob is `deleted` on the old
+path; rename in is `added` on the new path; rename within is `renamed` on both paths; copy with only
+the destination in the glob is `added` on the destination; copy with both sides in the glob is
+`copied` on the destination only (the source file remains). Auto-protected paths ignore `on`.
 
 Missing or unparsable TOML on either side of a compared change fails closed (exit 2).
 

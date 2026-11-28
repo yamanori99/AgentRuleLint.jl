@@ -49,16 +49,76 @@ function auto_protected_reason(path::AbstractString)
     return "protected path changed"
 end
 
-function classify_protected_path(path::AbstractString, policy::PolicyBundle)
+function _glob_matches(path::AbstractString, entry::ProtectedGlobEntry)
+    return occursin(entry.regex, normalize_path(path))
+end
+
+function _first_glob_entry(path::AbstractString, policy::PolicyBundle)
     p = normalize_path(path)
     for entry in policy.protected_path_globs
-        occursin(entry.regex, p) && return true, entry.reason
+        occursin(entry.regex, p) && return entry
     end
+    return nothing
+end
+
+function _auto_protected_match(path::AbstractString)
+    p = normalize_path(path)
     p in AUTO_PROTECTED_EXACT && return true, auto_protected_reason(p)
     _under_agentrulelint(p) && return true, auto_protected_reason(p)
     _is_manifest_lock(p) && return true, auto_protected_reason(p)
     _is_workspace_project_toml(p) && return true, auto_protected_reason(p)
     return false, ""
+end
+
+function classify_protected_path(path::AbstractString, policy::PolicyBundle)
+    entry = _first_glob_entry(path, policy)
+    entry !== nothing && return true, entry.reason
+    return _auto_protected_match(path)
+end
+
+function _on_allows(change_types::Union{Nothing, Set{String}}, word::AbstractString)
+    change_types === nothing && return true
+    return String(word) in change_types
+end
+
+function _push_protected_finding!(
+        out::Vector{Violation},
+        seen::Set{String},
+        path::String,
+        word::AbstractString,
+        reason::AbstractString,
+        root::AbstractString,
+        base::AbstractString,
+        ev::DiffPathEvent,
+        policy::PolicyBundle,
+    )
+    path in seen && return
+    push!(seen, path)
+    _protected_change_exempt(root, base, path, ev, policy) && return
+    msg = "$(String(word)) (reason: $(String(reason)))"
+    return push!(out, _protected_paths_diag(path, msg, policy))
+end
+
+function _glob_findings_for_event(ev::DiffPathEvent, entry::ProtectedGlobEntry)
+    out = Tuple{String, String}[]
+    if ev.status in ('R', 'C')
+        old_m = _glob_matches(ev.old_path, entry)
+        new_m = _glob_matches(ev.path, entry)
+        if ev.status == 'R'
+            old_m && !new_m && push!(out, (ev.old_path, "deleted"))
+            !old_m && new_m && push!(out, (ev.path, "added"))
+            old_m && new_m && begin
+                push!(out, (ev.old_path, "renamed"))
+                push!(out, (ev.path, "renamed"))
+            end
+        else
+            !old_m && new_m && push!(out, (ev.path, "added"))
+            old_m && new_m && push!(out, (ev.path, "copied"))
+        end
+    else
+        _glob_matches(ev.path, entry) && push!(out, (ev.path, _status_word(ev.status)))
+    end
+    return [(p, w) for (p, w) in out if _on_allows(entry.change_types, w)]
 end
 
 function _protected_paths_spec(policy::PolicyBundle)
@@ -227,18 +287,19 @@ function _handle_protected_event(
         policy::PolicyBundle,
     )
     out = Violation[]
-    paths = ev.status in ('R', 'C') ? [ev.old_path, ev.path] : [ev.path]
     seen = Set{String}()
-    for p in paths
-        p in seen && continue
-        push!(seen, p)
-        matched, reason = classify_protected_path(p, policy)
-        matched || continue
-        if !_protected_change_exempt(root, base, p, ev, policy)
-            word = _status_word(ev.status)
-            msg = "$word (reason: $reason)"
-            push!(out, _protected_paths_diag(p, msg, policy))
+    for entry in policy.protected_path_globs
+        for (p, word) in _glob_findings_for_event(ev, entry)
+            _push_protected_finding!(out, seen, p, word, entry.reason, root, base, ev, policy)
         end
+    end
+    paths = ev.status in ('R', 'C') ? [ev.old_path, ev.path] : [ev.path]
+    for p in paths
+        _first_glob_entry(p, policy) !== nothing && continue
+        matched, reason = _auto_protected_match(p)
+        matched || continue
+        word = _status_word(ev.status)
+        _push_protected_finding!(out, seen, p, word, reason, root, base, ev, policy)
     end
     return out
 end
@@ -274,7 +335,13 @@ compat string change (loosening is any non-identical string; no semver reasoning
 or any other top-level key change is a violation.
 
 Declared `paths = [{ glob = "...", reason = "..." }]` under `[rules.protected-paths]` use
-project-rule path-glob syntax; the reason appears in the message.
+project-rule path-glob syntax; the reason appears in the message. Each entry may set optional
+`on = ["added", "modified", "deleted", "renamed", "copied"]` to restrict which effective change
+types forbid a finding; omit `on` to forbid every type that would otherwise report. Config-declared
+globs classify renames and copies for matching: rename out of the glob is `deleted` on the old
+path; rename in is `added` on the new path; rename within is `renamed` on both paths; copy with only
+the destination in the glob is `added` on the destination; copy with both sides in the glob is
+`copied` on the destination only (the source file remains). Auto-protected paths ignore `on`.
 
 Missing or unparsable TOML on either side of a compared change fails closed (exit 2).
 

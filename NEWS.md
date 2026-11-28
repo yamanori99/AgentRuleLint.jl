@@ -4,6 +4,12 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 
 ## Unreleased (0.1.0-DEV)
 
+### `protected-paths` config glob `on` change-type filter
+
+Each `[rules.protected-paths].paths[]` entry may set optional `on = ["added", …]` to
+forbid only those effective change types. Invalid, empty, or duplicate `on` values are
+`ConfigError` (exit 2). Copy events with only the source inside the glob do not report.
+
 ### **[CI-breaking]** Isolated PATH git (>= 2.32); user and system git config ignored
 
 All git reads use **`git` on `PATH`** with config isolation (`GIT_CONFIG_NOSYSTEM`, empty global

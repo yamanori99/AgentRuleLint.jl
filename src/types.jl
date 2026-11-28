@@ -238,6 +238,7 @@ UnsafeBoundaryConfig() = UnsafeBoundaryConfig(false, Level.WARN, String[], Regex
 struct ProtectedGlobEntry
     regex::Regex
     reason::String
+    change_types::Union{Nothing, Set{String}}
 end
 struct PolicyBundle
     agentrulelint_version::VersionNumber

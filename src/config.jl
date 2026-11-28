@@ -270,6 +270,27 @@ function _parse_string_array(raw, label::AbstractString)
     return out
 end
 
+const PROTECTED_PATH_ON_VALUES =
+    ("added", "modified", "deleted", "renamed", "copied")
+
+function _parse_protected_paths_on(raw, sub::AbstractString)
+    arr = _parse_string_array(raw, "$sub.on")
+    isempty(arr) &&
+        throw(ConfigError("$sub.on must not be empty"))
+    out = Set{String}()
+    for (k, s) in enumerate(arr)
+        sl = lowercase(strip(String(s)))
+        sl ∉ PROTECTED_PATH_ON_VALUES && throw(
+            ConfigError(
+                "$sub.on[$k] must be one of: added, modified, deleted, renamed, copied (got $(repr(s)))",
+            ),
+        )
+        sl in out && throw(ConfigError("$sub.on must not contain duplicate values"))
+        push!(out, sl)
+    end
+    return out
+end
+
 function _parse_protected_paths_globs(content::Dict, label::String)
     raw = get(content, "paths", [])
     raw isa AbstractVector || throw(ConfigError("$label.paths must be an array"))
@@ -277,11 +298,13 @@ function _parse_protected_paths_globs(content::Dict, label::String)
     for (j, entry) in enumerate(raw)
         sub = "rules.$label.paths[$j]"
         entry isa Dict || throw(ConfigError("$sub must be a table"))
-        _reject_unknown_keys!(entry, Set(["glob", "reason"]), sub)
+        _reject_unknown_keys!(entry, Set(["glob", "reason", "on"]), sub)
         glob = _require_string(entry, "glob", sub)
         reason = _require_string(entry, "reason", sub)
         rx = compile_path_glob(glob, sub)
-        push!(out, ProtectedGlobEntry(rx, reason))
+        change_types =
+            haskey(entry, "on") ? _parse_protected_paths_on(entry["on"], sub) : nothing
+        push!(out, ProtectedGlobEntry(rx, reason, change_types))
     end
     return out
 end
