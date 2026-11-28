@@ -39,9 +39,11 @@ least one, 2 a config or usage error, 3 an internal error. `exit_severity` in th
 `--exit-severity` for one run, raises the threshold to `deny` or `forbid`;
 `forbid` findings always fail, and a CLI override is shown in the verdict line.
 
-AgentRuleLint uses **`git` on `PATH`** (minimum **2.32**) with config isolation: system and user
-git config (`~/.gitconfig`, `/etc/gitconfig`) are ignored. The resolved git path and version appear
-in human, agent, and JSON output headers. Plain `check` needs a git repository for **manifest-sync**
+AgentRuleLint uses the **git bundled through [Git.jl](https://github.com/JuliaIO/Git.jl)** (minimum
+**2.32**). You do not need git installed on the host. User and system git config and attributes are
+ignored (`GIT_CONFIG_NOSYSTEM`, empty global config, `GIT_ATTR_NOSYSTEM`, `core.attributesFile`).
+The resolved git path and version appear in human, agent, and JSON output headers. Plain `check` needs a
+git repository for **manifest-sync**
 (tracked `Project.toml` / `Manifest.toml` pairs). **`check --diff`**, **`--config-from`**, ceiling
 ratchet, protected-path base comparison, and scope-paths also read git history. Only the repository
 root you pass is trusted via `safe.directory` (not worktrees or submodules as separate roots).

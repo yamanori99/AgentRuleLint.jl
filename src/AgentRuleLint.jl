@@ -1,5 +1,6 @@
 module AgentRuleLint
 
+using Git
 using JuliaSyntax
 using PrecompileTools
 using StyledStrings

@@ -1,4 +1,4 @@
-# Config-isolated git on PATH (see #93). Minimum git 2.32 (GIT_CONFIG_GLOBAL).
+# Bundled git via Git.jl with config isolation (see #93). Minimum git 2.32 (GIT_CONFIG_GLOBAL).
 
 const GIT_MIN_VERSION = VersionNumber("2.32")
 
@@ -69,8 +69,36 @@ function _git_strip_inherited!(env::Dict{String, String})
     return env
 end
 
-function _git_merged_env()
-    env = copy(ENV)
+function _cmd_env_dict(cmd::Cmd)
+    cmd.env === nothing &&
+        throw(GitError("Git.jl bundled git command has no environment"))
+    env = Dict{String, String}()
+    for entry in cmd.env
+        s = String(entry)
+        idx = findfirst('=', s)
+        idx === nothing && continue
+        env[s[1:(idx - 1)]] = s[(idx + 1):end]
+    end
+    return env
+end
+
+"""Resolve Git.jl's bundled git command; fail closed if Git.jl cannot provide it."""
+function _bundled_git_cmd()
+    try
+        return Git.git()
+    catch err
+        err isa InterruptException && rethrow()
+        throw(GitError("Git.jl bundled git is unavailable: $(format_error(err))"))
+    end
+end
+
+"""Git.jl's bundled-git environment (JLL paths, `GIT_EXEC_PATH`, SSL, …); never strip or override."""
+function _git_jll_env(base_cmd::Cmd)
+    return _cmd_env_dict(base_cmd)
+end
+
+function _git_merged_env(base_cmd::Cmd)
+    env = _git_jll_env(base_cmd)
     _git_strip_inherited!(env)
     merge!(env, _git_isolated_overrides())
     return env
@@ -164,7 +192,7 @@ function _parse_git_version_output(exe::AbstractString, out::AbstractString)
     return VersionNumber(ver_s)
 end
 
-"""Probe PATH git via the isolated entry point; cache for this run."""
+"""Probe Git.jl bundled git via the isolated entry point; cache for this run."""
 function ensure_git_runtime!(root::AbstractString)
     tls = _task_tls()
     if haskey(tls, _TLS_RUNTIME)
@@ -172,17 +200,15 @@ function ensure_git_runtime!(root::AbstractString)
         !isempty(rt.version) && return rt
     end
     probe_root = (r = abspath(String(root)); isdir(r) ? r : pwd())
-    exe = Sys.which("git")
-    exe === nothing &&
-        throw(GitError("git executable not found on PATH; AgentRuleLint requires git >= $GIT_MIN_VERSION"))
-    exe = String(exe)
+    base = _bundled_git_cmd()
+    exe = String(base.exec[1])
     tls[_TLS_RUNTIME] = (executable = exe, version = "")
     raw = strip(String(read_git_cmd(probe_root, "--version"; error_prefix = "git --version failed")))
     ver = _parse_git_version_output(exe, raw)
     ver < GIT_MIN_VERSION &&
         throw(
         GitError(
-            "git at $exe reported version $ver; AgentRuleLint requires git >= $GIT_MIN_VERSION",
+            "bundled git at $exe reported version $ver; AgentRuleLint requires git >= $GIT_MIN_VERSION",
         ),
     )
     rt = (executable = exe, version = string(ver))
@@ -208,7 +234,7 @@ All AgentRuleLint and test git invocations must use this entry point.
 function _git_cmd_argv_prefix(root::AbstractString)
     r = abspath(String(root))
     empty_attrs = _git_global_config_path()
-    return String[
+    prefix = String[
         "-C",
         r,
         "-c",
@@ -216,12 +242,18 @@ function _git_cmd_argv_prefix(root::AbstractString)
         "-c",
         "core.attributesFile=$(empty_attrs)",
     ]
+    # Git_jll lacks a working UTF-8-MAC iconv (system git on macOS does); git add on NFC
+    # filenames otherwise fails with "precomposed unicode is not supported" unless we disable
+    # HFS+ precomposition normalization (git then uses decomposed paths on disk).
+    Sys.isapple() && push!(prefix, "-c", "core.precomposeunicode=false")
+    return prefix
 end
 
 function git_cmd(root::AbstractString, args::AbstractString...)
-    g = _git_executable_cmd(root)
+    base = _bundled_git_cmd()
+    exe = String(base.exec[1])
     tail = Cmd(vcat(_git_cmd_argv_prefix(root), collect(String, args)))
-    return setenv(`$g $tail`, _git_merged_env())
+    return setenv(`$exe $tail`, _git_merged_env(base))
 end
 
 """Read stdout from an isolated git call; on failure raise `GitError` including stderr."""

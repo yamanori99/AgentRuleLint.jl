@@ -4,17 +4,18 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 
 ## Unreleased (0.1.0-DEV)
 
-### **[CI-breaking]** Isolated PATH git (>= 2.32); user and system git config ignored
+### **[CI-breaking]** Bundled git via Git.jl (>= 2.32); no system git
 
-All git reads use **`git` on `PATH`** with config isolation (`GIT_CONFIG_NOSYSTEM`, empty global
-config, `GIT_OPTIONAL_LOCKS=0`, and related env). Inherited `GIT_CONFIG_*` / repo-location env is
-stripped before each git child. Git **2.32** or newer is required; older or missing git fails closed
-(exit 2). Plain `check` on a non-repository directory fails closed with a `GitError` naming the
-feature (for example **manifest-sync**). There is no escape hatch to a different git binary. Output
-headers record the git path and version used for the run.
+AgentRuleLint runs **git bundled through Git.jl**, not `git` on `PATH`. Host git config and attributes
+are ignored (same isolation as #154): `GIT_CONFIG_NOSYSTEM`, empty global config, `GIT_OPTIONAL_LOCKS=0`,
+and related env; inherited `GIT_CONFIG_*` / repo-location env is stripped before each git child. Bundled
+git **2.32** or newer is required; if Git.jl cannot provide git, AgentRuleLint fails closed (exit 2).
+Plain `check` on a non-repository directory fails closed with a `GitError` naming the feature (for
+example **manifest-sync**). There is no escape hatch to another git binary. Output headers record the
+git path and version used for the run.
 
-CI on git older than 2.32, or jobs that relied on `diff.renames` / hooks in user git config, may fail
-or see different behavior after upgrade.
+CI that assumed the runner's system git, git older than 2.32, or user `diff.renames` / hooks in git
+config may see different behavior.
 
 ### **[CI-breaking]** User-supplied paths normalized; non-matching paths exit 2
 
