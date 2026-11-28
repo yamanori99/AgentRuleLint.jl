@@ -80,5 +80,5 @@ function resolve_exit_severity(policy::PolicyBundle; exit_severity = nothing)
     if exit_severity === nothing
         return baseline, baseline_src, baseline, baseline_src
     end
-    return _parse_exit_severity_cli(exit_severity), :cli, baseline, baseline_src
+    return _parse_exit_severity_cli(exit_severity), SeveritySource.CLI, baseline, baseline_src
 end

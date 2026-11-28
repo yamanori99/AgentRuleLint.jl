@@ -10,6 +10,8 @@ using EnumX
 
 @enumx ExpectStatus NONE FULFILLED UNFULFILLED DELETED_TEST
 
+@enumx SeveritySource DEFAULT CONFIG CLI
+
 function wire_name(x::Level.T)::String
     return lowercase(String(Symbol(x)))
 end
@@ -27,6 +29,10 @@ function wire_name(x::OutputFormat.T)::String
 end
 
 function wire_name(x::ExpectStatus.T)::String
+    return lowercase(String(Symbol(x)))
+end
+
+function wire_name(x::SeveritySource.T)::String
     return lowercase(String(Symbol(x)))
 end
 

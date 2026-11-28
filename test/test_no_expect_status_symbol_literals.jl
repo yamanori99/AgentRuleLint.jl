@@ -1,16 +1,11 @@
 # Guard: `src/` must not use ExpectStatus quote literals outside conversion functions (issue #104 PR 5).
-# `:none` for `below_threshold_level` is allowlisted in specific files only.
 
 include(joinpath(@__DIR__, "enum_symbol_guard_common.jl"))
 using .EnumSymbolGuard: scan_enum_symbol_source, collect_src_enum_symbol_violations
 
 const _EXPECT_STATUS_PROBE_REL = "src/__expect_status_symbol_guard_probe__.jl"
 const _EXPECT_STATUS_NAMES = Set(["none", "fulfilled", "unfulfilled", "deleted_test"])
-const _EXPECT_STATUS_SYMBOL_ALLOWLIST = [
-    ("src/format/common.jl", "none", "below_threshold_level in _below_threshold_phrase"),
-    ("src/types.jl", "none", "below_threshold_level default on CheckResult"),
-    ("src/runner.jl", "none", "below_threshold_level when below_n == 0"),
-]
+const _EXPECT_STATUS_SYMBOL_ALLOWLIST = Tuple{String, String, String}[]
 
 @testset "src/ ExpectStatus Symbol literal guard" begin
     @testset "syntax scan finds quote literals (probe sources)" begin

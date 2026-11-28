@@ -60,6 +60,34 @@ Base.:(==)(a::CeilingEntry, b::CeilingEntry) = isequal(a, b)
 
 const DEFAULT_EXIT_SEVERITY = Level.WARN
 
+function _check_below_threshold_invariant(
+        below_threshold_count::Int,
+        below_threshold_level::Union{Nothing, Level.T},
+        below_threshold_mixed::Bool,
+    )
+    if below_threshold_count <= 0
+        below_threshold_level === nothing || throw(
+            ArgumentError("below_threshold_count == 0 requires below_threshold_level === nothing"),
+        )
+        below_threshold_mixed && throw(
+            ArgumentError("below_threshold_count == 0 requires below_threshold_mixed == false"),
+        )
+        return
+    end
+    if below_threshold_mixed
+        below_threshold_level === nothing || throw(
+            ArgumentError("below_threshold_mixed requires below_threshold_level === nothing"),
+        )
+        return
+    end
+    below_threshold_level === nothing && throw(
+        ArgumentError(
+            "homogeneous below-threshold findings require below_threshold_level",
+        ),
+    )
+    return
+end
+
 struct CheckResult
     violations::Vector{Violation}
     complete::Bool
@@ -71,11 +99,12 @@ struct CheckResult
     violation_count::Int
     ceilings::CeilingEntry
     exit_severity::Level.T
-    exit_severity_source::Symbol
+    exit_severity_source::SeveritySource.T
     baseline_exit_severity::Level.T
-    baseline_exit_severity_source::Symbol
+    baseline_exit_severity_source::SeveritySource.T
     below_threshold_count::Int
-    below_threshold_level::Symbol
+    below_threshold_level::Union{Nothing, Level.T}
+    below_threshold_mixed::Bool
     git_executable::String
     git_version::String
 
@@ -90,14 +119,16 @@ struct CheckResult
             violation_count::Int;
             ceilings::CeilingEntry = CeilingEntry(Dict(), Dict()),
             exit_severity::Level.T = DEFAULT_EXIT_SEVERITY,
-            exit_severity_source::Symbol = :default,
+            exit_severity_source::SeveritySource.T = SeveritySource.DEFAULT,
             baseline_exit_severity::Level.T = DEFAULT_EXIT_SEVERITY,
-            baseline_exit_severity_source::Symbol = :default,
+            baseline_exit_severity_source::SeveritySource.T = SeveritySource.DEFAULT,
             below_threshold_count::Int = 0,
-            below_threshold_level::Symbol = :none,
+            below_threshold_level::Union{Nothing, Level.T} = nothing,
+            below_threshold_mixed::Bool = false,
             git_executable::String = "",
             git_version::String = "",
         )
+        _check_below_threshold_invariant(below_threshold_count, below_threshold_level, below_threshold_mixed)
         return new(
             violations,
             complete,
@@ -114,6 +145,7 @@ struct CheckResult
             baseline_exit_severity_source,
             below_threshold_count,
             below_threshold_level,
+            below_threshold_mixed,
             git_executable,
             git_version,
         )
@@ -243,7 +275,7 @@ struct PolicyBundle
     agentrulelint_version::VersionNumber
     default_format::OutputFormat.T
     exit_severity::Level.T
-    exit_severity_source::Symbol
+    exit_severity_source::SeveritySource.T
     max_hits_per_rule::Int
     presets::Vector{String}
     rules::Dict{String, RuleSpec}
