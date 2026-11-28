@@ -92,8 +92,13 @@ function _bundled_git_cmd()
     end
 end
 
+"""Git.jl's bundled-git environment (JLL paths, `GIT_EXEC_PATH`, SSL, …); never strip or override."""
+function _git_jll_env(base_cmd::Cmd)
+    return _cmd_env_dict(base_cmd)
+end
+
 function _git_merged_env(base_cmd::Cmd)
-    env = _cmd_env_dict(base_cmd)
+    env = _git_jll_env(base_cmd)
     _git_strip_inherited!(env)
     merge!(env, _git_isolated_overrides())
     return env

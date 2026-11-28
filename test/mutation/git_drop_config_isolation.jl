@@ -15,9 +15,10 @@ run_source_mutation(;
     end""",
     replacement = raw"""function git_cmd(root::AbstractString, args::AbstractString...)
         r = abspath(String(root))
-        g = _git_executable_cmd(root)
+        base = _bundled_git_cmd()
+        exe = String(base.exec[1])
         tail = Cmd(vcat(String["-C", r, "-c", "safe.directory=$(r)"], collect(String, args)))
-        return `$g $tail`
+        return setenv(`$exe $tail`, _git_jll_env(base))
     end""",
     replace_count = 1,
     verify = root -> begin
