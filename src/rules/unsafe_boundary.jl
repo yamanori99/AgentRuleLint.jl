@@ -488,7 +488,7 @@ function _diagnose_unsafe_boundary_macros(
     _walk_unsafe_boundary!(tree, 1, ctx)
     diags = Violation[]
     seen = Set{Tuple{Int, Int}}()
-    origin = rule_id == "unsafe-boundary" ? :agentrulelint : :preset
+    origin = rule_id == "unsafe-boundary" ? Origin.AGENTRULELINT : Origin.PRESET
     for (bs, be, msg) in ctx.hits
         key = (bs, be)
         key in seen && continue
@@ -590,7 +590,7 @@ end
 
 const UNSAFE_BOUNDARY_RULE_DEF = RuleDef(
     "unsafe-boundary",
-    :agentrulelint,
+    Origin.AGENTRULELINT,
     Level.WARN,
     "Keep runtime evaluation, metaprogramming escapes, and FFI calls inside reviewed module or path boundaries.",
     "Alias Core.eval to a local name, pass eval/Meta.parse/ccall/invokelatest as values, split strings, Expr(:call,:eval,...), or hide calls outside allow_modules / allow_globs.",

@@ -31,7 +31,7 @@ function format_json(result::CheckResult)
         rec = Dict{String, Any}(
             "type" => "diagnostic",
             "rule_id" => d.rule_id,
-            "origin" => String(d.origin),
+            "origin" => wire_name(d.origin),
             "level" => wire_name(d.level),
             "path" => d.path,
             "span" => Dict(

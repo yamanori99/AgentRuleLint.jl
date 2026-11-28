@@ -279,7 +279,7 @@ function _push_ms_violation!(
         diags,
         Violation(
             MANIFEST_SYNC_RULE,
-            :agentrulelint,
+            Origin.AGENTRULELINT,
             level,
             path,
             sp,
@@ -870,7 +870,7 @@ end
 
 const MANIFEST_SYNC_RULE_DEF = RuleDef(
     MANIFEST_SYNC_RULE,
-    :agentrulelint,
+    Origin.AGENTRULELINT,
     Level.DENY,
     "Tracked Manifest.toml files must stay consistent with Project.toml (integrity).",
     "Edit [deps] or other resolve sections without updating the tracked manifest.",

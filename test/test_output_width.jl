@@ -80,7 +80,7 @@ end
         long_dn = join(fill("word", 24), " ")
         d = AgentRuleLint.Violation(
             "project/test",
-            :project,
+            AgentRuleLint.Origin.PROJECT,
             AgentRuleLint.Level.DENY,
             "x.jl",
             AgentRuleLint.Span(1, 1, 1, 3),
@@ -108,7 +108,7 @@ end
             write(joinpath(fixture_root, rel), long_line * "\n")
             d = AgentRuleLint.Violation(
                 "project/test",
-                :project,
+                AgentRuleLint.Origin.PROJECT,
                 AgentRuleLint.Level.DENY,
                 rel,
                 AgentRuleLint.Span(1, 1, 1, 120),
@@ -136,7 +136,7 @@ end
         cjk = "日本語"^20
         d = AgentRuleLint.Violation(
             "project/test",
-            :project,
+            AgentRuleLint.Origin.PROJECT,
             AgentRuleLint.Level.DENY,
             "x.jl",
             AgentRuleLint.Span(1, 1, 1, 1),
@@ -170,7 +170,7 @@ end
     @testset "locations are not truncated" begin
         d = AgentRuleLint.Violation(
             "project/test",
-            :project,
+            AgentRuleLint.Origin.PROJECT,
             AgentRuleLint.Level.DENY,
             "very/long/path/under/test/corpus/example_name.jl",
             AgentRuleLint.Span(9, 9, 9, 9),
@@ -191,7 +191,7 @@ end
     @testset "json output unchanged" begin
         d = AgentRuleLint.Violation(
             "project/test",
-            :project,
+            AgentRuleLint.Origin.PROJECT,
             AgentRuleLint.Level.DENY,
             "test/corpus/split_string.jl",
             AgentRuleLint.Span(1, 1, 1, 10),
@@ -226,7 +226,7 @@ end
         long_msg = "diagnostic-message-" * ('m'^180)
         d = AgentRuleLint.Violation(
             "project/test",
-            :project,
+            AgentRuleLint.Origin.PROJECT,
             AgentRuleLint.Level.DENY,
             long_path,
             AgentRuleLint.Span(2, 2, 2, 5),
@@ -262,7 +262,7 @@ end
             write(joinpath(fixture_root, rel), body * "\n")
             d = AgentRuleLint.Violation(
                 "project/test",
-                :project,
+                AgentRuleLint.Origin.PROJECT,
                 AgentRuleLint.Level.DENY,
                 rel,
                 AgentRuleLint.Span(1, 1, 1, length(body)),

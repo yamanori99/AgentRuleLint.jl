@@ -8,7 +8,7 @@ end
 function _push_builtin_violation!(
         diags::Vector{Violation},
         rule_id::String,
-        origin::Symbol,
+        origin::Origin.T,
         eff_level::Level.T,
         path::String,
         source::AbstractString,

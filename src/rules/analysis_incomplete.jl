@@ -42,7 +42,7 @@ function push_analysis_incomplete!(
         diags,
         Violation(
             ANALYSIS_INCOMPLETE_RULE,
-            :agentrulelint,
+            Origin.AGENTRULELINT,
             Level.FORBID,
             path,
             sp,
@@ -127,7 +127,7 @@ end
 
 const ANALYSIS_INCOMPLETE_RULE_DEF = RuleDef(
     ANALYSIS_INCOMPLETE_RULE,
-    :agentrulelint,
+    Origin.AGENTRULELINT,
     Level.FORBID,
     "Fail closed when static analysis cannot finish (constant-fold budget).",
     "Pad files with enough folds to exhaust the budget and hide later findings, or suppress the incomplete diagnostic.",
