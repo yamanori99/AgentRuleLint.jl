@@ -299,23 +299,25 @@ function _cli_ratchet(positional::Vector{String}, opts)
         config_from = opts[:config_from],
         diff_base = diff_base,
     )
-    policy = resolve_policy(
-        root;
-        config_path = opts[:config_path],
-        config_from = opts[:config_from],
-    )
-    scope_paths = _ratchet_scope_paths(root, diff_base, paths, policy)
-    merge_scope = diff_base !== nothing || !isempty(paths)
-    ratchet_write!(
-        root,
-        result,
-        contexts;
-        merge_scope = merge_scope,
-        scope_paths = scope_paths,
-        policy = policy,
-    )
-    println("Wrote $(abspath(joinpath(root, ".agentrulelint/ceilings.toml")))")
-    return result.exit_code
+    return git_run_scope() do
+        policy = resolve_policy(
+            root;
+            config_path = opts[:config_path],
+            config_from = opts[:config_from],
+        )
+        scope_paths = _ratchet_scope_paths(root, diff_base, paths, policy)
+        merge_scope = diff_base !== nothing || !isempty(paths)
+        ratchet_write!(
+            root,
+            result,
+            contexts;
+            merge_scope = merge_scope,
+            scope_paths = scope_paths,
+            policy = policy,
+        )
+        println("Wrote $(abspath(joinpath(root, ".agentrulelint/ceilings.toml")))")
+        return result.exit_code
+    end
 end
 
 function _print_cli_help(cmd::String)

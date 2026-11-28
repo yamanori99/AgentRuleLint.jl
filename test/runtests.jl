@@ -42,6 +42,11 @@ function build_testsuite()
     return tests
 end
 
+const init_worker_code = quote
+    using AgentRuleLint
+    AgentRuleLint.git_worker_bootstrap!()
+end
+
 const init_code = quote
     const ROOT = $(ROOT)
     const CORPUS = $(joinpath(ROOT, "test", "corpus"))
@@ -85,6 +90,7 @@ function _run_agentrulelint_tests_body()
             args;
             testsuite,
             init_code,
+            init_worker_code,
             serial = _SERIAL_AFTER,
             serial_position = :after,
         )

@@ -24,10 +24,11 @@ function compare_signatures(hostile_home::String)
     dir = mktempdir()
     try
         hostile_attributes_global_gitconfig!(hostile_home)
+        hostile_default_xdg_attributes_under_home!(hostile_home)
         rename_diff_literal_isolation_fixture(dir)
         clean = git_isolation_check_outcome(dir, _DIFF_ISOLATION_BASE, mktempdir())
         hostile = git_isolation_check_outcome(dir, _DIFF_ISOLATION_BASE, hostile_home)
-        return clean == hostile
+        return git_isolation_outcomes_equivalent(clean, hostile)
     finally
         rm(dir, recursive = true, force = true)
     end
