@@ -67,21 +67,21 @@ function _check_below_threshold_invariant(
     )
     if below_threshold_count <= 0
         below_threshold_level === nothing || throw(
-            ArgumentError("below_threshold_count == 0 requires below_threshold_level === nothing"),
+            InternalError("below_threshold_count == 0 requires below_threshold_level === nothing"),
         )
         below_threshold_mixed && throw(
-            ArgumentError("below_threshold_count == 0 requires below_threshold_mixed == false"),
+            InternalError("below_threshold_count == 0 requires below_threshold_mixed == false"),
         )
         return
     end
     if below_threshold_mixed
         below_threshold_level === nothing || throw(
-            ArgumentError("below_threshold_mixed requires below_threshold_level === nothing"),
+            InternalError("below_threshold_mixed requires below_threshold_level === nothing"),
         )
         return
     end
     below_threshold_level === nothing && throw(
-        ArgumentError(
+        InternalError(
             "homogeneous below-threshold findings require below_threshold_level",
         ),
     )
@@ -360,7 +360,7 @@ function origin_label(o::Origin.T)::String
     elseif o == Origin.PROJECT
         return "[Project]"
     else
-        error("internal: unknown origin ", o)
+        throw(InternalError("internal: unknown origin $o"))
     end
 end
 

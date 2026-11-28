@@ -147,7 +147,7 @@ function human_rule_footer(rule_id::String, origin::Origin.T, config_path::Abstr
     elseif origin == Origin.PRESET
         return "└ @ $(origin_label(origin)) (run `agentrulelint explain $rule_id` for details)"
     else
-        error("internal: unknown origin ", origin)
+        throw(InternalError("internal: unknown origin $origin"))
     end
 end
 
