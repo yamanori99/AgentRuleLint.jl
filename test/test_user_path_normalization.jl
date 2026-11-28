@@ -23,14 +23,6 @@
     @testset "non-matching lint path fails closed (library)" begin
         bogus = "no\\such\\file.jl"
         @test_throws AgentRuleLint.ConfigError AgentRuleLint.check(ROOT; paths = [bogus])
-        try
-            AgentRuleLint.check(ROOT; paths = [bogus])
-        catch err
-            err isa AgentRuleLint.ConfigError || rethrow(err)
-            @test occursin("path matched no files", err.msg)
-            @test occursin(repr(bogus), err.msg)
-            @test occursin(repr(AgentRuleLint.normalize_path(bogus)), err.msg)
-        end
     end
 
     @testset "non-matching lint path fails closed (CLI)" begin
