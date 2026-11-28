@@ -290,20 +290,20 @@ function _handle_protected_event(
     out = Violation[]
     seen = Set{String}()
     glob_entry = _glob_entry_for_event(ev, policy)
-    use_glob_classifier =
-        glob_entry !== nothing &&
-        (glob_entry.change_types !== nothing || ev.status == 'C')
-    if use_glob_classifier
-        for (p, word) in _filtered_glob_path_words(ev, glob_entry)
-            p in seen && continue
-            push!(seen, p)
-            glob_entry.change_types !== nothing &&
-                word ∉ glob_entry.change_types && continue
-            !_protected_change_exempt(root, base, p, ev, policy) || continue
-            msg = "$(word) (reason: $(glob_entry.reason))"
-            push!(out, _protected_paths_diag(p, msg, policy))
+    if glob_entry !== nothing
+        use_glob_classifier = glob_entry.change_types !== nothing || ev.status == 'C'
+        if use_glob_classifier
+            for (p, word) in _filtered_glob_path_words(ev, glob_entry)
+                p in seen && continue
+                push!(seen, p)
+                glob_entry.change_types !== nothing &&
+                    word ∉ glob_entry.change_types && continue
+                !_protected_change_exempt(root, base, p, ev, policy) || continue
+                msg = "$(word) (reason: $(glob_entry.reason))"
+                push!(out, _protected_paths_diag(p, msg, policy))
+            end
+            return out
         end
-        return out
     end
     paths = ev.status in ('R', 'C') ? [ev.old_path, ev.path] : [ev.path]
     for p in paths
