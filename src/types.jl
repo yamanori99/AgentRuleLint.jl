@@ -15,16 +15,16 @@ function Base.isless(a::Span, b::Span)
 end
 
 struct ConfigSource
-    kind::Symbol
+    kind::ConfigSourceKind.T
     path::String
     ref::String
     sha::String
 end
 
-ConfigSource() = ConfigSource(:builtin, "", "", "")
+ConfigSource() = ConfigSource(ConfigSourceKind.BUILTIN, "", "", "")
 
 function config_source_dict(cs::ConfigSource)
-    d = Dict{String, Any}("kind" => string(cs.kind))
+    d = Dict{String, Any}("kind" => wire_name(cs.kind))
     !isempty(cs.path) && (d["path"] = cs.path)
     !isempty(cs.ref) && (d["ref"] = cs.ref)
     !isempty(cs.sha) && (d["sha"] = cs.sha)

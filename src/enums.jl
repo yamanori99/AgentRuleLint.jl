@@ -4,11 +4,17 @@ using EnumX
 
 @enumx Origin AGENTRULELINT PRESET PROJECT
 
+@enumx ConfigSourceKind BUILTIN PATH GIT_REF
+
 function wire_name(x::Level.T)::String
     return lowercase(String(Symbol(x)))
 end
 
 function wire_name(x::Origin.T)::String
+    return lowercase(String(Symbol(x)))
+end
+
+function wire_name(x::ConfigSourceKind.T)::String
     return lowercase(String(Symbol(x)))
 end
 
