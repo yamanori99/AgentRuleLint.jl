@@ -3,7 +3,7 @@
     d = AgentRuleLint.Violation(
         "project/test",
         :project,
-        :deny,
+        AgentRuleLint.Level.DENY,
         "test/corpus/split_string.jl",
         AgentRuleLint.Span(1, 1, 1, 10),
         1,

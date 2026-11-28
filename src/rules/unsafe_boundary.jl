@@ -465,7 +465,7 @@ end
 function _diagnose_unsafe_boundary_macros(
         fc::FileContext,
         cfg::UnsafeBoundaryConfig,
-        eff_level::Symbol,
+        eff_level::Level.T,
         rule_id::AbstractString,
         suffixes::Set{String},
         intent::AbstractString,
@@ -512,13 +512,13 @@ end
 
 function _unsafe_boundary_allow_cfg(policy::PolicyBundle)
     policy.unsafe_boundary.active && return policy.unsafe_boundary
-    return UnsafeBoundaryConfig(true, :warn, String[], Regex[], "", "")
+    return UnsafeBoundaryConfig(true, Level.WARN, String[], Regex[], "", "")
 end
 
 function diagnose_unsafe_boundary(
         fc::FileContext,
         policy::PolicyBundle,
-        eff_level::Symbol,
+        eff_level::Level.T,
     )
     cfg = policy.unsafe_boundary
     intent = isempty(cfg.intent) ? UNSAFE_BOUNDARY_RULE_DEF.intent : cfg.intent
@@ -538,7 +538,7 @@ function diagnose_unsafe_boundary_strict(
         fc::FileContext,
         policy::PolicyBundle,
         strict_cfg::UnsafeBoundaryStrictConfig,
-        eff_level::Symbol,
+        eff_level::Level.T,
     )
     ub = _unsafe_boundary_allow_cfg(policy)
     if policy.unsafe_boundary.active
@@ -591,7 +591,7 @@ end
 const UNSAFE_BOUNDARY_RULE_DEF = RuleDef(
     "unsafe-boundary",
     :agentrulelint,
-    :warn,
+    Level.WARN,
     "Keep runtime evaluation, metaprogramming escapes, and FFI calls inside reviewed module or path boundaries.",
     "Alias Core.eval to a local name, pass eval/Meta.parse/ccall/invokelatest as values, split strings, Expr(:call,:eval,...), or hide calls outside allow_modules / allow_globs.",
     Dict{Symbol, String}(),

@@ -35,7 +35,7 @@ end
 struct Violation
     rule_id::String
     origin::Symbol
-    level::Symbol
+    level::Level.T
     path::String
     span::Span
     anchor_line::Int
@@ -58,7 +58,7 @@ end
 
 Base.:(==)(a::CeilingEntry, b::CeilingEntry) = isequal(a, b)
 
-const DEFAULT_EXIT_SEVERITY = :warn
+const DEFAULT_EXIT_SEVERITY = Level.WARN
 
 struct CheckResult
     violations::Vector{Violation}
@@ -70,9 +70,9 @@ struct CheckResult
     suppressed_count::Int
     violation_count::Int
     ceilings::CeilingEntry
-    exit_severity::Symbol
+    exit_severity::Level.T
     exit_severity_source::Symbol
-    baseline_exit_severity::Symbol
+    baseline_exit_severity::Level.T
     baseline_exit_severity_source::Symbol
     below_threshold_count::Int
     below_threshold_level::Symbol
@@ -89,9 +89,9 @@ struct CheckResult
             suppressed_count::Int,
             violation_count::Int;
             ceilings::CeilingEntry = CeilingEntry(Dict(), Dict()),
-            exit_severity::Symbol = DEFAULT_EXIT_SEVERITY,
+            exit_severity::Level.T = DEFAULT_EXIT_SEVERITY,
             exit_severity_source::Symbol = :default,
-            baseline_exit_severity::Symbol = DEFAULT_EXIT_SEVERITY,
+            baseline_exit_severity::Level.T = DEFAULT_EXIT_SEVERITY,
             baseline_exit_severity_source::Symbol = :default,
             below_threshold_count::Int = 0,
             below_threshold_level::Symbol = :none,
@@ -169,7 +169,7 @@ format_error(err) = sprint(showerror, err)
 struct RuleSpec
     id::String
     origin::Symbol
-    level::Symbol
+    level::Level.T
     intent::String
     do_not::String
     extra::Dict{Symbol, String}
@@ -183,7 +183,7 @@ end
 struct RuleDef
     id::String
     origin::Symbol
-    default_level::Symbol
+    default_level::Level.T
     intent::String
     do_not::String
     extra::Dict{Symbol, String}
@@ -198,25 +198,25 @@ end
 
 struct ShellSafetyConfig
     active::Bool
-    level::Symbol
+    level::Level.T
     intent::String
     do_not::String
 end
 
-ShellSafetyConfig() = ShellSafetyConfig(false, :deny, "", "")
+ShellSafetyConfig() = ShellSafetyConfig(false, Level.DENY, "", "")
 
 struct UnsafeBoundaryStrictConfig
     active::Bool
-    level::Symbol
+    level::Level.T
     intent::String
     do_not::String
 end
 
-UnsafeBoundaryStrictConfig() = UnsafeBoundaryStrictConfig(false, :warn, "", "")
+UnsafeBoundaryStrictConfig() = UnsafeBoundaryStrictConfig(false, Level.WARN, "", "")
 
 struct ProjectRule
     id::String
-    level::Symbol
+    level::Level.T
     paths::Vector{String}
     path_regexes::Vector{Regex}
     forbid_literals::Vector{String}
@@ -226,14 +226,14 @@ end
 
 struct UnsafeBoundaryConfig
     active::Bool
-    level::Symbol
+    level::Level.T
     allow_modules::Vector{String}
     allow_globs::Vector{Regex}
     intent::String
     do_not::String
 end
 
-UnsafeBoundaryConfig() = UnsafeBoundaryConfig(false, :warn, String[], Regex[], "", "")
+UnsafeBoundaryConfig() = UnsafeBoundaryConfig(false, Level.WARN, String[], Regex[], "", "")
 
 struct ProtectedGlobEntry
     regex::Regex
@@ -242,13 +242,13 @@ end
 struct PolicyBundle
     agentrulelint_version::VersionNumber
     default_format::Symbol
-    exit_severity::Symbol
+    exit_severity::Level.T
     exit_severity_source::Symbol
     max_hits_per_rule::Int
     presets::Vector{String}
     rules::Dict{String, RuleSpec}
     project_rules::Vector{ProjectRule}
-    on_allow_rule::Symbol
+    on_allow_rule::Level.T
     shell_safety::ShellSafetyConfig
     unsafe_boundary::UnsafeBoundaryConfig
     unsafe_boundary_strict::UnsafeBoundaryStrictConfig
@@ -336,10 +336,10 @@ end
 function is_forbid_rule(policy::PolicyBundle, rule_ref::String)
     r = strip(rule_ref)
     for (_, spec) in policy.rules
-        (spec.id == r || r == spec.id) && spec.level == :forbid && return true
+        (spec.id == r || r == spec.id) && spec.level == Level.FORBID && return true
     end
     for pr in policy.project_rules
-        (r == pr.id || r == project_rule_id(pr)) && pr.level == :forbid && return true
+        (r == pr.id || r == project_rule_id(pr)) && pr.level == Level.FORBID && return true
     end
     return false
 end

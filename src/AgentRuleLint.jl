@@ -11,6 +11,7 @@ export ConfigError, GitError, InternalError, ParseError
 
 const AGENTRULELINT_VERSION = pkgversion(@__MODULE__)
 
+include("enums.jl")
 include("types.jl")
 include("fingerprints.jl")
 include("path_glob.jl")

@@ -1,7 +1,7 @@
 # Shared helpers for built-in / preset rule runners.
 
-function _effective_rule_level(policy::PolicyBundle, level::Symbol)
-    level == :allow && return policy.on_allow_rule
+function _effective_rule_level(policy::PolicyBundle, level::Level.T)
+    level == Level.ALLOW && return policy.on_allow_rule
     return level
 end
 
@@ -9,7 +9,7 @@ function _push_builtin_violation!(
         diags::Vector{Violation},
         rule_id::String,
         origin::Symbol,
-        eff_level::Symbol,
+        eff_level::Level.T,
         path::String,
         source::AbstractString,
         byte_start::Int,

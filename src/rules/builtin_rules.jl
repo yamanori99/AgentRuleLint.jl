@@ -46,7 +46,7 @@ function _run_unsafe_boundary_rule(fc::FileContext, policy::PolicyBundle)
     cfg.active || return diags
     path_matches_glob(fc.parsed.path, cfg.allow_globs) && return diags
     eff = _effective_rule_level(policy, cfg.level)
-    eff == :allow && return diags
+    eff == Level.ALLOW && return diags
     append!(diags, diagnose_unsafe_boundary(fc, policy, eff))
     return diags
 end
@@ -58,7 +58,7 @@ function _run_unsafe_boundary_strict_rule(fc::FileContext, policy::PolicyBundle)
     ub = _unsafe_boundary_allow_cfg(policy)
     path_matches_glob(fc.parsed.path, ub.allow_globs) && return diags
     eff = _effective_rule_level(policy, cfg.level)
-    eff == :allow && return diags
+    eff == Level.ALLOW && return diags
     append!(diags, diagnose_unsafe_boundary_strict(fc, policy, cfg, eff))
     return diags
 end
@@ -68,7 +68,7 @@ function _run_shell_safety_rule(fc::FileContext, policy::PolicyBundle)
     cfg = policy.shell_safety
     cfg.active || return diags
     eff = _effective_rule_level(policy, cfg.level)
-    eff == :allow && return diags
+    eff == Level.ALLOW && return diags
     append!(diags, diagnose_shell_safety(fc, policy, eff))
     return diags
 end

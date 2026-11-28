@@ -207,7 +207,7 @@
             res.violations,
         )
         @test !isempty(hits)
-        @test all(d -> d.level == :forbid, hits)
+        @test all(d -> d.level == AgentRuleLint.Level.FORBID, hits)
 
         path_const = rel("test_integrity_fold_budget_const.jl")
         res2 = check_rel(path_const)
@@ -218,7 +218,7 @@
             res2.violations,
         )
         @test !isempty(hits2)
-        @test all(d -> d.level == :forbid, hits2)
+        @test all(d -> d.level == AgentRuleLint.Level.FORBID, hits2)
     end
 
     @testset "diff: test-integrity deleted findings use expect_status :deleted_test" begin
