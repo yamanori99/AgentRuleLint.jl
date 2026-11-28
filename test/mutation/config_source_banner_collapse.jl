@@ -24,7 +24,7 @@ run_source_mutation(;
             AgentRuleLint.Span(1, 1, 1, 1),
             1,
             "fp",
-            :none,
+            AgentRuleLint.ExpectStatus.NONE,
             false,
             "m",
             "i",
@@ -37,7 +37,7 @@ run_source_mutation(;
                 (AgentRuleLint.ConfigSourceKind.GIT_REF, "", "main", "abc"),
             )
             cs = AgentRuleLint.ConfigSource(k, path, ref, sha)
-            res = AgentRuleLint.CheckResult([v], true, 0, cs, :human, 20, 0, 0)
+            res = AgentRuleLint.CheckResult([v], true, 0, cs, AgentRuleLint.OutputFormat.HUMAN, 20, 0, 0)
             push!(banners, AgentRuleLint.human_policy_banner(res, "0.0.0"))
         end
         length(unique(banners)) == length(banners) || exit($_DETECT)

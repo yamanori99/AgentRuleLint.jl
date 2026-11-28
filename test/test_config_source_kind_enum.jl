@@ -33,7 +33,7 @@ end
             AgentRuleLint.Span(1, 1, 1, 1),
             1,
             "fp",
-            :none,
+            AgentRuleLint.ExpectStatus.NONE,
             false,
             "m",
             "i",
@@ -46,7 +46,7 @@ end
                 (AgentRuleLint.ConfigSourceKind.GIT_REF, "", "origin/main", "abc1234"),
             )
             cs = AgentRuleLint.ConfigSource(k, path, ref, sha)
-            res = AgentRuleLint.CheckResult([v], true, 0, cs, :human, 20, 0, 0)
+            res = AgentRuleLint.CheckResult([v], true, 0, cs, AgentRuleLint.OutputFormat.HUMAN, 20, 0, 0)
             push!(
                 banners,
                 AgentRuleLint.config_source_base_label(res.config_source),
