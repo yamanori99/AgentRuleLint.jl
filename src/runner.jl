@@ -92,7 +92,7 @@ end
 
 function is_violation_hit(d::Violation)
     d.suppressed && return false
-    d.expect_status == :fulfilled && return false
+    d.expect_status == ExpectStatus.FULFILLED && return false
     d.level == Level.ALLOW && return false
     return true
 end

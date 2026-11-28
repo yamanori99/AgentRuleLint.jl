@@ -6,6 +6,8 @@ using EnumX
 
 @enumx OutputFormat HUMAN JSON AGENT
 
+@enumx ExpectStatus NONE FULFILLED UNFULFILLED DELETED_TEST
+
 function wire_name(x::Level.T)::String
     return lowercase(String(Symbol(x)))
 end
@@ -15,6 +17,10 @@ function wire_name(x::Origin.T)::String
 end
 
 function wire_name(x::OutputFormat.T)::String
+    return lowercase(String(Symbol(x)))
+end
+
+function wire_name(x::ExpectStatus.T)::String
     return lowercase(String(Symbol(x)))
 end
 
