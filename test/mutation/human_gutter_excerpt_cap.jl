@@ -33,22 +33,33 @@ run_source_mutation(;
     verify = root -> begin
         script = """
         using AgentRuleLint
-        using Base.Unicode: textwidth
         root = normpath(joinpath(dirname(pathof(AgentRuleLint)), ".."))
         path = joinpath("test", "corpus", "expect_anchor_mismatch.jl")
         res = AgentRuleLint.check(root; paths = [path])
         io = IOContext(IOBuffer(), :color => false)
         out = AgentRuleLint.format_human(res; root = root, io = io, output_width = 80)
+        ul_prefix = AgentRuleLint.HUMAN_UNDERLINE_PREFIX
+        code_prefix = AgentRuleLint.HUMAN_CODE_PREFIX
         lines = split(out, '\\n'; keepempty = false)
         for (i, line) in enumerate(lines)
-            occursin("> ", line) || continue
-            i + 1 > length(lines) && continue
-            ul = lines[i + 1]
-            occursin('~', ul) || continue
-            body = split(line, "> "; limit = 2)[2]
-            body = strip(replace(body, r"\\s*\\(\\+.*" => ""))
-            if textwidth(AgentRuleLint.strip_ansi(ul)) < textwidth(body) - 2
-                exit($_DETECT)
+            s = AgentRuleLint.strip_ansi(line)
+            startswith(s, code_prefix) || continue
+            body = s[(length(code_prefix) + 1):end]
+            occursin(" (+", body) && (body = split(body, " (+"; limit = 2)[1])
+            body = rstrip(body)
+            for j in (i + 1):length(lines)
+                ul = lines[j]
+                ul_s = AgentRuleLint.strip_ansi(ul)
+                if startswith(ul_s, code_prefix)
+                    break
+                end
+                startswith(ul_s, ul_prefix) || continue
+                occursin('~', ul) || continue
+                ub = rstrip(ul_s[(length(ul_prefix) + 1):end])
+                if endswith(ub, "…") && !endswith(body, "…")
+                    exit($_DETECT)
+                end
+                break
             end
         end
         exit(0)
