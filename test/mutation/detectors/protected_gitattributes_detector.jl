@@ -5,6 +5,12 @@ using AgentRuleLint
 const run_git_cmd = AgentRuleLint.run_git_cmd
 
 function main()
+    return AgentRuleLint.git_run_scope() do
+        return _protected_gitattributes_detector_body()
+    end
+end
+
+function _protected_gitattributes_detector_body()
     dir = mktempdir()
     return try
         run_git_cmd(dir, "init", "-q", "-b", "main"; cwd = dir)
