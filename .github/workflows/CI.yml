@@ -143,8 +143,8 @@ jobs:
             ~/.julia/bin
           key: ${{ steps.jetls-depot-cache.outputs.cache-primary-key }}
 
-  test-pre:
-    name: Pkg.test - Julia 1.14-pre - ubuntu-latest - x64
+  test_pre_shard:
+    name: Pkg.test (shard ${{ matrix.shard }}/3) - Julia 1.14-pre - ubuntu-latest - x64
     continue-on-error: true
     needs: [runic, aqua, jetls]
     permissions:
@@ -152,6 +152,12 @@ jobs:
       actions: write # julia-depot-cache save on main push
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      AGENTRULELINT_TEST_SHARD: ${{ matrix.shard }}/3
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

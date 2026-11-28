@@ -8,13 +8,13 @@
         AgentRuleLint.Span(1, 1, 1, 10),
         1,
         "v1:abc",
-        :none,
+        AgentRuleLint.ExpectStatus.NONE,
         false,
         "forbidden literal matched",
         "i",
         "d",
     )
-    res = AgentRuleLint.CheckResult([d], true, 1, cs, :human, 20, 0, 1)
+    res = AgentRuleLint.CheckResult([d], true, 1, cs, AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
     io = IOContext(IOBuffer(), :color => false)
     human = AgentRuleLint.format_human(res; root = ROOT, io = io)
     @test occursin("[Project]", human)

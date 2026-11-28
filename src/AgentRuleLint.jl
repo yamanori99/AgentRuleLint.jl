@@ -1,5 +1,6 @@
 module AgentRuleLint
 
+using Git
 using JuliaSyntax
 using PrecompileTools
 using StyledStrings
@@ -77,10 +78,13 @@ function check(root::AbstractString; kwargs...)
 end
 
 function _parse_cli_format(raw::AbstractString)
-    sym = Symbol(lowercase(strip(raw)))
-    sym in VALID_OUTPUT_FORMATS ||
-        throw(ArgumentError("unknown --format value '$raw' (expected human|json|agent)"))
-    return sym
+    try
+        return parse_enum(OutputFormat.T, raw)
+    catch err
+        err isa ConfigError || rethrow()
+        valid = join(wire_name.(instances(OutputFormat.T)), "|")
+        throw(ArgumentError("unknown --format value '$raw' (expected $valid)"))
+    end
 end
 
 function _parse_cli_args(cmd::String, rest::Vector{String})
@@ -195,25 +199,21 @@ function _resolve_emit_format(result::CheckResult, opts)
     if fmt === nothing
         return result.default_format
     end
-    fmt in VALID_OUTPUT_FORMATS ||
-        throw(ArgumentError("unknown --format value '$fmt' (expected human|json|agent)"))
     return fmt
 end
 
-function _emit(result::CheckResult, fmt::Symbol, opts; root::AbstractString = pwd())
-    fmt in VALID_OUTPUT_FORMATS ||
-        throw(ArgumentError("unknown --format value '$fmt' (expected human|json|agent)"))
+function _emit(result::CheckResult, fmt::OutputFormat.T, opts; root::AbstractString = pwd())
     out_path = opts[:output]
     if out_path === nothing
         io = IOContext(stdout, :color => stdout isa Base.TTY)
-        text = fmt == :json ? format_json(result) :
-            fmt == :agent ? format_agent(result; root = root, io = io) :
+        text = fmt === OutputFormat.JSON ? format_json(result) :
+            fmt === OutputFormat.AGENT ? format_agent(result; root = root, io = io) :
             format_human(result; root = root, io = io)
         return print(text)
     end
     plain_io = IOContext(IOBuffer(), :color => false)
-    text = fmt == :json ? format_json(result) :
-        fmt == :agent ? format_agent(result; root = root, io = plain_io) :
+    text = fmt === OutputFormat.JSON ? format_json(result) :
+        fmt === OutputFormat.AGENT ? format_agent(result; root = root, io = plain_io) :
         format_human(result; root = root, io = plain_io)
     return write(out_path, text)
 end
