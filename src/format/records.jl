@@ -1,5 +1,71 @@
 using JSON: JSON, JSONStyle, StructUtils
 
+"""`config_source` object in JSON header records (optional keys omitted, not null)."""
+struct ConfigSourceRecord
+    kind::ConfigSourceKind.T
+    path::Union{Nothing, String}
+    ref::Union{Nothing, String}
+    sha::Union{Nothing, String}
+end
+
+function ConfigSourceRecord(cs::ConfigSource)
+    path = isempty(cs.path) ? nothing : cs.path
+    ref = isempty(cs.ref) ? nothing : cs.ref
+    sha = isempty(cs.sha) ? nothing : cs.sha
+    return ConfigSourceRecord(cs.kind, path, ref, sha)
+end
+
+"""JSONL `header` object (field order matches sorted JSON key order)."""
+struct HeaderRecord
+    config_source::ConfigSourceRecord
+    git_executable::String
+    git_version::String
+    julia_version::String
+    parser::String
+    position_encoding::String
+    type::String
+    version::String
+end
+
+function HeaderRecord(result::CheckResult)
+    return HeaderRecord(
+        ConfigSourceRecord(result.config_source),
+        result.git_executable,
+        result.git_version,
+        string(VERSION),
+        parser_rev_string(),
+        "utf8-codepoint-1based",
+        "header",
+        string(AGENTRULELINT_VERSION),
+    )
+end
+
+"""JSONL `summary` object (field order matches sorted JSON key order)."""
+struct SummaryRecord
+    complete::Bool
+    exit_code::Int
+    rules::Int
+    suppressed::Int
+    threshold::Level.T
+    threshold_source::SeveritySource.T
+    type::String
+    violations::Int
+end
+
+function SummaryRecord(result::CheckResult)
+    n_rules = length(unique(d.rule_id for d in active_violations(result.violations)))
+    return SummaryRecord(
+        result.complete,
+        result.exit_code,
+        n_rules,
+        result.suppressed_count,
+        result.exit_severity,
+        result.exit_severity_source,
+        "summary",
+        result.violation_count,
+    )
+end
+
 """Span object in JSON diagnostic records (field order matches sorted JSON key order)."""
 struct SpanRecord
     end_col::Int
@@ -41,6 +107,16 @@ function DiagnosticRecord(d::Violation)::DiagnosticRecord
     )
 end
 
+function StructUtils.lower(::JSONStyle, cs::ConfigSourceRecord)
+    d = Dict{String, Any}("kind" => wire_name(cs.kind))
+    cs.path !== nothing && (d["path"] = cs.path)
+    cs.ref !== nothing && (d["ref"] = cs.ref)
+    cs.sha !== nothing && (d["sha"] = cs.sha)
+    return d
+end
+
+StructUtils.lower(::JSONStyle, x::ConfigSourceKind.T) = wire_name(x)
 StructUtils.lower(::JSONStyle, x::Origin.T) = wire_name(x)
 StructUtils.lower(::JSONStyle, x::Level.T) = wire_name(x)
 StructUtils.lower(::JSONStyle, x::ExpectStatus.T) = wire_name(x)
+StructUtils.lower(::JSONStyle, x::SeveritySource.T) = wire_name(x)
