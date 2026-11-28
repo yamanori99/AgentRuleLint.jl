@@ -7,12 +7,11 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 ### **[CI-breaking]** Isolated PATH git (>= 2.32); user and system git config ignored
 
 All git reads use **`git` on `PATH`** with config isolation (`GIT_CONFIG_NOSYSTEM`, empty global
-config via `GIT_CONFIG_GLOBAL`, `GIT_OPTIONAL_LOCKS=0`, and related env). Inherited command-scope
-`GIT_CONFIG_*` keys and repository-location variables are stripped before each git child. Git **2.32**
-or newer is required (`GIT_CONFIG_GLOBAL`); older or missing git fails closed (exit 2). Plain
-`check` on a non-repository directory fails closed with a `GitError` naming the feature (for example
-**manifest-sync**). There is no escape hatch to a different git binary. Output headers record the
-git path and version used for the run.
+config, `GIT_OPTIONAL_LOCKS=0`, and related env). Inherited `GIT_CONFIG_*` / repo-location env is
+stripped before each git child. Git **2.32** or newer is required; older or missing git fails closed
+(exit 2). Plain `check` on a non-repository directory fails closed with a `GitError` naming the
+feature (for example **manifest-sync**). There is no escape hatch to a different git binary. Output
+headers record the git path and version used for the run.
 
 CI on git older than 2.32, or jobs that relied on `diff.renames` / hooks in user git config, may fail
 or see different behavior after upgrade.
