@@ -3,7 +3,10 @@
 
     function silent_hits(path; suppressed = nothing)
         res = AgentRuleLint.check(ROOT; paths = [rel(path)])
-        hits = filter(d -> d.rule_id == "silent-catch" && d.path == rel(path), res.violations)
+        hits = filter(
+            d -> d.rule_id == "silent-catch" && d.path == AgentRuleLint.normalize_path(rel(path)),
+            res.violations,
+        )
         unsup = filter(!d -> d.suppressed, hits)
         sup = filter(d -> d.suppressed, hits)
         if suppressed === true

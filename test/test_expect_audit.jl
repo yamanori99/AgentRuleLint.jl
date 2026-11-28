@@ -40,7 +40,9 @@
 
     function project_hit(path; suppressed = nothing)
         hits = filter(
-            d -> d.rule_id == "project/no-internal-codename" && d.path == path,
+            d ->
+            d.rule_id == "project/no-internal-codename" &&
+                d.path == AgentRuleLint.normalize_path(path),
             check_path(path).violations,
         )
         unsup = filter(!d -> d.suppressed, hits)

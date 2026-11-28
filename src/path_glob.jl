@@ -7,6 +7,18 @@
 # Rejected with `ConfigError` (fail-closed): empty, leading `/`, `..` segments,
 # `[` `]` `{` `}`, `***`, `a**b`, `**foo`, or any `**` inside a longer segment.
 
+"""
+    normalize_path(p) -> String
+
+Canonical `/`-separated repo-relative path form. User-supplied paths and globs must
+pass through this at the input boundary (`\\` is a separator on every OS).
+"""
+function normalize_path(p::AbstractString)
+    s = replace(String(p), '\\' => '/')
+    startswith(s, "./") && (s = s[3:end])
+    return s
+end
+
 const _GLOB_REGEX_SPECIALS = ('\\', '^', '$', '.', '|', '?', '+', '(', ')', '[', ']', '{', '}')
 
 function _write_glob_literal!(out::IO, c::Char)
@@ -31,7 +43,7 @@ end
 Fail-closed validation for supported path-glob syntax (`*`, `?`, `**` as whole segment only).
 """
 function validate_path_glob_pattern!(pattern::AbstractString, label::AbstractString)
-    pat = replace(String(pattern), '\\' => '/')
+    pat = normalize_path(pattern)
     isempty(pat) && throw(ConfigError("empty glob pattern in $label"))
     startswith(pat, "/") &&
         throw(ConfigError("glob must be repo-relative (no leading '/') in $label: '$pattern'"))
@@ -102,7 +114,7 @@ Non-`.jl` targets selected by these globs are linted without Julia parsing; see
 Tests: `test/test_project_rules_paths.jl`.
 """
 function compile_path_glob(pattern::AbstractString, label::AbstractString)
-    pat = replace(String(pattern), '\\' => '/')
+    pat = normalize_path(pattern)
     validate_path_glob_pattern!(pat, label)
     if pat == "**"
         return Regex("^.*\$")
@@ -122,7 +134,7 @@ function compile_path_glob(pattern::AbstractString, label::AbstractString)
 end
 
 function path_matches_glob(path::AbstractString, regexes::Vector{Regex})
-    p = replace(String(path), '\\' => '/')
+    p = normalize_path(path)
     return any(r -> occursin(r, p), regexes)
 end
 
@@ -135,7 +147,7 @@ function project_rule_path_regexes(policy::PolicyBundle)
 end
 
 function julia_source_path(path::AbstractString)
-    return endswith(lowercase(replace(String(path), '\\' => '/')), ".jl")
+    return endswith(lowercase(normalize_path(path)), ".jl")
 end
 
 function selected_for_lint(path::AbstractString, project_regexes::Vector{Regex})
