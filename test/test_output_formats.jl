@@ -28,7 +28,7 @@ function check_result_fixture()
         "Keep internal codenames out of public package files.",
         "Do not split strings to evade.",
     )
-    return AgentRuleLint.CheckResult([d], true, 1, cs, :human, 20, 0, 1)
+    return AgentRuleLint.CheckResult([d], true, 1, cs, AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
 end
 
 function human_fixture_result(paths::Vector{String})
@@ -152,7 +152,7 @@ end
             "",
             "",
         )
-        res = AgentRuleLint.CheckResult([z, a], true, 1, cs, :human, 20, 0, 2)
+        res = AgentRuleLint.CheckResult([z, a], true, 1, cs, AgentRuleLint.OutputFormat.HUMAN, 20, 0, 2)
         paths = String[]
         for line in split(AgentRuleLint.format_json(res), '\n'; keepempty = false)
             obj = jsonl_record(line)

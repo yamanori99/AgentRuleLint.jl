@@ -65,7 +65,7 @@ struct CheckResult
     complete::Bool
     exit_code::Int
     config_source::ConfigSource
-    default_format::Symbol
+    default_format::OutputFormat.T
     max_hits_per_rule::Int
     suppressed_count::Int
     violation_count::Int
@@ -84,7 +84,7 @@ struct CheckResult
             complete::Bool,
             exit_code::Int,
             config_source::ConfigSource,
-            default_format::Symbol,
+            default_format::OutputFormat.T,
             max_hits_per_rule::Int,
             suppressed_count::Int,
             violation_count::Int;
@@ -241,7 +241,7 @@ struct ProtectedGlobEntry
 end
 struct PolicyBundle
     agentrulelint_version::VersionNumber
-    default_format::Symbol
+    default_format::OutputFormat.T
     exit_severity::Level.T
     exit_severity_source::Symbol
     max_hits_per_rule::Int
