@@ -51,9 +51,8 @@
             )
             mkpath(joinpath(root, "src"))
             write(joinpath(root, "src", "touch.jl"), "x = 1\n")
-            run(`git -C $root init -q`)
-            run(`git -C $root add -A`)
-            run(`git -C $root -c user.email=mut@test -c user.name=mut commit -q -m init --allow-empty`)
+            init_git_repo!(root)
+            git_commit_all!(root, "init")
             write(joinpath(root, "src", "touch.jl"), "x = 2\n")
             glob_bs = "src\\**"
             glob_sl = "src/**"

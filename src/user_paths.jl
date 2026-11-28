@@ -15,9 +15,12 @@ Every explicit lint path must match at least one scanned file after `normalize_p
 """
 function validate_user_lint_paths!(root::AbstractString, given_paths::Vector{String}, rel_files::Vector{String})
     isempty(given_paths) && return nothing
+    root = abspath(String(root))
     for given in given_paths
         norm = normalize_path(given)
         _lint_path_matched(norm, rel_files) && continue
+        ap = isabspath(norm) ? norm : joinpath(root, norm)
+        isfile(ap) && continue
         throw(ConfigError("path matched no files: given=$(repr(given)) normalized=$(repr(norm))"))
     end
     return nothing
