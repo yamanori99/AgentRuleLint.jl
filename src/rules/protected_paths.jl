@@ -292,7 +292,7 @@ function _handle_protected_event(
     glob_entry = _glob_entry_for_event(ev, policy)
     use_glob_classifier =
         glob_entry !== nothing &&
-            (glob_entry.change_types !== nothing || ev.status == 'C')
+        (glob_entry.change_types !== nothing || ev.status == 'C')
     if use_glob_classifier
         for (p, word) in _filtered_glob_path_words(ev, glob_entry)
             p in seen && continue
