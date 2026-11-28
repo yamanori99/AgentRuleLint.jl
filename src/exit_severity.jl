@@ -1,4 +1,11 @@
 """Rank of a finding level for exit-threshold comparison (`:warn` < `:deny` < `:forbid`)."""
+function level_exit_rank(level::Level.T)
+    level == Level.WARN && return 1
+    level == Level.DENY && return 2
+    level == Level.FORBID && return 3
+    return 0
+end
+
 function level_exit_rank(level::Symbol)
     level == :warn && return 1
     level == :deny && return 2
@@ -12,7 +19,7 @@ Findings at level `:forbid` always fail the check, regardless of threshold (inte
 """
 function violation_counts_toward_exit(d::Violation, threshold::Symbol)
     is_violation_hit(d) || return false
-    d.level == :forbid && return true
+    d.level == Level.FORBID && return true
     return level_exit_rank(d.level) >= level_exit_rank(threshold)
 end
 

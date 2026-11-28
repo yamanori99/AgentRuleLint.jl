@@ -32,7 +32,7 @@ function format_json(result::CheckResult)
             "type" => "diagnostic",
             "rule_id" => d.rule_id,
             "origin" => String(d.origin),
-            "level" => String(d.level),
+            "level" => wire_name(d.level),
             "path" => d.path,
             "span" => Dict(
                 "start_line" => d.span.start_line,

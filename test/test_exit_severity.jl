@@ -30,7 +30,7 @@
             res.violations,
         )
         @test !isempty(hits)
-        @test all(d -> d.level == :warn, hits)
+        @test all(d -> d.level == AgentRuleLint.Level.WARN, hits)
         @test res.exit_code == 0
     end
 
@@ -38,7 +38,7 @@
         relp = joinpath("test", "corpus", "expect_empty_reason.jl")
         for th in (:warn, :deny, :forbid)
             res = AgentRuleLint.check(ROOT; paths = [relp], exit_severity = th)
-            forbid_hits = filter(d -> d.level == :forbid && !d.suppressed, res.violations)
+            forbid_hits = filter(d -> d.level == AgentRuleLint.Level.FORBID && !d.suppressed, res.violations)
             @test !isempty(forbid_hits)
             @test res.exit_code == 1
         end
@@ -47,8 +47,8 @@
     @testset "deny-only hits respect forbid threshold" begin
         relp = joinpath("test", "corpus", "silent_catch_empty.jl")
         res = AgentRuleLint.check(ROOT; paths = [relp], exit_severity = :forbid)
-        deny_hits = filter(d -> d.level == :deny && !d.suppressed, res.violations)
-        forbid_hits = filter(d -> d.level == :forbid && !d.suppressed, res.violations)
+        deny_hits = filter(d -> d.level == AgentRuleLint.Level.DENY && !d.suppressed, res.violations)
+        forbid_hits = filter(d -> d.level == AgentRuleLint.Level.FORBID && !d.suppressed, res.violations)
         @test !isempty(deny_hits)
         @test isempty(forbid_hits)
         @test res.exit_code == 0

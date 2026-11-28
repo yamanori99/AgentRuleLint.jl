@@ -191,7 +191,7 @@ function _push_expect_violation!(
         path::String,
         source::AbstractString,
         line_no::Int,
-        lvl::Symbol,
+        lvl::Level.T,
     )
     _, span = span_for_line(source, line_no)
     intent = rule === nothing ? "" : rule.intent
@@ -267,7 +267,7 @@ function expect_audit_text_diagnostics(fc::FileContext, policy::PolicyBundle)
     source = fc.parsed.normalized
     diags = Violation[]
     rule = get(policy.rules, "expect-audit", nothing)
-    lvl = rule === nothing ? :forbid : rule.level
+    lvl = rule === nothing ? Level.FORBID : rule.level
     path = fc.parsed.path
 
     seen = Set{Tuple{Int, String}}()
@@ -342,7 +342,7 @@ function expect_audit_diagnostics(fc::FileContext, policy::PolicyBundle)
     source = fc.parsed.normalized
     diags = Violation[]
     rule = get(policy.rules, "expect-audit", nothing)
-    lvl = rule === nothing ? :forbid : rule.level
+    lvl = rule === nothing ? Level.FORBID : rule.level
     path = fc.parsed.path
 
     seen = Set{Tuple{Int, String}}()
@@ -448,7 +448,7 @@ function unused_expect_diagnostics(
         prior::Vector{Violation},
     )
     rule = get(policy.rules, "expect-audit", nothing)
-    lvl = rule === nothing ? :forbid : rule.level
+    lvl = rule === nothing ? Level.FORBID : rule.level
     intent = rule === nothing ? "" : rule.intent
     do_not = rule === nothing ? "" : rule.do_not
     source = fc.parsed.normalized
@@ -483,7 +483,7 @@ end
 function forbid_rule_suppression_attempt(expects::Vector{ExpectLine}, policy::PolicyBundle, fc::FileContext)
     diags = Violation[]
     rule = get(policy.rules, "expect-audit", nothing)
-    lvl = rule === nothing ? :forbid : rule.level
+    lvl = rule === nothing ? Level.FORBID : rule.level
     source = fc.parsed.normalized
     path = fc.parsed.path
     for ex in expects

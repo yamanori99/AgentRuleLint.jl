@@ -95,9 +95,9 @@ function format_explain_rule(spec::RuleSpec; enabled::Bool = true)
     config = _explain_extra(spec, :config)
     detail = _explain_extra(spec, :detail)
     level_line = if enabled
-        "level: $(spec.level)"
+        "level: $(wire_name(spec.level))"
     else
-        "level: $(spec.level) (default when enabled)"
+        "level: $(wire_name(spec.level)) (default when enabled)"
     end
     status_line = enabled ? "" : "\nstatus: not enabled in this config"
     body = """
@@ -131,7 +131,7 @@ function format_explain_project_rule(pr::ProjectRule)
     return """
     rule_id: $rid
     origin: [Project]
-    level: $(pr.level)
+    level: $(wire_name(pr.level))
 
     intent:
     $(pr.intent)

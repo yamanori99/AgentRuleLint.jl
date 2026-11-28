@@ -133,7 +133,7 @@ function _ceiling_ratchet_diag(path::String, _rule_id::String, message::String, 
     return Violation(
         CEILING_RATCHET_RULE,
         :agentrulelint,
-        :forbid,
+        Level.FORBID,
         path,
         Span(1, 1, 1, 1),
         1,

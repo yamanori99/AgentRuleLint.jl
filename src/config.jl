@@ -77,8 +77,6 @@ const PROJECT_RULE_KEYS = Set(
         "do_not",
     ]
 )
-const VALID_RULE_LEVELS = Set([:forbid, :deny, :allow, :warn])
-const VALID_ON_ALLOW_RULE = Set([:forbid, :deny, :warn, :allow])
 const VALID_OUTPUT_FORMATS = Set([:human, :json, :agent])
 const KNOWN_PRESET_NAMES = Set(["shell-safety", "unsafe-boundary/strict"])
 const SHELL_SAFETY_PRESET_ID = "shell-safety/process-pattern"
@@ -92,12 +90,15 @@ function _reject_unknown_keys!(dict::Dict, allowed::Set{String}, label::String)
 end
 
 function _parse_rule_level(raw, label::String)
-    s = raw isa AbstractString ? lowercase(strip(raw)) : raw isa Symbol ? lowercase(string(raw)) : ""
+    s = raw isa AbstractString ? strip(raw) : raw isa Symbol ? String(raw) : ""
     s == "" && throw(ConfigError("missing rule level in $label"))
-    sym = Symbol(s)
-    sym in VALID_RULE_LEVELS ||
-        throw(ConfigError("unknown rule level '$raw' in $label (expected forbid|deny|allow|warn)"))
-    return sym
+    try
+        return parse_enum(Level.T, s)
+    catch err
+        err isa ConfigError || rethrow()
+        valid = join(wire_name.(instances(Level.T)), "|")
+        throw(ConfigError("unknown rule level '$raw' in $label (expected $valid)"))
+    end
 end
 
 function _parse_warn_counts_as_handling(raw, label::String)
@@ -107,15 +108,18 @@ function _parse_warn_counts_as_handling(raw, label::String)
 end
 
 function _parse_on_allow_rule(raw, label::String)
-    s = raw isa AbstractString ? lowercase(strip(raw)) : ""
-    sym = Symbol(s)
-    sym in VALID_ON_ALLOW_RULE ||
+    s = raw isa AbstractString ? strip(String(raw)) : ""
+    try
+        return parse_enum(Level.T, s)
+    catch err
+        err isa ConfigError || rethrow()
+        valid = join(wire_name.(instances(Level.T)), "|")
         throw(
-        ConfigError(
-            "unknown on_allow_rule '$raw' in $label (expected forbid|deny|warn|allow)",
-        ),
-    )
-    return sym
+            ConfigError(
+                "unknown on_allow_rule '$raw' in $label (expected $valid)",
+            ),
+        )
+    end
 end
 
 function _parse_default_format(raw, label::String)
@@ -140,7 +144,7 @@ function _parse_preset_list(raw, label::String)
 end
 
 _rule_level(s::AbstractString) = _parse_rule_level(s, "rule level")
-_rule_level(s::Symbol) = s in VALID_RULE_LEVELS ? s : throw(ConfigError("unknown rule level '$s'"))
+_rule_level(s::Symbol) = _parse_rule_level(String(s), "rule level")
 
 function _require_string(dict, key, path)
     haskey(dict, key) || throw(ConfigError("missing key '$key' in $path"))
@@ -241,7 +245,7 @@ function _load_shell_safety_config(presets::Vector{String}, rules::Dict{String, 
     active = "shell-safety" in presets
     !active && return ShellSafetyConfig()
     spec = get(rules, SHELL_SAFETY_PRESET_ID, nothing)
-    level = spec === nothing ? :deny : spec.level
+    level = spec === nothing ? Level.DENY : spec.level
     intent = spec === nothing ? "" : spec.intent
     do_not = spec === nothing ? "" : spec.do_not
     return ShellSafetyConfig(true, level, intent, do_not)
@@ -251,7 +255,7 @@ function _load_unsafe_boundary_strict_config(presets::Vector{String}, rules::Dic
     active = UNSAFE_BOUNDARY_STRICT_PRESET_ID in presets
     !active && return UnsafeBoundaryStrictConfig()
     spec = get(rules, UNSAFE_BOUNDARY_STRICT_PRESET_ID, nothing)
-    level = spec === nothing ? :warn : spec.level
+    level = spec === nothing ? Level.WARN : spec.level
     intent = spec === nothing ? "" : spec.intent
     do_not = spec === nothing ? "" : spec.do_not
     return UnsafeBoundaryStrictConfig(true, level, intent, do_not)
@@ -335,8 +339,8 @@ function _load_rules_table(raw::Dict)
         end
         _reject_unknown_keys!(content, allowed, "rules.$id")
         level = haskey(content, "level") ?
-            _parse_rule_level(content["level"], "rules.$id.level") : :deny
-        if id in INTEGRITY_FORBID_RULES && level != :forbid
+            _parse_rule_level(content["level"], "rules.$id.level") : Level.DENY
+        if id in INTEGRITY_FORBID_RULES && level != Level.FORBID
             throw(
                 ConfigError(
                     "rules.$id.level must be forbid (integrity rules cannot be weakened)",
@@ -355,7 +359,7 @@ function _load_rules_table(raw::Dict)
                 "rules.silent-catch.warn_counts_as_handling",
             )
         end
-        eff_level = id in INTEGRITY_FORBID_RULES ? :forbid : level
+        eff_level = id in INTEGRITY_FORBID_RULES ? Level.FORBID : level
         rules[id] = fill_builtin_docs!(RuleSpec(id, origin, eff_level, intent, do_not, extra))
     end
     return rules
@@ -412,7 +416,7 @@ function _load_project_rules(raw::Vector)
         label = "project_rules[$i]"
         _reject_unknown_keys!(entry, PROJECT_RULE_KEYS, label)
         id = validate_kebab_rule_id(_require_string(entry, "id", label), label)
-        level = haskey(entry, "level") ? _parse_rule_level(entry["level"], "$label.level") : :deny
+        level = haskey(entry, "level") ? _parse_rule_level(entry["level"], "$label.level") : Level.DENY
         paths_raw = get(entry, "paths", String[])
         paths_raw isa AbstractVector || throw(ConfigError("$label.paths must be an array"))
         paths = String[]
@@ -491,7 +495,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     pr_raw = get(raw, "project_rules", [])
     pr_raw isa AbstractVector || throw(ConfigError("project_rules must be an array"))
     project = _load_project_rules(pr_raw)
-    on_allow = :warn
+    on_allow = Level.WARN
     es = _expect_audit_table(raw)
     if es !== nothing && haskey(es, "on_allow_rule")
         on_allow = _parse_on_allow_rule(es["on_allow_rule"], "rules.expect-audit.on_allow_rule")
@@ -637,7 +641,7 @@ function default_policy(root::AbstractString)
         String[],
         rules,
         ProjectRule[],
-        :warn,
+        Level.WARN,
         ShellSafetyConfig(),
         UnsafeBoundaryConfig(),
         UnsafeBoundaryStrictConfig(),

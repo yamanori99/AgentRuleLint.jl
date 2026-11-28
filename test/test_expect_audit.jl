@@ -62,7 +62,7 @@
         @test has_diag(rel("expect_above_catch.jl"), d -> occursin("above catch", d.message))
         @test has_diag(
             rel("expect_multiline_call.jl"),
-            d -> occursin("multiline call", d.message) && d.level == :forbid,
+            d -> occursin("multiline call", d.message) && d.level == AgentRuleLint.Level.FORBID,
         )
         @test has_diag(rel("expect_runic_off.jl"), d -> occursin("runic:off", d.message))
         @test !has_diag(

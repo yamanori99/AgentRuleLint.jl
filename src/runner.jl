@@ -93,7 +93,7 @@ end
 function is_violation_hit(d::Violation)
     d.suppressed && return false
     d.expect_status == :fulfilled && return false
-    d.level == :allow && return false
+    d.level == Level.ALLOW && return false
     return true
 end
 
@@ -258,7 +258,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
     below_lvl = if below_n == 0
         :none
     elseif all(d -> d.level == below[1].level, below)
-        below[1].level
+        Symbol(wire_name(below[1].level))
     else
         :mixed
     end
