@@ -53,6 +53,7 @@ const SILENT_CATCH_RULE_KEYS = Set(["level", "intent", "do_not", "warn_counts_as
 const UNSAFE_BOUNDARY_RULE_KEYS = Set(["level", "intent", "do_not", "allow_modules", "allow_globs"])
 const PROTECTED_PATHS_RULE_KEYS =
     Set(["level", "intent", "do_not", "project_toml_policy", "paths"])
+const PROTECTED_PATH_CHANGE_TYPES = Set(["added", "modified", "deleted", "renamed", "copied"])
 const PROTECTED_PATHS_RULE = "protected-paths"
 const CEILING_RATCHET_RULE = "ceiling-ratchet"
 const SCOPE_PATHS_RULE = "scope-paths"
@@ -272,23 +273,19 @@ function _parse_string_array(raw, label::AbstractString)
     return out
 end
 
-const PROTECTED_PATH_ON_VALUES =
-    ("added", "modified", "deleted", "renamed", "copied")
-
-function _parse_protected_paths_on(raw, sub::AbstractString)
-    arr = _parse_string_array(raw, "$sub.on")
-    isempty(arr) &&
-        throw(ConfigError("$sub.on must not be empty"))
+function _parse_protected_path_on(raw, sub::AbstractString)
+    raw === nothing && return nothing
+    raw isa AbstractVector || throw(ConfigError("$sub.on must be an array"))
+    isempty(raw) && throw(ConfigError("$sub.on must not be empty"))
     out = Set{String}()
-    for (k, s) in enumerate(arr)
-        sl = lowercase(strip(String(s)))
-        sl ∉ PROTECTED_PATH_ON_VALUES && throw(
-            ConfigError(
-                "$sub.on[$k] must be one of: added, modified, deleted, renamed, copied (got $(repr(s)))",
-            ),
-        )
-        sl in out && throw(ConfigError("$sub.on must not contain duplicate values"))
-        push!(out, sl)
+    for (k, v) in enumerate(raw)
+        on_label = "$sub.on[$k]"
+        v isa AbstractString || throw(ConfigError("$on_label must be a string"))
+        s = String(v)
+        s in PROTECTED_PATH_CHANGE_TYPES ||
+            throw(ConfigError("unknown protected-paths change type '$s' in $on_label"))
+        s in out && throw(ConfigError("duplicate change type '$s' in $sub.on"))
+        push!(out, s)
     end
     return out
 end
@@ -304,8 +301,7 @@ function _parse_protected_paths_globs(content::Dict, label::String)
         glob = _require_string(entry, "glob", sub)
         reason = _require_string(entry, "reason", sub)
         rx = compile_path_glob(glob, sub)
-        change_types =
-            haskey(entry, "on") ? _parse_protected_paths_on(entry["on"], sub) : nothing
+        change_types = _parse_protected_path_on(get(entry, "on", nothing), sub)
         push!(out, ProtectedGlobEntry(rx, reason, change_types))
     end
     return out

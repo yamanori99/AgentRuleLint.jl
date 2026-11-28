@@ -4,11 +4,12 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 
 ## Unreleased (0.1.0-DEV)
 
-### `protected-paths` config glob `on` change-type filter
+### `protected-paths` optional `on` change-type filter
 
-Each `[rules.protected-paths].paths[]` entry may set optional `on = ["added", …]` to
-forbid only those effective change types. Invalid, empty, or duplicate `on` values are
-`ConfigError` (exit 2). Copy events with only the source inside the glob do not report.
+Each `[rules.protected-paths].paths[]` entry may set `on = ["added", …]` to report only
+those diff change types. Copy events use separate classification from renames (source file
+remains). Auto-protected paths ignore `on`. Empty, unknown, or duplicate `on` values are
+`ConfigError` (exit 2).
 
 ### **[CI-breaking]** Bundled git via Git.jl (>= 2.32); no system git
 

@@ -49,11 +49,7 @@ function auto_protected_reason(path::AbstractString)
     return "protected path changed"
 end
 
-function _glob_matches(path::AbstractString, entry::ProtectedGlobEntry)
-    return occursin(entry.regex, normalize_path(path))
-end
-
-function _first_glob_entry(path::AbstractString, policy::PolicyBundle)
+function _match_protected_glob_entry(path::AbstractString, policy::PolicyBundle)
     p = normalize_path(path)
     for entry in policy.protected_path_globs
         occursin(entry.regex, p) && return entry
@@ -61,7 +57,7 @@ function _first_glob_entry(path::AbstractString, policy::PolicyBundle)
     return nothing
 end
 
-function _auto_protected_match(path::AbstractString)
+function _auto_classify_protected_path(path::AbstractString)
     p = normalize_path(path)
     p in AUTO_PROTECTED_EXACT && return true, auto_protected_reason(p)
     _under_agentrulelint(p) && return true, auto_protected_reason(p)
@@ -71,9 +67,24 @@ function _auto_protected_match(path::AbstractString)
 end
 
 function classify_protected_path(path::AbstractString, policy::PolicyBundle)
-    entry = _first_glob_entry(path, policy)
+    entry = _match_protected_glob_entry(path, policy)
     entry !== nothing && return true, entry.reason
-    return _auto_protected_match(path)
+    return _auto_classify_protected_path(path)
+end
+
+function _glob_entry_for_event(ev::DiffPathEvent, policy::PolicyBundle)
+    if ev.status in ('R', 'C')
+        for p in (ev.old_path, ev.path)
+            entry = _match_protected_glob_entry(p, policy)
+            entry !== nothing && return entry
+        end
+        return nothing
+    end
+    return _match_protected_glob_entry(ev.path, policy)
+end
+
+function _path_matches_glob_entry(path::AbstractString, entry::ProtectedGlobEntry)
+    return occursin(entry.regex, normalize_path(path))
 end
 
 function _on_allows(change_types::Union{Nothing, Set{String}}, word::AbstractString)
@@ -81,44 +92,39 @@ function _on_allows(change_types::Union{Nothing, Set{String}}, word::AbstractStr
     return String(word) in change_types
 end
 
-function _push_protected_finding!(
-        out::Vector{Violation},
-        seen::Set{String},
-        path::String,
-        word::AbstractString,
-        reason::AbstractString,
-        root::AbstractString,
-        base::AbstractString,
-        ev::DiffPathEvent,
-        policy::PolicyBundle,
-    )
-    path in seen && return
-    push!(seen, path)
-    _protected_change_exempt(root, base, path, ev, policy) && return
-    msg = "$(String(word)) (reason: $(String(reason)))"
-    return push!(out, _protected_paths_diag(path, msg, policy))
-end
-
-function _glob_findings_for_event(ev::DiffPathEvent, entry::ProtectedGlobEntry)
-    out = Tuple{String, String}[]
-    if ev.status in ('R', 'C')
-        old_m = _glob_matches(ev.old_path, entry)
-        new_m = _glob_matches(ev.path, entry)
-        if ev.status == 'R'
-            old_m && !new_m && push!(out, (ev.old_path, "deleted"))
-            !old_m && new_m && push!(out, (ev.path, "added"))
-            old_m && new_m && begin
-                push!(out, (ev.old_path, "renamed"))
-                push!(out, (ev.path, "renamed"))
-            end
-        else
-            !old_m && new_m && push!(out, (ev.path, "added"))
-            old_m && new_m && push!(out, (ev.path, "copied"))
+function _filtered_glob_path_words(ev::DiffPathEvent, entry::ProtectedGlobEntry)
+    st = ev.status
+    old_p = ev.old_path
+    new_p = ev.path
+    old_m = _path_matches_glob_entry(old_p, entry)
+    new_m = _path_matches_glob_entry(new_p, entry)
+    if st == 'A'
+        new_m || return Tuple{String, String}[]
+        return [(new_p, "added")]
+    elseif st == 'M'
+        new_m || return Tuple{String, String}[]
+        return [(new_p, "modified")]
+    elseif st == 'D'
+        new_m || return Tuple{String, String}[]
+        return [(new_p, "deleted")]
+    elseif st == 'R'
+        out = Tuple{String, String}[]
+        if old_m && !new_m
+            push!(out, (old_p, "deleted"))
+        elseif new_m && !old_m
+            push!(out, (new_p, "added"))
+        elseif old_m && new_m
+            push!(out, (old_p, "renamed"))
+            push!(out, (new_p, "renamed"))
         end
-    else
-        _glob_matches(ev.path, entry) && push!(out, (ev.path, _status_word(ev.status)))
+        return out
+    elseif st == 'C'
+        old_m && !new_m && return Tuple{String, String}[]
+        new_m && !old_m && return [(new_p, "added")]
+        old_m && new_m && return [(new_p, "copied")]
+        return Tuple{String, String}[]
     end
-    return [(p, w) for (p, w) in out if _on_allows(entry.change_types, w)]
+    return Tuple{String, String}[]
 end
 
 function _protected_paths_spec(policy::PolicyBundle)
@@ -288,18 +294,38 @@ function _handle_protected_event(
     )
     out = Violation[]
     seen = Set{String}()
-    for entry in policy.protected_path_globs
-        for (p, word) in _glob_findings_for_event(ev, entry)
-            _push_protected_finding!(out, seen, p, word, entry.reason, root, base, ev, policy)
+    glob_entry = _glob_entry_for_event(ev, policy)
+    if glob_entry !== nothing
+        use_glob_classifier = glob_entry.change_types !== nothing || ev.status == 'C'
+        if use_glob_classifier
+            for (p, word) in _filtered_glob_path_words(ev, glob_entry)
+                p in seen && continue
+                push!(seen, p)
+                !_on_allows(glob_entry.change_types, word) && continue
+                !_protected_change_exempt(root, base, p, ev, policy) || continue
+                msg = "$(word) (reason: $(glob_entry.reason))"
+                push!(out, _protected_paths_diag(p, msg, policy))
+            end
+            return out
         end
     end
     paths = ev.status in ('R', 'C') ? [ev.old_path, ev.path] : [ev.path]
     for p in paths
-        _first_glob_entry(p, policy) !== nothing && continue
-        matched, reason = _auto_protected_match(p)
+        p in seen && continue
+        push!(seen, p)
+        entry = _match_protected_glob_entry(p, policy)
+        if entry !== nothing
+            matched = true
+            reason = entry.reason
+        else
+            matched, reason = _auto_classify_protected_path(p)
+        end
         matched || continue
-        word = _status_word(ev.status)
-        _push_protected_finding!(out, seen, p, word, reason, root, base, ev, policy)
+        if !_protected_change_exempt(root, base, p, ev, policy)
+            word = _status_word(ev.status)
+            msg = "$word (reason: $reason)"
+            push!(out, _protected_paths_diag(p, msg, policy))
+        end
     end
     return out
 end
@@ -335,13 +361,11 @@ compat string change (loosening is any non-identical string; no semver reasoning
 or any other top-level key change is a violation.
 
 Declared `paths = [{ glob = "...", reason = "..." }]` under `[rules.protected-paths]` use
-project-rule path-glob syntax; the reason appears in the message. Each entry may set optional
-`on = ["added", "modified", "deleted", "renamed", "copied"]` to restrict which effective change
-types forbid a finding; omit `on` to forbid every type that would otherwise report. Config-declared
-globs classify renames and copies for matching: rename out of the glob is `deleted` on the old
-path; rename in is `added` on the new path; rename within is `renamed` on both paths; copy with only
-the destination in the glob is `added` on the destination; copy with both sides in the glob is
-`copied` on the destination only (the source file remains). Auto-protected paths ignore `on`.
+project-rule path-glob syntax; the reason appears in the message. An optional `on` array
+restricts which change types each entry reports (`added`, `modified`, `deleted`, `renamed`,
+`copied`); omit `on` to report every change type as today. Auto-protected paths ignore `on`.
+Copy events differ from renames: a copy leaves the source in place, so only-destination match
+is `added`, both match is `copied` on the destination only, and only-source match is silent.
 
 Missing or unparsable TOML on either side of a compared change fails closed (exit 2).
 
