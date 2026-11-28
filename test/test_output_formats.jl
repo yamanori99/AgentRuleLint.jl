@@ -16,7 +16,7 @@ function check_result_fixture()
     cs = AgentRuleLint.ConfigSource(:path, ".AgentRuleLint.jl.toml", "", "")
     d = AgentRuleLint.Violation(
         "project/no-internal-codename",
-        :project,
+        AgentRuleLint.Origin.PROJECT,
         AgentRuleLint.Level.DENY,
         "test/corpus/split_string.jl",
         AgentRuleLint.Span(1, 1, 1, 10),
@@ -126,7 +126,7 @@ end
         cs = AgentRuleLint.ConfigSource()
         z = AgentRuleLint.Violation(
             "r",
-            :project,
+            AgentRuleLint.Origin.PROJECT,
             AgentRuleLint.Level.DENY,
             "z/z.jl",
             AgentRuleLint.Span(1, 1, 1, 1),
@@ -140,7 +140,7 @@ end
         )
         a = AgentRuleLint.Violation(
             "r",
-            :project,
+            AgentRuleLint.Origin.PROJECT,
             AgentRuleLint.Level.DENY,
             "a/a.jl",
             AgentRuleLint.Span(1, 1, 1, 1),

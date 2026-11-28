@@ -16,7 +16,7 @@
         source = "x = 1\n"
         d = AgentRuleLint.Violation(
             AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
-            :agentrulelint,
+            AgentRuleLint.Origin.AGENTRULELINT,
             AgentRuleLint.Level.FORBID,
             "f.jl",
             AgentRuleLint.Span(1, 1, 1, 1),
@@ -93,7 +93,7 @@
         path = "budget.jl"
         point = AgentRuleLint.Violation(
             AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
-            :agentrulelint,
+            AgentRuleLint.Origin.AGENTRULELINT,
             AgentRuleLint.Level.FORBID,
             path,
             AgentRuleLint.Span(2, 31988, 2, 31988),
@@ -107,7 +107,7 @@
         )
         wide = AgentRuleLint.Violation(
             AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
-            :agentrulelint,
+            AgentRuleLint.Origin.AGENTRULELINT,
             AgentRuleLint.Level.FORBID,
             path,
             AgentRuleLint.Span(2, 1, 2, 128042),
@@ -131,7 +131,7 @@
         # Equal extent: earlier start wins.
         a = AgentRuleLint.Violation(
             AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
-            :agentrulelint,
+            AgentRuleLint.Origin.AGENTRULELINT,
             AgentRuleLint.Level.FORBID,
             path,
             AgentRuleLint.Span(3, 1, 3, 9),
@@ -145,7 +145,7 @@
         )
         b = AgentRuleLint.Violation(
             AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
-            :agentrulelint,
+            AgentRuleLint.Origin.AGENTRULELINT,
             AgentRuleLint.Level.FORBID,
             path,
             AgentRuleLint.Span(3, 5, 3, 13),

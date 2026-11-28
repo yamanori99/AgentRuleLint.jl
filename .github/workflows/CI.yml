@@ -177,8 +177,9 @@ jobs:
         shell: bash
         run: julia --startup-file=no --project=. --color=yes -e 'using Pkg; Pkg.test()'
 
-  test:
-    name: Pkg.test - Julia 1.13 - ubuntu-latest - x64
+  # Sharded 1/3..3/3; not a required check — aggregate `test` below is.
+  test_shard:
+    name: Pkg.test (shard ${{ matrix.shard }}/3) - Julia 1.13 - ubuntu-latest - x64
     needs: [runic, aqua, jetls]
     permissions:
       contents: read
@@ -186,6 +187,12 @@ jobs:
       id-token: write # Codecov OIDC on main push
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    env:
+      AGENTRULELINT_TEST_SHARD: ${{ matrix.shard }}/3
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -227,6 +234,25 @@ jobs:
           slug: ${{ github.repository }}
           use_oidc: true
           fail_ci_if_error: true
+          flags: shard-${{ matrix.shard }}
+
+  test:
+    name: Pkg.test - Julia 1.13 - ubuntu-latest - x64
+    needs: [test_shard]
+    if: always()
+    permissions: {}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require all Pkg.test shards successful
+        shell: bash
+        env:
+          SHARD_RESULT: ${{ needs.test_shard.result }}
+        run: |
+          if [ "$SHARD_RESULT" != "success" ]; then
+            echo "test_shard result was $SHARD_RESULT (expected success)" >&2
+            exit 1
+          fi
 
   # Sharded 1/3..3/3; not a required check — aggregate `mutation` below is.
   # No path filter: every PR runs every `test/mutation/*.jl` harness (#75).

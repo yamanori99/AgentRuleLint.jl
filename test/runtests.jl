@@ -8,6 +8,7 @@ const TEST_DIR = @__DIR__
 const ROOT = dirname(TEST_DIR)
 include(joinpath(TEST_DIR, "failure_digest.jl"))
 include(joinpath(TEST_DIR, "parallel_testsuite_config.jl"))
+include(joinpath(TEST_DIR, "shard_select.jl"))
 
 const _FAILURE_DIGEST_TS = Ref{Union{Nothing, Test.DefaultTestSet}}(nothing)
 
@@ -77,6 +78,7 @@ end
 
 function _run_agentrulelint_tests_body()
     testsuite = build_testsuite()
+    apply_test_shard!(testsuite)
     args = parse_args(ARGS)
     # Probe-only suites (e.g. test_digest_deliberate_fail) stay out of the default run.
     if filter_tests!(testsuite, args) && isempty(args.positionals)
@@ -84,6 +86,7 @@ function _run_agentrulelint_tests_body()
             delete!(testsuite, probe)
         end
     end
+    serial_after = [s for s in _SERIAL_AFTER if haskey(testsuite, s)]
     try
         runtests(
             AgentRuleLint,
@@ -91,7 +94,7 @@ function _run_agentrulelint_tests_body()
             testsuite,
             init_code,
             init_worker_code,
-            serial = _SERIAL_AFTER,
+            serial = serial_after,
             serial_position = :after,
         )
     catch err

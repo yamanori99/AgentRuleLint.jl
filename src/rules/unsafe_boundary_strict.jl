@@ -18,7 +18,7 @@ end
 
 const UNSAFE_BOUNDARY_STRICT_RULE_DEF = RuleDef(
     UNSAFE_BOUNDARY_STRICT_PRESET_ID,
-    :preset,
+    Origin.PRESET,
     Level.WARN,
     "Flag `@inbounds`, `@generated`, and `@assume_effects` unless opt-in preset is enabled.",
     "Rely on core `unsafe-boundary` alone when skipping strict macro checks.",
