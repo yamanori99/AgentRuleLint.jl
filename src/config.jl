@@ -368,8 +368,8 @@ function _load_rules_table(raw::Dict)
         intent = _opt_string(content, "intent")
         do_not = _opt_string(content, "do_not")
         origin =
-            id in (SHELL_SAFETY_PRESET_ID, UNSAFE_BOUNDARY_STRICT_PRESET_ID) ? :preset :
-            :agentrulelint
+            id in (SHELL_SAFETY_PRESET_ID, UNSAFE_BOUNDARY_STRICT_PRESET_ID) ? Origin.PRESET :
+            Origin.AGENTRULELINT
         extra = Dict{Symbol, String}()
         if id == "silent-catch" && haskey(content, "warn_counts_as_handling")
             extra[:warn_counts_as_handling] = _parse_warn_counts_as_handling(

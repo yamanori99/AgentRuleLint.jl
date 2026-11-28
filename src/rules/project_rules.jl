@@ -33,7 +33,7 @@ function _push_project_violation!(
         diags,
         Violation(
             rule_id,
-            :project,
+            Origin.PROJECT,
             eff_level,
             path,
             sp,

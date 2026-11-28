@@ -75,7 +75,7 @@ end
 
 const SHELL_SAFETY_RULE_DEF = RuleDef(
     SHELL_SAFETY_PRESET_ID,
-    :preset,
+    Origin.PRESET,
     Level.DENY,
     "Reject hazardous process patterns in statically known shell/Cmd literals (pkill, killall, remote shells, sudo).",
     "Split command names (\"pk\" * \"ill\"), alias binaries, or build Cmd from runtime values to evade folding.",
@@ -104,7 +104,7 @@ function diagnose_shell_safety(fc::FileContext, policy::PolicyBundle, eff_level:
         _push_builtin_violation!(
             diags,
             "shell-safety/process-pattern",
-            :preset,
+            Origin.PRESET,
             eff_level,
             fc.parsed.path,
             source,
