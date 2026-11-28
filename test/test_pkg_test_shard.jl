@@ -76,4 +76,3 @@
         @test isempty(empty_suite)
     end
 end
-
