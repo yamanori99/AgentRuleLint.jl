@@ -27,7 +27,7 @@ function compare_signatures(hostile_home::String)
         rename_diff_literal_isolation_fixture(dir)
         clean = git_isolation_check_outcome(dir, _DIFF_ISOLATION_BASE, mktempdir())
         hostile = git_isolation_check_outcome(dir, _DIFF_ISOLATION_BASE, hostile_home)
-        return clean == hostile
+        return git_isolation_outcomes_equivalent(clean, hostile)
     finally
         rm(dir, recursive = true, force = true)
     end

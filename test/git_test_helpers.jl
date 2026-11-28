@@ -71,7 +71,11 @@ end
 function git_isolation_check_result(dir::AbstractString, diff_base::AbstractString, home::AbstractString)
     dir = abspath(String(dir))
     base = String(diff_base)
-    return withenv("HOME" => home) do
+    return withenv(
+        "HOME" => home,
+        "GIT_CONFIG_GLOBAL" => nothing,
+        "GIT_CONFIG_NOSYSTEM" => nothing,
+    ) do
         res = _git.check(dir; diff_base = base)
         return (
             kind = :result,
@@ -80,6 +84,13 @@ function git_isolation_check_result(dir::AbstractString, diff_base::AbstractStri
             complete = res.complete,
         )
     end
+end
+
+"""Compare isolation probe outcomes: both must be complete results with matching signatures."""
+function git_isolation_outcomes_equivalent(a, b)
+    a.kind == :result && b.kind == :result || return false
+    a.complete && b.complete || return false
+    return a.violations == b.violations && a.exit_code == b.exit_code
 end
 
 """

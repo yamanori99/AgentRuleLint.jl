@@ -34,10 +34,7 @@ function _line_violates_git_allowlist(line::AbstractString)
     s = String(line)
     occursin(_RE_CMD_GIT_DQ, s) && return "Cmd([\"git\""
     occursin(_RE_CMD_GIT_SQ, s) && return "Cmd(['git'"
-    if occursin(_RE_BACKTICK_GIT, s)
-        occursin("git mv", s) && return nothing
-        return "backtick git"
-    end
+    occursin(_RE_BACKTICK_GIT, s) && return "backtick git"
     occursin(_RE_DOLLAR_GIT, s) && return "\$(git "
     return nothing
 end

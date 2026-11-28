@@ -22,7 +22,7 @@ function _git_isolation_child_script(helpers_path::AbstractString)
             base = GIT_ISOLATION_DIFF_BASE
             clean = git_isolation_check_outcome(dir, base, mktempdir())
             hostile_sig = git_isolation_check_outcome(dir, base, hostile)
-            clean == hostile_sig || exit(42)
+            git_isolation_outcomes_equivalent(clean, hostile_sig) || exit(42)
             exit(0)
         finally
             rm(hostile, recursive = true, force = true)

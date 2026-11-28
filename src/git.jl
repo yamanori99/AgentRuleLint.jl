@@ -1,9 +1,32 @@
-# Config-isolated git on PATH (see #93). Minimum git 2.24.
+# Config-isolated git on PATH (see #93). Minimum git 2.32 (GIT_CONFIG_GLOBAL).
 
-const GIT_MIN_VERSION = VersionNumber("2.24")
+const GIT_MIN_VERSION = VersionNumber("2.32")
 
 const _TLS_GLOBAL_CONFIG = :agentrulelint_git_global_config
 const _TLS_RUNTIME = :agentrulelint_git_runtime
+const _TLS_WORKER_WDIR = :agentrulelint_git_worker_wdir
+
+# Inherited env that pins another repository or discovery context (see git(1) ENVIRONMENT).
+const _GIT_STRIP_REPO_LOCATION_ENV = (
+    "GIT_DIR",
+    "GIT_WORK_TREE",
+    "GIT_INDEX_FILE",
+    "GIT_OBJECT_DIRECTORY",
+    "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+    "GIT_COMMON_DIR",
+    "GIT_NAMESPACE",
+    "GIT_CEILING_DIRECTORIES",
+    "GIT_DISCOVERY_ACROSS_FILESYSTEM",
+    "GIT_GRAFT_FILE",
+    "GIT_SHALLOW_FILE",
+    "GIT_QUARANTINE_PATH",
+)
+
+const _GIT_STRIP_CONFIG_SCOPE_ENV = (
+    "GIT_CONFIG",
+    "GIT_CONFIG_COUNT",
+    "GIT_CONFIG_PARAMETERS",
+)
 
 function _task_tls()
     return task_local_storage()
@@ -20,7 +43,7 @@ function _git_global_config_path()
     return "/dev/null"
 end
 
-function _git_isolated_env()
+function _git_isolated_overrides()
     return Dict{String, String}(
         "GIT_CONFIG_NOSYSTEM" => "1",
         "GIT_CONFIG_GLOBAL" => _git_global_config_path(),
@@ -31,41 +54,100 @@ function _git_isolated_env()
     )
 end
 
+function _git_strip_inherited!(env::Dict{String, String})
+    for k in _GIT_STRIP_REPO_LOCATION_ENV
+        delete!(env, k)
+    end
+    for k in _GIT_STRIP_CONFIG_SCOPE_ENV
+        delete!(env, k)
+    end
+    for k in collect(keys(env))
+        startswith(k, "GIT_CONFIG_KEY_") && delete!(env, k)
+        startswith(k, "GIT_CONFIG_VALUE_") && delete!(env, k)
+    end
+    return env
+end
+
+function _git_merged_env()
+    env = copy(ENV)
+    _git_strip_inherited!(env)
+    merge!(env, _git_isolated_overrides())
+    return env
+end
+
+"""
+    git_worker_bootstrap!()
+
+Call once per parallel test worker so git helpers work for the worker lifetime (Windows).
+"""
+function git_worker_bootstrap!()
+    tls = _task_tls()
+    haskey(tls, _TLS_GLOBAL_CONFIG) && return nothing
+    if Sys.iswindows()
+        wdir = mktempdir()
+        cfg = joinpath(wdir, "gitconfig")
+        touch(cfg)
+        tls[_TLS_GLOBAL_CONFIG] = cfg
+        tls[_TLS_WORKER_WDIR] = wdir
+    else
+        tls[_TLS_GLOBAL_CONFIG] = "/dev/null"
+    end
+    return nothing
+end
+
 function git_runtime()
     tls = _task_tls()
     haskey(tls, _TLS_RUNTIME) || return (executable = "", version = "")
     return tls[_TLS_RUNTIME]::NamedTuple{(:executable, :version), Tuple{String, String}}
 end
 
+function _git_restore_tls!(
+        tls,
+        saved_config,
+        saved_runtime,
+        created_windows_cfg::Union{Nothing, String},
+    )
+    if saved_config === nothing
+        delete!(tls, _TLS_GLOBAL_CONFIG)
+    else
+        tls[_TLS_GLOBAL_CONFIG] = saved_config
+    end
+    if saved_runtime === nothing
+        delete!(tls, _TLS_RUNTIME)
+    else
+        tls[_TLS_RUNTIME] = saved_runtime
+    end
+    if created_windows_cfg !== nothing
+        wdir = dirname(created_windows_cfg)
+        isdir(wdir) && rm(wdir, recursive = true, force = true)
+    end
+    return nothing
+end
+
 """
     git_run_scope(f) -> f()
 
-Set per-run git isolation context (`GIT_CONFIG_GLOBAL`, probe cache). On Windows,
-uses a temporary directory removed after `f()` returns.
+Set per-run git isolation context (`GIT_CONFIG_GLOBAL`, probe cache). Reentrant: restores the
+prior task-local context. On Windows, nested scopes use temporary empty global configs.
 """
 function git_run_scope(f)
-    return if Sys.iswindows()
-        wdir = mktempdir()
-        cfg = joinpath(wdir, "gitconfig")
-        touch(cfg)
-        tls = _task_tls()
-        tls[_TLS_GLOBAL_CONFIG] = cfg
-        try
-            return f()
-        finally
-            delete!(tls, _TLS_RUNTIME)
-            delete!(tls, _TLS_GLOBAL_CONFIG)
-            rm(wdir, recursive = true, force = true)
+    tls = _task_tls()
+    saved_config = get(tls, _TLS_GLOBAL_CONFIG, nothing)
+    saved_runtime = get(tls, _TLS_RUNTIME, nothing)
+    created_windows_cfg = nothing
+    try
+        if Sys.iswindows()
+            wdir = mktempdir()
+            cfg = joinpath(wdir, "gitconfig")
+            touch(cfg)
+            tls[_TLS_GLOBAL_CONFIG] = cfg
+            created_windows_cfg = cfg
+        else
+            tls[_TLS_GLOBAL_CONFIG] = "/dev/null"
         end
-    else
-        tls = _task_tls()
-        tls[_TLS_GLOBAL_CONFIG] = "/dev/null"
-        try
-            return f()
-        finally
-            delete!(tls, _TLS_RUNTIME)
-            delete!(tls, _TLS_GLOBAL_CONFIG)
-        end
+        return f()
+    finally
+        _git_restore_tls!(tls, saved_config, saved_runtime, created_windows_cfg)
     end
 end
 
@@ -126,7 +208,7 @@ function git_cmd(root::AbstractString, args::AbstractString...)
     r = abspath(String(root))
     g = _git_executable_cmd(r)
     tail = Cmd(vcat(String["-C", r, "-c", "safe.directory=$(r)"], collect(String, args)))
-    return addenv(`$g $tail`, _git_isolated_env()...)
+    return setenv(`$g $tail`, _git_merged_env())
 end
 
 """Read stdout from an isolated git call; on failure raise `GitError` including stderr."""
