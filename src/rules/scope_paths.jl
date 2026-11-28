@@ -36,7 +36,7 @@ function _scope_paths_diag(path::String, message::String, policy::PolicyBundle)
     spec = _scope_paths_spec(policy)
     return Violation(
         SCOPE_PATHS_RULE,
-        :agentrulelint,
+        Origin.AGENTRULELINT,
         spec.level,
         path,
         Span(1, 1, 1, 1),
@@ -111,7 +111,7 @@ end
 
 const SCOPE_PATHS_RULE_DEF = RuleDef(
     SCOPE_PATHS_RULE,
-    :agentrulelint,
+    Origin.AGENTRULELINT,
     Level.FORBID,
     "Reject diff changes outside a trusted path allowlist.",
     "Edit files outside --allow-paths scope passed from CI or a human wrapper.",
