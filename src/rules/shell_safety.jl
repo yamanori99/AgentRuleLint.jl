@@ -76,7 +76,7 @@ end
 const SHELL_SAFETY_RULE_DEF = RuleDef(
     SHELL_SAFETY_PRESET_ID,
     :preset,
-    :deny,
+    Level.DENY,
     "Reject hazardous process patterns in statically known shell/Cmd literals (pkill, killall, remote shells, sudo).",
     "Split command names (\"pk\" * \"ill\"), alias binaries, or build Cmd from runtime values to evade folding.",
     Dict{Symbol, String}(),
@@ -85,7 +85,7 @@ const SHELL_SAFETY_RULE_DEF = RuleDef(
     ("test/corpus/shell_sudo_cmd.jl",),
 )
 
-function diagnose_shell_safety(fc::FileContext, policy::PolicyBundle, eff_level::Symbol)
+function diagnose_shell_safety(fc::FileContext, policy::PolicyBundle, eff_level::Level.T)
     source = fc.parsed.normalized
     tree = fc.tree
     tree === nothing && return Violation[]

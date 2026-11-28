@@ -29,7 +29,7 @@ function format_agent(
         total = length(all_ds)
         ceiling = rule_violation_total(ceilings, rid)
         ceiling_s = ceiling > 0 ? string(ceiling) : "-"
-        rule_line = "RULE $orig $rid level=$lvl count=$total ceiling=$ceiling_s"
+        rule_line = "RULE $orig $rid level=$(wire_name(lvl)) count=$total ceiling=$ceiling_s"
         println(buf, rule_line)
         !isempty(all_ds[1].intent) && println(buf, "intent: ", all_ds[1].intent)
         !isempty(all_ds[1].do_not) && println(buf, "do_not: ", all_ds[1].do_not)

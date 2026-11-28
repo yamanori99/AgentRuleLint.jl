@@ -17,7 +17,7 @@ RULE = "protected-paths"
         return filter(
             d ->
             d.rule_id == RULE && !d.suppressed &&
-                d.expect_status != :fulfilled && d.level != :allow,
+                d.expect_status != :fulfilled && d.level != AgentRuleLint.Level.ALLOW,
             res.violations,
         )
     end

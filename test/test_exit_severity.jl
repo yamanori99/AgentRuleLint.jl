@@ -30,7 +30,7 @@
             res.violations,
         )
         @test !isempty(hits)
-        @test all(d -> d.level == :warn, hits)
+        @test all(d -> d.level == AgentRuleLint.Level.WARN, hits)
         @test res.exit_code == 0
     end
 
@@ -38,7 +38,7 @@
         relp = joinpath("test", "corpus", "expect_empty_reason.jl")
         for th in (:warn, :deny, :forbid)
             res = AgentRuleLint.check(ROOT; paths = [relp], exit_severity = th)
-            forbid_hits = filter(d -> d.level == :forbid && !d.suppressed, res.violations)
+            forbid_hits = filter(d -> d.level == AgentRuleLint.Level.FORBID && !d.suppressed, res.violations)
             @test !isempty(forbid_hits)
             @test res.exit_code == 1
         end
@@ -47,8 +47,8 @@
     @testset "deny-only hits respect forbid threshold" begin
         relp = joinpath("test", "corpus", "silent_catch_empty.jl")
         res = AgentRuleLint.check(ROOT; paths = [relp], exit_severity = :forbid)
-        deny_hits = filter(d -> d.level == :deny && !d.suppressed, res.violations)
-        forbid_hits = filter(d -> d.level == :forbid && !d.suppressed, res.violations)
+        deny_hits = filter(d -> d.level == AgentRuleLint.Level.DENY && !d.suppressed, res.violations)
+        forbid_hits = filter(d -> d.level == AgentRuleLint.Level.FORBID && !d.suppressed, res.violations)
         @test !isempty(deny_hits)
         @test isempty(forbid_hits)
         @test res.exit_code == 0
@@ -59,7 +59,7 @@
         try
             write(joinpath(root, ".AgentRuleLint.jl.toml"), _pin_config("exit_severity = \"forbid\"\n"))
             pol = AgentRuleLint.resolve_policy(root)
-            @test pol.exit_severity == :forbid
+            @test pol.exit_severity == AgentRuleLint.Level.FORBID
             relp = joinpath("test", "corpus", "unsafe_allow_module.jl")
             res = AgentRuleLint.check(
                 ROOT;
@@ -72,6 +72,11 @@
                 _pin_config("exit_severity = \"nope\"\n"),
             )
             @test_throws AgentRuleLint.ConfigError AgentRuleLint.resolve_policy(root)
+            write(
+                joinpath(root, ".AgentRuleLint.jl.toml"),
+                _pin_config("exit_severity = \"allow\"\n"),
+            )
+            @test_throws AgentRuleLint.ConfigError AgentRuleLint.resolve_policy(root)
         finally
             rm(root, recursive = true, force = true)
         end
@@ -80,6 +85,7 @@
     @testset "CLI unknown exit_severity" begin
         @test AgentRuleLint.cli_main(["check", "--exit-severity", "hint", "test/corpus"]) == 2
         @test AgentRuleLint.cli_main(["check", "--exit-severity=error", "test/corpus"]) == 2
+        @test AgentRuleLint.cli_main(["check", "--exit-severity", "allow", "test/corpus"]) == 2
         @test AgentRuleLint.cli_main(["check", "--exit-severity"]) == 2
     end
 
@@ -194,7 +200,7 @@
                 config_path = cfg,
             )
             @test res.exit_code == 0
-            @test res.exit_severity == :forbid
+            @test res.exit_severity == AgentRuleLint.Level.FORBID
             @test res.exit_severity_source == :config
             @test res.below_threshold_count > 0
             human = AgentRuleLint.format_human(

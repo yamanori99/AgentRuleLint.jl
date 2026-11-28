@@ -17,7 +17,7 @@ function check_result_fixture()
     d = AgentRuleLint.Violation(
         "project/no-internal-codename",
         :project,
-        :deny,
+        AgentRuleLint.Level.DENY,
         "test/corpus/split_string.jl",
         AgentRuleLint.Span(1, 1, 1, 10),
         1,
@@ -127,7 +127,7 @@ end
         z = AgentRuleLint.Violation(
             "r",
             :project,
-            :deny,
+            AgentRuleLint.Level.DENY,
             "z/z.jl",
             AgentRuleLint.Span(1, 1, 1, 1),
             1,
@@ -141,7 +141,7 @@ end
         a = AgentRuleLint.Violation(
             "r",
             :project,
-            :deny,
+            AgentRuleLint.Level.DENY,
             "a/a.jl",
             AgentRuleLint.Span(1, 1, 1, 1),
             1,

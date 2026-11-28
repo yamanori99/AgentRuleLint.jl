@@ -112,7 +112,7 @@ end
 const SCOPE_PATHS_RULE_DEF = RuleDef(
     SCOPE_PATHS_RULE,
     :agentrulelint,
-    :forbid,
+    Level.FORBID,
     "Reject diff changes outside a trusted path allowlist.",
     "Edit files outside --allow-paths scope passed from CI or a human wrapper.",
     Dict{Symbol, String}(),

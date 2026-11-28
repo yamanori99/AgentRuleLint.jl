@@ -43,7 +43,7 @@ function push_analysis_incomplete!(
         Violation(
             ANALYSIS_INCOMPLETE_RULE,
             :agentrulelint,
-            :forbid,
+            Level.FORBID,
             path,
             sp,
             sp.start_line,
@@ -128,7 +128,7 @@ end
 const ANALYSIS_INCOMPLETE_RULE_DEF = RuleDef(
     ANALYSIS_INCOMPLETE_RULE,
     :agentrulelint,
-    :forbid,
+    Level.FORBID,
     "Fail closed when static analysis cannot finish (constant-fold budget).",
     "Pad files with enough folds to exhaust the budget and hide later findings, or suppress the incomplete diagnostic.",
     Dict{Symbol, String}(),
