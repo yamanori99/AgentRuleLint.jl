@@ -25,7 +25,7 @@ function _parse_bool_text(txt::AbstractString)
 end
 
 function _parse_int_node(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "Integer" || return nothing
+    kind(node) == KInteger || return nothing
     txt = _node_text_trim(node, src, pos)
     m = match(r"^-?\d+$", txt)
     m === nothing && return nothing
@@ -33,13 +33,13 @@ function _parse_int_node(node::GreenNode, src::AbstractString, pos::Int)
 end
 
 function _parse_float_node(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "Float" || return nothing
+    kind(node) == KFloat || return nothing
     txt = _node_text_trim(node, src, pos)
     return tryparse(Float64, txt)
 end
 
 function _is_eq_op(node::GreenNode, src::AbstractString, pos::Int)
-    return summary(node) == "Identifier" && _node_text_trim(node, src, pos) == "=="
+    return kind(node) == KIdentifier && _node_text_trim(node, src, pos) == "=="
 end
 
 function _try_fold_test_value(
@@ -53,18 +53,17 @@ function _try_fold_test_value(
     _fold_test_budget!(budget)
     depth > _FOLD_TEST_MAX_DEPTH && throw(FoldBudgetExceeded(budget.limit))
 
-    s = summary(node)
-    if s == "Bool" || (is_leaf(node) && kind(node) == JuliaSyntax.K"Bool")
+    if kind(node) == KBool || (syntax_is_leaf(node) && kind(node) == KBool)
         b = _parse_bool_text(_node_text_trim(node, src, pos))
         return b
-    elseif s == "Integer"
+    elseif kind(node) == KInteger
         return _parse_int_node(node, src, pos)
-    elseif s == "Float"
+    elseif kind(node) == KFloat
         return _parse_float_node(node, src, pos)
-    elseif s == "string" || s == "char"
+    elseif kind(node) == KStringExpr || kind(node) == KCharExpr
         v = _fold_atom(node, src, pos, depth, budget)
         return v
-    elseif s == "Identifier"
+    elseif kind(node) == KIdentifier
         name = _node_text_trim(node, src, pos)
         entry = get(consts, name, nothing)
         entry === nothing && return nothing
@@ -72,11 +71,11 @@ function _try_fold_test_value(
         return entry::FoldedTestValue
     end
 
-    if s == "call"
+    if kind(node) == KCall
         kids, _ = _child_positions(node, pos)
         args = Tuple{GreenNode, Int}[]
         for (c, cp) in kids
-            JuliaSyntax.is_trivia(head(c)) && continue
+            syntax_is_trivia(c) && continue
             push!(args, (c, cp))
         end
         length(args) == 3 || return nothing
@@ -98,10 +97,10 @@ function _try_fold_test_value(
         return false
     end
 
-    if s == "comparison"
+    if kind(node) == KComparison
         parts = Tuple{GreenNode, Int}[]
         for (c, cp) in _child_positions(node, pos)[1]
-            JuliaSyntax.is_trivia(head(c)) && continue
+            syntax_is_trivia(c) && continue
             push!(parts, (c, cp))
         end
         length(parts) ≥ 3 || return nothing
@@ -125,11 +124,11 @@ function _try_fold_test_value(
         return acc
     end
 
-    if is_infix_op_call(head(node))
+    if syntax_is_infix_op_call(node)
         kids, _ = _child_positions(node, pos)
         args = Tuple{GreenNode, Int}[]
         for (c, cp) in kids
-            JuliaSyntax.is_trivia(head(c)) && continue
+            syntax_is_trivia(c) && continue
             push!(args, (c, cp))
         end
         length(args) == 3 || return nothing
@@ -167,7 +166,7 @@ function collect_toplevel_const_bindings(
     consts = Dict{String, TestFoldConst}()
     budget = FoldBudget()
     for (node, pos) in _toplevel_stmt_nodes(tree)
-        summary(node) == "const" || continue
+        kind(node) == KConst || continue
         bind = _const_binding_pair(node, src, pos)
         bind === nothing && continue
         name, val_node, val_pos = bind
@@ -188,24 +187,24 @@ end
 
 function _toplevel_stmt_nodes(tree::GreenNode)
     out = Tuple{GreenNode, Int}[]
-    summary(tree) == "toplevel" || return out
+    kind(tree) == KToplevel || return out
     for (c, p) in _child_positions(tree, 1)[1]
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         push!(out, (c, p))
     end
     return out
 end
 
 function _const_binding_pair(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "const" || return nothing
+    kind(node) == KConst || return nothing
     for (c, cp) in _child_positions(node, pos)[1]
-        summary(c) == "=" || continue
+        kind(c) == KAssign || continue
         left = nothing
         right = nothing
         lp = 0
         rp = 0
         for (cc, cpp) in _child_positions(c, cp)[1]
-            JuliaSyntax.is_trivia(head(cc)) && continue
+            syntax_is_trivia(cc) && continue
             if left === nothing
                 left = cc
                 lp = cpp
@@ -217,7 +216,7 @@ function _const_binding_pair(node::GreenNode, src::AbstractString, pos::Int)
         end
         left === nothing && return nothing
         right === nothing && return nothing
-        summary(left) == "Identifier" || return nothing
+        kind(left) == KIdentifier || return nothing
         name = _node_text_trim(left, src, lp)
         return (name, right, rp)
     end

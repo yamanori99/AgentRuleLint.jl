@@ -84,7 +84,7 @@ function _run_project_rules_julia!(
             )
         end
         for (c, p) in _child_positions(tree, 1)[1]
-            summary(c) == "string" || continue
+            syntax_kind(c) == KStringExpr || continue
             raw = _collect_string_chars(c, source, p)
             raw === nothing && continue
             occursin(lit, raw) || continue
@@ -96,7 +96,7 @@ function _run_project_rules_julia!(
                 path,
                 source,
                 p,
-                p + span(c) - 1,
+                p + syntax_span(c) - 1,
                 msg,
                 pr.intent,
                 pr.do_not,
