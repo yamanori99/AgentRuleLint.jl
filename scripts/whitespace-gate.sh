@@ -75,27 +75,57 @@ audit_trailing_newline() {
   done < <(git ls-files -z)
 }
 
+diff_range_usable() {
+  local range="$1"
+  [[ -n "${range}" ]] || return 1
+  if [[ "${range}" == *"..."* ]]; then
+    local left="${range%%...*}"
+    local right="${range#*...}"
+    git rev-parse --verify "${left}" >/dev/null 2>&1 &&
+      git rev-parse --verify "${right}" >/dev/null 2>&1
+    return $?
+  fi
+  if [[ "${range}" == *".."* ]]; then
+    local left="${range%%..*}"
+    local right="${range#*..}"
+    git rev-parse --verify "${left}" >/dev/null 2>&1 &&
+      git rev-parse --verify "${right}" >/dev/null 2>&1
+    return $?
+  fi
+  git rev-parse --verify "${range}" >/dev/null 2>&1
+}
+
 choose_diff_range() {
   if [[ -n "${WHITESPACE_GATE_DIFF_RANGE:-}" ]]; then
-    DIFF_CHECK_RANGE="${WHITESPACE_GATE_DIFF_RANGE}"
+    if diff_range_usable "${WHITESPACE_GATE_DIFF_RANGE}"; then
+      DIFF_CHECK_RANGE="${WHITESPACE_GATE_DIFF_RANGE}"
+    else
+      echo "whitespace-gate: unusable WHITESPACE_GATE_DIFF_RANGE=${WHITESPACE_GATE_DIFF_RANGE}" >&2
+      DIFF_CHECK_RANGE=""
+    fi
     return 0
   fi
   if [[ "${GITHUB_EVENT_NAME:-}" == "pull_request" && -n "${GITHUB_BASE_REF:-}" ]]; then
     git fetch origin "${GITHUB_BASE_REF}" --no-tags 2>/dev/null || true
-    DIFF_CHECK_RANGE="origin/${GITHUB_BASE_REF}...HEAD"
-    return 0
-  fi
-  if [[ "${GITHUB_EVENT_NAME:-}" == "push" && -n "${GITHUB_BEFORE:-}" ]]; then
-    if [[ "${GITHUB_BEFORE}" != "0000000000000000000000000000000000000000" ]]; then
-      DIFF_CHECK_RANGE="${GITHUB_BEFORE}..${GITHUB_SHA:-HEAD}"
+    if diff_range_usable "origin/${GITHUB_BASE_REF}...HEAD"; then
+      DIFF_CHECK_RANGE="origin/${GITHUB_BASE_REF}...HEAD"
       return 0
     fi
   fi
-  if git rev-parse --verify origin/main >/dev/null 2>&1; then
+  if [[ "${GITHUB_EVENT_NAME:-}" == "push" && -n "${GITHUB_BEFORE:-}" ]]; then
+    if [[ "${GITHUB_BEFORE}" != "0000000000000000000000000000000000000000" ]]; then
+      local candidate="${GITHUB_BEFORE}..${GITHUB_SHA:-HEAD}"
+      if diff_range_usable "${candidate}"; then
+        DIFF_CHECK_RANGE="${candidate}"
+        return 0
+      fi
+    fi
+  fi
+  if diff_range_usable "origin/main...HEAD"; then
     DIFF_CHECK_RANGE="origin/main...HEAD"
     return 0
   fi
-  if git rev-parse --verify HEAD~1 >/dev/null 2>&1; then
+  if diff_range_usable "HEAD~1..HEAD"; then
     DIFF_CHECK_RANGE="HEAD~1..HEAD"
     return 0
   fi
