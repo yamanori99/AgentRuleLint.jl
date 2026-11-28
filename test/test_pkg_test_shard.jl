@@ -1,5 +1,10 @@
 @testset "Pkg.test shard" begin
     include("shard_select.jl")
+    let probe = Module()
+        Base.include(probe, joinpath(@__DIR__, "shard_select.jl"))
+        @test !isdefined(probe, :MUTATION_ROOT)
+        @test !isdefined(probe, :detector_disabled)
+    end
 
     function assert_pkg_test_partition(names::Vector{String}, n::Int)
         collected = String[]
@@ -71,3 +76,4 @@
         @test isempty(empty_suite)
     end
 end
+

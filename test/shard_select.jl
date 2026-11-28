@@ -1,8 +1,8 @@
 # Pkg.test shard selection (included from runtests.jl and tests; not auto-discovered).
 
 const _TEST_SHARD_LIB_DIR = @__DIR__
-include(joinpath(_TEST_SHARD_LIB_DIR, "mutation", "run_all_lib.jl"))
-include(joinpath(_TEST_SHARD_LIB_DIR, "parallel_testsuite_config.jl"))
+Base.include(@__MODULE__, joinpath(_TEST_SHARD_LIB_DIR, "shard_lib.jl"))
+Base.include(@__MODULE__, joinpath(_TEST_SHARD_LIB_DIR, "parallel_testsuite_config.jl"))
 
 const AGENTRULELINT_TEST_SHARD_ENV = "AGENTRULELINT_TEST_SHARD"
 

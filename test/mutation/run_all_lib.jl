@@ -3,6 +3,7 @@
 const _MUTATION_RUN_DIR = @__DIR__
 const _MUTATION_REPO_ROOT = normpath(joinpath(_MUTATION_RUN_DIR, "..", ".."))
 
+include(joinpath(_MUTATION_RUN_DIR, "..", "shard_lib.jl"))
 include(joinpath(_MUTATION_RUN_DIR, "mutation_lib.jl"))
 
 function discover_mutation_scripts(dir::AbstractString = _MUTATION_RUN_DIR)
@@ -14,37 +15,6 @@ function discover_mutation_scripts(dir::AbstractString = _MUTATION_RUN_DIR)
         push!(scripts, joinpath(dir, name))
     end
     return sort(scripts)
-end
-
-function parse_mutation_shard()
-    raw = get(ENV, "AGENTRULELINT_MUTATION_SHARD", "")
-    if isempty(strip(raw))
-        return nothing
-    end
-    s = strip(raw)
-    m = match(r"^(\d+)/(\d+)$", s)
-    m === nothing && throw(
-        ArgumentError(
-            "AGENTRULELINT_MUTATION_SHARD must be \"i/N\" with positive integers, got $(repr(raw))",
-        ),
-    )
-    i = parse(Int, m.captures[1]::SubString)
-    n = parse(Int, m.captures[2]::SubString)
-    n < 1 && throw(ArgumentError("AGENTRULELINT_MUTATION_SHARD denominator N must be >= 1, got $n"))
-    i < 1 && throw(ArgumentError("AGENTRULELINT_MUTATION_SHARD shard index i must be >= 1, got $i"))
-    i > n && throw(ArgumentError("AGENTRULELINT_MUTATION_SHARD shard index i must be <= N, got $i/$n"))
-    return (i, n)
-end
-
-function select_mutation_shard(scripts::Vector{String}, i::Int, n::Int)
-    return [s for (k, s) in enumerate(scripts) if (k - 1) % n == i - 1]
-end
-
-function apply_mutation_shard(scripts::Vector{String})
-    shard = parse_mutation_shard()
-    shard === nothing && return scripts
-    i, n = shard
-    return select_mutation_shard(scripts, i, n)
 end
 
 function parse_mutation_jobs()
