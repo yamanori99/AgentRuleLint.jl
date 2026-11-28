@@ -17,7 +17,7 @@
         d = AgentRuleLint.Violation(
             AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
             :agentrulelint,
-            :forbid,
+            AgentRuleLint.Level.FORBID,
             "f.jl",
             AgentRuleLint.Span(1, 1, 1, 1),
             1,
@@ -67,7 +67,7 @@
             res = AgentRuleLint.check(root; paths = ["padded.jl"])
             incomplete = filter(AgentRuleLint.is_analysis_incomplete, res.violations)
             @test length(incomplete) == 1
-            @test incomplete[1].level == :forbid && !incomplete[1].suppressed
+            @test incomplete[1].level == AgentRuleLint.Level.FORBID && !incomplete[1].suppressed
             @test occursin("(project/no-pad)", incomplete[1].message)
             @test res.exit_code == 1
         finally
@@ -94,7 +94,7 @@
         point = AgentRuleLint.Violation(
             AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
             :agentrulelint,
-            :forbid,
+            AgentRuleLint.Level.FORBID,
             path,
             AgentRuleLint.Span(2, 31988, 2, 31988),
             2,
@@ -108,7 +108,7 @@
         wide = AgentRuleLint.Violation(
             AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
             :agentrulelint,
-            :forbid,
+            AgentRuleLint.Level.FORBID,
             path,
             AgentRuleLint.Span(2, 1, 2, 128042),
             2,
@@ -132,7 +132,7 @@
         a = AgentRuleLint.Violation(
             AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
             :agentrulelint,
-            :forbid,
+            AgentRuleLint.Level.FORBID,
             path,
             AgentRuleLint.Span(3, 1, 3, 9),
             3,
@@ -146,7 +146,7 @@
         b = AgentRuleLint.Violation(
             AgentRuleLint.ANALYSIS_INCOMPLETE_RULE,
             :agentrulelint,
-            :forbid,
+            AgentRuleLint.Level.FORBID,
             path,
             AgentRuleLint.Span(3, 5, 3, 13),
             3,

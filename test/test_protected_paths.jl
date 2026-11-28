@@ -17,7 +17,7 @@ RULE = "protected-paths"
         return filter(
             d ->
             d.rule_id == RULE && !d.suppressed &&
-                d.expect_status != :fulfilled && d.level != :allow,
+                d.expect_status != :fulfilled && d.level != AgentRuleLint.Level.ALLOW,
             res.violations,
         )
     end
@@ -330,6 +330,29 @@ RULE = "protected-paths"
         @test isfile(hit)
         ok = joinpath(@__DIR__, "corpus", "protected_paths_dep_add.toml")
         @test isfile(ok)
+    end
+
+    @testset "mutation harness infra (repository config)" begin
+        mutation_infra = (
+            "test/mutation/mutation_lib.jl",
+            "test/mutation/run_all_lib.jl",
+            "test/mutation/run_all.jl",
+        )
+        repo_config = joinpath(ROOT, ".AgentRuleLint.jl.toml")
+        @test isfile(repo_config)
+        policy = AgentRuleLint.load_policy(ROOT; config_path = repo_config)
+        for rel in mutation_infra
+            matched, reason = AgentRuleLint.classify_protected_path(rel, policy)
+            @test matched
+            @test !isempty(reason)
+            ev = AgentRuleLint.DiffPathEvent('M', rel, "")
+            diags = AgentRuleLint._handle_protected_event(ROOT, "HEAD^1", ev, policy)
+            @test length(diags) == 1
+            @test first(diags).rule_id == RULE
+            @test first(diags).path == rel
+            @test occursin("modified", first(diags).message)
+            @test occursin(reason, first(diags).message)
+        end
     end
 
 end

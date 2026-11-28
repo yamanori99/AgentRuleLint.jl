@@ -78,6 +78,7 @@ end
 
 @testset "check reentrant (concurrent)" begin
     spawn_roots = String[]
+    temp_roots = String[]
 
     @testset "repo config" begin
         seq = AgentRuleLint.check(ROOT; paths = REENTRANT_PATHS)
@@ -87,26 +88,26 @@ end
 
     @testset "no config file" begin
         tmp = _reentrant_temp_root()
-        try
-            @test !isfile(joinpath(tmp, ".AgentRuleLint.jl.toml"))
-            seq = AgentRuleLint.check(tmp; paths = REENTRANT_PATHS)
-            push!(spawn_roots, tmp)
-            _assert_async_parallel(seq, tmp)
-        finally
-            rm(tmp; recursive = true, force = true)
-        end
+        push!(temp_roots, tmp)
+        @test !isfile(joinpath(tmp, ".AgentRuleLint.jl.toml"))
+        seq = AgentRuleLint.check(tmp; paths = REENTRANT_PATHS)
+        push!(spawn_roots, tmp)
+        _assert_async_parallel(seq, tmp)
     end
 
     @testset "minimal config" begin
         tmp = _reentrant_temp_root(config_path = REENTRANT_MINIMAL_CFG)
-        try
-            seq = AgentRuleLint.check(tmp; paths = REENTRANT_PATHS)
-            push!(spawn_roots, tmp)
-            _assert_async_parallel(seq, tmp)
-        finally
+        push!(temp_roots, tmp)
+        seq = AgentRuleLint.check(tmp; paths = REENTRANT_PATHS)
+        push!(spawn_roots, tmp)
+        _assert_async_parallel(seq, tmp)
+    end
+
+    try
+        @test _assert_spawn_worker_roots(spawn_roots)
+    finally
+        for tmp in temp_roots
             rm(tmp; recursive = true, force = true)
         end
     end
-
-    @test _assert_spawn_worker_roots(spawn_roots)
 end

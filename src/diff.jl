@@ -23,12 +23,6 @@ end
 const _DIFF_NAME_STATUS_SINGLE = Set(['A', 'M', 'D', 'T'])
 const _DIFF_NAME_STATUS_PAIR = Set(['R', 'C'])
 
-function normalize_path(p::AbstractString)
-    s = replace(String(p), '\\' => '/')
-    startswith(s, "./") && (s = s[3:end])
-    return s
-end
-
 function verify_diff_base_ref(root::AbstractString, base::AbstractString)
     root = _git_root(root)
     ref = String(base)

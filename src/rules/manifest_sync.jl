@@ -166,7 +166,7 @@ end
 function _report_manifest_project_conflicts!(
         diags::Vector{Violation},
         conflicts::Vector{Tuple{String, String, String}},
-        level::Symbol,
+        level::Level.T,
         intent::String,
         do_not::String,
     )
@@ -266,7 +266,7 @@ end
 
 function _push_ms_violation!(
         diags::Vector{Violation},
-        level::Symbol,
+        level::Level.T,
         path::String,
         line::Int,
         msg::String,
@@ -321,7 +321,7 @@ end
 function _report_orphan_tracked_manifests!(
         diags::Vector{Violation},
         orphans::Vector{String},
-        level::Symbol,
+        level::Level.T,
         intent::String,
         do_not::String,
     )
@@ -356,7 +356,7 @@ end
 
 function _check_manifest_format!(
         diags::Vector{Violation},
-        level::Symbol,
+        level::Level.T,
         manifest_rel::String,
         man::Dict,
         source::AbstractString,
@@ -388,7 +388,7 @@ end
 
 function _check_manifest_top_level!(
         diags::Vector{Violation},
-        level::Symbol,
+        level::Level.T,
         manifest_rel::String,
         man::Dict,
         fmt_minor::Int,
@@ -416,7 +416,7 @@ end
 
 function _check_manifest_version_filename!(
         diags::Vector{Violation},
-        level::Symbol,
+        level::Level.T,
         manifest_rel::String,
         man::Dict,
         source::AbstractString,
@@ -481,7 +481,7 @@ end
 
 function _check_project_deps_in_manifest!(
         diags::Vector{Violation},
-        level::Symbol,
+        level::Level.T,
         ctx::ManifestProjectContext,
         wanted::Dict{String, String},
         pkg_src::Dict{String, String},
@@ -523,7 +523,7 @@ end
 
 function _check_manifest_internal_closure!(
         diags::Vector{Violation},
-        level::Symbol,
+        level::Level.T,
         manifest_rel::String,
         names::Set{String},
         internal::Dict{String, Vector{String}},
@@ -549,7 +549,7 @@ end
 
 function _check_uuid_uniqueness!(
         diags::Vector{Violation},
-        level::Symbol,
+        level::Level.T,
         manifest_rel::String,
         uuids::Dict{String, String},
         intent::String,
@@ -601,7 +601,7 @@ function _check_sources_warn!(
             want == got && continue
             _push_ms_violation!(
                 diags,
-                :warn,
+                Level.WARN,
                 ctx.project_rel,
                 _line_for_dep(project_text, pkg),
                 "sources path for '$pkg' disagrees with manifest path",
@@ -618,7 +618,7 @@ function _check_sources_warn!(
         url_ok && rev_ok && sub_ok && continue
         _push_ms_violation!(
             diags,
-            :warn,
+            Level.WARN,
             ctx.project_rel,
             _line_for_dep(project_text, pkg),
             "sources entry for '$pkg' disagrees with manifest repo metadata",
@@ -648,7 +648,7 @@ end
 
 function _check_extensions!(
         diags::Vector{Violation},
-        level::Symbol,
+        level::Level.T,
         project_rel::String,
         proj::Dict,
         project_text::AbstractString,
@@ -688,7 +688,7 @@ function _warn_subproject_manifests!(
             rel in tracked_set || continue
             _push_ms_violation!(
                 diags,
-                :warn,
+                Level.WARN,
                 sub,
                 1,
                 "workspace subproject has its own tracked manifest ($rel)",
@@ -709,7 +709,7 @@ end
 
 function _check_project_hash_diff!(
         diags::Vector{Violation},
-        level::Symbol,
+        level::Level.T,
         root::AbstractString,
         diff_base::AbstractString,
         ctx::ManifestProjectContext,
@@ -764,7 +764,7 @@ function run_manifest_sync(
     )
     spec = _manifest_sync_spec(policy)
     spec === nothing && return Violation[]
-    spec.level == :allow && return Violation[]
+    spec.level == Level.ALLOW && return Violation[]
     _manifest_sync_in_scope(paths, diff_base) || return Violation[]
     level = spec.level
     intent = spec.intent
@@ -786,7 +786,7 @@ function _audit_manifest_pair!(
         root::AbstractString,
         ctx::ManifestProjectContext,
         tracked_set::Set{String},
-        level::Symbol,
+        level::Level.T,
         intent::String,
         do_not::String,
         diff_base,
@@ -871,7 +871,7 @@ end
 const MANIFEST_SYNC_RULE_DEF = RuleDef(
     MANIFEST_SYNC_RULE,
     :agentrulelint,
-    :deny,
+    Level.DENY,
     "Tracked Manifest.toml files must stay consistent with Project.toml (integrity).",
     "Edit [deps] or other resolve sections without updating the tracked manifest.",
     Dict{Symbol, String}(:group => "integrity"),
