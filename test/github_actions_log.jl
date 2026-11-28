@@ -87,16 +87,16 @@ function Base.flush(wr::GitHubActionsTestLogIO)
     return nothing
 end
 
-function Base.unsafe_write(wr::GitHubActionsTestLogIO, p::Ptr{UInt8}, nb::UInt)
-    nb == 0 && return 0
-    data = unsafe_wrap(Vector{UInt8}, p, Int(nb))
-    write(wr.buf, data)
+function Base.write(wr::GitHubActionsTestLogIO, x::UInt8)
+    write(wr.buf, x)
     _gha_test_log_drain_lines!(wr)
-    return Int(nb)
+    return 1
 end
 
-function Base.unsafe_read(::GitHubActionsTestLogIO, ::Ptr{UInt8}, ::UInt)
-    return 0
+function Base.write(wr::GitHubActionsTestLogIO, buf::AbstractVector{UInt8})
+    write(wr.buf, buf)
+    _gha_test_log_drain_lines!(wr)
+    return length(buf)
 end
 
 function Base.eof(wr::GitHubActionsTestLogIO)
