@@ -19,6 +19,7 @@ function _git_isolation_child_script(helpers_path::AbstractString)
         try
             rename_diff_literal_isolation_fixture(dir)
             hostile_attributes_global_gitconfig!(hostile)
+            hostile_default_xdg_attributes_under_home!(hostile)
             base = GIT_ISOLATION_DIFF_BASE
             clean = git_isolation_check_outcome(dir, base, mktempdir())
             hostile_sig = git_isolation_check_outcome(dir, base, hostile)
