@@ -17,7 +17,7 @@ RULE = "protected-paths"
         return filter(
             d ->
             d.rule_id == RULE && !d.suppressed &&
-                d.expect_status != :fulfilled && d.level != AgentRuleLint.Level.ALLOW,
+                d.expect_status != AgentRuleLint.ExpectStatus.FULFILLED && d.level != AgentRuleLint.Level.ALLOW,
             res.violations,
         )
     end
@@ -510,16 +510,40 @@ RULE = "protected-paths"
         @test occursin("deleted", first(diags_d).message)
     end
 
-    @testset "mutation harness infra (repository config)" begin
-        mutation_infra = (
+    @testset "mutation detector glob on filter (repository config)" begin
+        policy = AgentRuleLint.load_policy(ROOT; config_path = joinpath(ROOT, ".AgentRuleLint.jl.toml"))
+        sample = "test/mutation/detectors/diff_hardening_detector.jl"
+        deep_glob = AgentRuleLint.compile_path_glob("test/mutation/**/*.jl", "probe")
+        shallow_glob = AgentRuleLint.compile_path_glob("test/mutation/*.jl", "probe")
+        norm = AgentRuleLint.normalize_path(sample)
+        @test occursin(deep_glob, norm)
+        @test !occursin(shallow_glob, norm)
+        matched, = AgentRuleLint.classify_protected_path(sample, policy)
+        @test matched
+        ev_m = AgentRuleLint.DiffPathEvent('M', sample, "")
+        @test isempty(AgentRuleLint._handle_protected_event(ROOT, "HEAD^1", ev_m, policy))
+        ev_d = AgentRuleLint.DiffPathEvent('D', sample, "")
+        diags_d = AgentRuleLint._handle_protected_event(ROOT, "HEAD^1", ev_d, policy)
+        @test length(diags_d) == 1
+        @test occursin("deleted", first(diags_d).message)
+        ev_r = AgentRuleLint.DiffPathEvent('R', sample, "outside/detector.jl")
+        diags_r = AgentRuleLint._handle_protected_event(ROOT, "HEAD^1", ev_r, policy)
+        @test any(d -> d.path == sample && occursin("deleted", d.message), diags_r)
+    end
+
+    @testset "mutation harness and shard selection (repository config)" begin
+        protected_infra = (
             "test/mutation/mutation_lib.jl",
             "test/mutation/run_all_lib.jl",
             "test/mutation/run_all.jl",
+            "test/shard_lib.jl",
+            "test/shard_select.jl",
+            "test/parallel_testsuite_config.jl",
         )
         repo_config = joinpath(ROOT, ".AgentRuleLint.jl.toml")
         @test isfile(repo_config)
         policy = AgentRuleLint.load_policy(ROOT; config_path = repo_config)
-        for rel in mutation_infra
+        for rel in protected_infra
             matched, reason = AgentRuleLint.classify_protected_path(rel, policy)
             @test matched
             @test !isempty(reason)

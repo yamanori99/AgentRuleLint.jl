@@ -25,6 +25,13 @@ function _module_cmd(args::Vector{String})
     )
 end
 
+# Bundled git (Git.jl) lives under `JULIA_DEPOT_PATH`; offline app develop uses a temp depot.
+const _GIT_HEADER_EXECUTABLE_RE = r"git: [^ @\n]+ @"
+
+function _normalize_git_header_executable(s::String)
+    return replace(s, _GIT_HEADER_EXECUTABLE_RE => "git: <GIT> @")
+end
+
 function _stage_package_for_apps_develop(root::String)
     staging = mktempdir()
     pkg_dir = joinpath(staging, "AgentRuleLint")
@@ -92,7 +99,7 @@ end
             @test code_warm_app == code_app
 
             @test code_app == code_m
-            @test out_app == out_m
+            @test _normalize_git_header_executable(out_app) == _normalize_git_header_executable(out_m)
             @test err_app == err_m
         finally
             if !isempty(staging_root)

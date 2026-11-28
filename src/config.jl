@@ -76,7 +76,6 @@ const PROJECT_RULE_KEYS = Set(
         "do_not",
     ]
 )
-const VALID_OUTPUT_FORMATS = Set([:human, :json, :agent])
 const KNOWN_PRESET_NAMES = Set(["shell-safety", "unsafe-boundary/strict"])
 const SHELL_SAFETY_PRESET_ID = "shell-safety/process-pattern"
 const UNSAFE_BOUNDARY_STRICT_PRESET_ID = "unsafe-boundary/strict"
@@ -122,11 +121,14 @@ function _parse_on_allow_rule(raw, label::String)
 end
 
 function _parse_default_format(raw, label::String)
-    s = raw isa AbstractString ? lowercase(strip(raw)) : ""
-    sym = Symbol(s)
-    sym in VALID_OUTPUT_FORMATS ||
-        throw(ConfigError("unknown default_format '$raw' in $label (expected human|json|agent)"))
-    return sym
+    s = raw isa AbstractString ? strip(String(raw)) : ""
+    try
+        return parse_enum(OutputFormat.T, s)
+    catch err
+        err isa ConfigError || rethrow()
+        valid = join(wire_name.(instances(OutputFormat.T)), "|")
+        throw(ConfigError("unknown default_format '$raw' in $label (expected $valid)"))
+    end
 end
 
 function _parse_preset_list(raw, label::String)
@@ -489,7 +491,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     fmt = if haskey(raw, "default_format")
         _parse_default_format(raw["default_format"], CONFIG_FILENAME)
     else
-        :human
+        OutputFormat.HUMAN
     end
     max_hits = if haskey(raw, "max_hits_per_rule")
         v = raw["max_hits_per_rule"]
@@ -504,7 +506,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     else
         DEFAULT_EXIT_SEVERITY
     end
-    exit_src = exit_from_config ? :config : :default
+    exit_src = exit_from_config ? SeveritySource.CONFIG : SeveritySource.DEFAULT
     presets = if haskey(raw, "presets")
         _parse_preset_list(raw["presets"], "presets")
     else
@@ -555,7 +557,7 @@ function load_policy(root::AbstractString; config_path = nothing)
     cfg = something(config_path, joinpath(root, CONFIG_FILENAME))
     raw = load_toml_file(cfg)
     rel = relpath(cfg, root)
-    cs = ConfigSource(:path, rel, "", "")
+    cs = ConfigSource(ConfigSourceKind.PATH, rel, "", "")
     return policy_from_dict(raw, cfg; config_source = cs)
 end
 
@@ -637,7 +639,7 @@ function load_policy_from_ref(root::AbstractString, ref::AbstractString)
         throw(ConfigError("config not found: $CONFIG_FILENAME (at $ref)"))
     cfg_text = git_show_blob_at_commit(root, sha, CONFIG_FILENAME)
     raw = load_toml_string(cfg_text, "$CONFIG_FILENAME@$ref")
-    cs = ConfigSource(:git_ref, CONFIG_FILENAME, String(ref), sha)
+    cs = ConfigSource(ConfigSourceKind.GIT_REF, CONFIG_FILENAME, String(ref), sha)
     cfg_path = joinpath(root, CONFIG_FILENAME)
     return build_policy(raw, cfg_path, cs)
 end
@@ -652,13 +654,13 @@ function default_policy(root::AbstractString)
         MANIFEST_SYNC_RULE => rule_def_to_spec(MANIFEST_SYNC_RULE_DEF),
         PROTECTED_PATHS_RULE => rule_def_to_spec(PROTECTED_PATHS_RULE_DEF),
     )
-    cs = ConfigSource(:builtin, "", "", "")
+    cs = ConfigSource(ConfigSourceKind.BUILTIN, "", "", "")
     cfg = joinpath(abspath(root), CONFIG_FILENAME)
     return PolicyBundle(
         ver,
-        :human,
+        OutputFormat.HUMAN,
         DEFAULT_EXIT_SEVERITY,
-        :default,
+        SeveritySource.DEFAULT,
         20,
         String[],
         rules,

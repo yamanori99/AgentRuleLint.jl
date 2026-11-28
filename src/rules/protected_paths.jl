@@ -138,7 +138,7 @@ function _protected_paths_diag(path::String, message::String, policy::PolicyBund
         Span(1, 1, 1, 1),
         1,
         "",
-        :none,
+        ExpectStatus.NONE,
         false,
         message,
         spec.intent,

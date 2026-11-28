@@ -22,7 +22,7 @@ function diagnostic_signatures(result::CheckResult)
         (
             d.rule_id,
             d.anchor_line,
-            String(d.expect_status),
+            AgentRuleLint.wire_name(d.expect_status),
             d.suppressed,
         ) for d in result.violations
     )
@@ -44,7 +44,7 @@ end
         write(joinpath(tmp, f), formatted)
         after = AgentRuleLint.run_check(tmp; paths = [f]).violations
         sig(v) =
-            diagnostic_signatures(AgentRuleLint.CheckResult(v, true, 0, AgentRuleLint.ConfigSource(), :human, 20, 0, 0))
+            diagnostic_signatures(AgentRuleLint.CheckResult(v, true, 0, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 0))
         @test sig(before) == sig(after)
     end
 end

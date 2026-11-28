@@ -86,13 +86,13 @@ end
             AgentRuleLint.Span(1, 1, 1, 3),
             1,
             "v1:abc",
-            :none,
+            AgentRuleLint.ExpectStatus.NONE,
             false,
             "msg",
             "intent",
             long_dn,
         )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
+        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
         out = AgentRuleLint.format_human(res; root = ROOT, output_width = 32)
         lines = filter(!isempty, split(out, '\n'))
         do_lines = filter(l -> occursin("do_not:", l) || occursin(r"^│\s{7,}", l), lines)
@@ -114,13 +114,13 @@ end
                 AgentRuleLint.Span(1, 1, 1, 120),
                 1,
                 "v1:abc",
-                :none,
+                AgentRuleLint.ExpectStatus.NONE,
                 false,
                 "forbidden literal matched",
                 "",
                 "",
             )
-            res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
+            res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
             out = AgentRuleLint.format_human(res; root = fixture_root, output_width = 35)
             gutter_lines = filter(l -> occursin("> ", l) || occursin('~', l), split(out, '\n'))
             @test !isempty(gutter_lines)
@@ -142,13 +142,13 @@ end
             AgentRuleLint.Span(1, 1, 1, 1),
             1,
             "v1:x",
-            :none,
+            AgentRuleLint.ExpectStatus.NONE,
             false,
             "msg",
             cjk,
             "",
         )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
+        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
         out = AgentRuleLint.format_human(res; root = ROOT, output_width = 24)
         intent_lines = filter(l -> occursin("intent:", l) || occursin(r"^│\s{7,}", l), split(out, '\n'))
         @test length(intent_lines) >= 2
@@ -176,13 +176,13 @@ end
             AgentRuleLint.Span(9, 9, 9, 9),
             1,
             "v1:loc",
-            :none,
+            AgentRuleLint.ExpectStatus.NONE,
             false,
             "m",
             "",
             "",
         )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
+        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
         loc_needle = "very/long/path/under/test/corpus/example_name.jl:9:9-9:9"
         out = AgentRuleLint.format_human(res; root = ROOT, output_width = 80)
         @test occursin(loc_needle, out)
@@ -197,13 +197,13 @@ end
             AgentRuleLint.Span(1, 1, 1, 10),
             1,
             "v1:abc",
-            :none,
+            AgentRuleLint.ExpectStatus.NONE,
             false,
             "forbidden literal matched",
             "i",
             "d",
         )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
+        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
         js = AgentRuleLint.format_json(res)
         @test occursin("\"type\":\"header\"", replace(js, " " => ""))
         @test !occursin("…", js)
@@ -232,13 +232,13 @@ end
             AgentRuleLint.Span(2, 2, 2, 5),
             2,
             "v1:agentmeta",
-            :none,
+            AgentRuleLint.ExpectStatus.NONE,
             false,
             long_msg,
             "short intent",
             "short do_not",
         )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :agent, 20, 0, 1)
+        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.AGENT, 20, 0, 1)
         out = AgentRuleLint.format_agent(res; root = ROOT, io = IOBuffer())
         loc = "$long_path:2:2-2:5"
         @test occursin("RULE ", out)
@@ -268,13 +268,13 @@ end
                 AgentRuleLint.Span(1, 1, 1, length(body)),
                 1,
                 "v1:snip",
-                :none,
+                AgentRuleLint.ExpectStatus.NONE,
                 false,
                 "unused when snippet present",
                 "",
                 "",
             )
-            res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :agent, 20, 0, 1)
+            res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.AGENT, 20, 0, 1)
             out = AgentRuleLint.format_agent(
                 res;
                 root = fixture_root,
