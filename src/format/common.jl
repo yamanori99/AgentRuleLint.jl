@@ -138,14 +138,16 @@ function human_underline_for_display(
     return underline_for_span(visible_line, Span(sc, sc, ec, ec); marker = marker)
 end
 
-function human_rule_footer(rule_id::String, origin::Symbol, config_path::AbstractString)
-    if origin == :agentrulelint
+function human_rule_footer(rule_id::String, origin::Origin.T, config_path::AbstractString)
+    if origin == Origin.AGENTRULELINT
         return "└ @ AgentRuleLint (run `agentrulelint explain $rule_id` for details)"
-    elseif origin == :project
+    elseif origin == Origin.PROJECT
         cfg = isempty(config_path) ? CONFIG_FILENAME : config_path
         return "└ @ Project $cfg ([[project_rules]])"
-    else
+    elseif origin == Origin.PRESET
         return "└ @ $(origin_label(origin)) (run `agentrulelint explain $rule_id` for details)"
+    else
+        error("internal: unknown origin ", origin)
     end
 end
 

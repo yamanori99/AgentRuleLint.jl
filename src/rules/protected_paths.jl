@@ -132,7 +132,7 @@ function _protected_paths_diag(path::String, message::String, policy::PolicyBund
     spec = _protected_paths_spec(policy)
     return Violation(
         PROTECTED_PATHS_RULE,
-        :agentrulelint,
+        Origin.AGENTRULELINT,
         spec.level,
         path,
         Span(1, 1, 1, 1),
@@ -356,7 +356,7 @@ end
 
 const PROTECTED_PATHS_RULE_DEF = RuleDef(
     PROTECTED_PATHS_RULE,
-    :agentrulelint,
+    Origin.AGENTRULELINT,
     Level.FORBID,
     "Protect designated policy, lockfiles, and workflow paths from silent edits.",
     "Edit protected files, weaken compat, or rename paths to evade review.",

@@ -2,7 +2,7 @@
     cs = AgentRuleLint.ConfigSource()
     d = AgentRuleLint.Violation(
         "project/test",
-        :project,
+        AgentRuleLint.Origin.PROJECT,
         AgentRuleLint.Level.DENY,
         "test/corpus/split_string.jl",
         AgentRuleLint.Span(1, 1, 1, 10),

@@ -200,7 +200,7 @@ function _push_expect_violation!(
         diags,
         Violation(
             "expect-audit",
-            :agentrulelint,
+            Origin.AGENTRULELINT,
             lvl,
             path,
             span,
@@ -463,7 +463,7 @@ function unused_expect_diagnostics(
             diags,
             Violation(
                 "expect-audit",
-                :agentrulelint,
+                Origin.AGENTRULELINT,
                 lvl,
                 path,
                 span,
@@ -494,7 +494,7 @@ function forbid_rule_suppression_attempt(expects::Vector{ExpectLine}, policy::Po
             diags,
             Violation(
                 "expect-audit",
-                :agentrulelint,
+                Origin.AGENTRULELINT,
                 lvl,
                 path,
                 span,

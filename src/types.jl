@@ -34,7 +34,7 @@ end
 """Single lint finding (`rule_id` is always a canonical slug)."""
 struct Violation
     rule_id::String
-    origin::Symbol
+    origin::Origin.T
     level::Level.T
     path::String
     span::Span
@@ -168,7 +168,7 @@ format_error(err) = sprint(showerror, err)
 
 struct RuleSpec
     id::String
-    origin::Symbol
+    origin::Origin.T
     level::Level.T
     intent::String
     do_not::String
@@ -182,7 +182,7 @@ end
 """
 struct RuleDef
     id::String
-    origin::Symbol
+    origin::Origin.T
     default_level::Level.T
     intent::String
     do_not::String
@@ -320,8 +320,17 @@ end
 is_fail_closed(err) =
     err isa ConfigError || err isa GitError || err isa ParseError
 
-origin_label(o::Symbol) =
-    o == :agentrulelint ? "[AgentRuleLint]" : o == :preset ? "[Preset]" : "[Project]"
+function origin_label(o::Origin.T)::String
+    if o == Origin.AGENTRULELINT
+        return "[AgentRuleLint]"
+    elseif o == Origin.PRESET
+        return "[Preset]"
+    elseif o == Origin.PROJECT
+        return "[Project]"
+    else
+        error("internal: unknown origin ", o)
+    end
+end
 
 rule_display_id(r::RuleSpec) = r.id
 project_rule_id(pr::ProjectRule) = "project/$(pr.id)"

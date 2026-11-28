@@ -35,7 +35,7 @@ end
 
 const EXPECT_AUDIT_RULE_DEF = RuleDef(
     EXPECT_AUDIT_ID,
-    :agentrulelint,
+    Origin.AGENTRULELINT,
     Level.FORBID,
     "Keep suppression comments auditable and fail-closed.",
     "Use inline or block comment expects to hide violations.",

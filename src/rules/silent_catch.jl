@@ -88,7 +88,7 @@ end
 
 const SILENT_CATCH_RULE_DEF = RuleDef(
     SILENT_CATCH_ID,
-    :agentrulelint,
+    Origin.AGENTRULELINT,
     Level.WARN,
     "Surface try/catch blocks that hide failures instead of rethrowing or throwing on unhandled paths.",
     "Use empty catch bodies, log-only handlers, or partial branches without rethrow to silence errors.",
