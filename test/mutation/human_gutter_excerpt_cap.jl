@@ -24,3 +24,35 @@ run_source_mutation(;
         return mutation_verify_script(root, script; dir = root)
     end,
 )
+
+run_source_mutation(;
+    name = "human gutter underline width",
+    rel_path = "src/format/common.jl",
+    needle = "println(buf, string(ul_prefix, ul_display))",
+    replacement = "println(buf, _human_truncate_code(ul_display, ul_prefix, width))",
+    verify = root -> begin
+        script = """
+        using AgentRuleLint
+        using Base.Unicode: textwidth
+        root = normpath(joinpath(dirname(pathof(AgentRuleLint)), ".."))
+        path = joinpath("test", "corpus", "expect_anchor_mismatch.jl")
+        res = AgentRuleLint.check(root; paths = [path])
+        io = IOContext(IOBuffer(), :color => false)
+        out = AgentRuleLint.format_human(res; root = root, io = io, output_width = 80)
+        lines = split(out, '\\n'; keepempty = false)
+        for (i, line) in enumerate(lines)
+            occursin("> ", line) || continue
+            i + 1 > length(lines) && continue
+            ul = lines[i + 1]
+            occursin('~', ul) || continue
+            body = split(line, "> "; limit = 2)[2]
+            body = strip(replace(body, r"\\s*\\(\\+.*" => ""))
+            if textwidth(AgentRuleLint.strip_ansi(ul)) < textwidth(body) - 2
+                exit($_DETECT)
+            end
+        end
+        exit(0)
+        """
+        return mutation_verify_script(root, script; dir = root)
+    end,
+)
