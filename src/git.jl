@@ -46,6 +46,7 @@ end
 function _git_isolated_overrides()
     return Dict{String, String}(
         "GIT_CONFIG_NOSYSTEM" => "1",
+        "GIT_ATTR_NOSYSTEM" => "1",
         "GIT_CONFIG_GLOBAL" => _git_global_config_path(),
         "GIT_TERMINAL_PROMPT" => "0",
         "GIT_OPTIONAL_LOCKS" => "0",
@@ -204,10 +205,22 @@ end
 Build an isolated git command for `root` (`-C`, `safe.directory`, env isolation).
 All AgentRuleLint and test git invocations must use this entry point.
 """
-function git_cmd(root::AbstractString, args::AbstractString...)
+function _git_cmd_argv_prefix(root::AbstractString)
     r = abspath(String(root))
-    g = _git_executable_cmd(r)
-    tail = Cmd(vcat(String["-C", r, "-c", "safe.directory=$(r)"], collect(String, args)))
+    empty_attrs = _git_global_config_path()
+    return String[
+        "-C",
+        r,
+        "-c",
+        "safe.directory=$(r)",
+        "-c",
+        "core.attributesFile=$(empty_attrs)",
+    ]
+end
+
+function git_cmd(root::AbstractString, args::AbstractString...)
+    g = _git_executable_cmd(root)
+    tail = Cmd(vcat(_git_cmd_argv_prefix(root), collect(String, args)))
     return setenv(`$g $tail`, _git_merged_env())
 end
 

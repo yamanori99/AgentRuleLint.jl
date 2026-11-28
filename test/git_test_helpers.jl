@@ -5,9 +5,9 @@ const _git = AgentRuleLint
 """
 Git argv/env our entry point sets (no other repo code should bypass `git_cmd`):
 
-- **Every call:** `-C <root>`, `-c safe.directory=<root>`; env `GIT_CONFIG_NOSYSTEM=1`,
-  `GIT_CONFIG_GLOBAL` (empty per run), `GIT_TERMINAL_PROMPT=0`, `GIT_OPTIONAL_LOCKS=0`,
-  `GIT_PAGER=cat`, `LC_ALL=C`.
+- **Every call:** `-C <root>`, `-c safe.directory=<root>`, `-c core.attributesFile=<empty>`; env
+  `GIT_CONFIG_NOSYSTEM=1`, `GIT_ATTR_NOSYSTEM=1`, `GIT_CONFIG_GLOBAL` (empty per run),
+  `GIT_TERMINAL_PROMPT=0`, `GIT_OPTIONAL_LOCKS=0`, `GIT_PAGER=cat`, `LC_ALL=C`.
 - **`git diff` (name-status / numstat / unified):** `-c diff.renames=true`, `-M`,
   `--no-ext-diff`, `--no-textconv`, `--text` (name-status + unified), `--no-color` (unified).
 - **Other subcommands** (`rev-parse`, `ls-files`, `ls-tree`, `show`, `config`, …): only
@@ -91,6 +91,24 @@ function git_isolation_outcomes_equivalent(a, b)
     a.kind == :result && b.kind == :result || return false
     a.complete && b.complete || return false
     return a.violations == b.violations && a.exit_code == b.exit_code
+end
+
+"""Hostile default global attributes at HOME/.config/git/attributes (XDG unset)."""
+function hostile_default_xdg_attributes_under_home!(home::AbstractString)
+    home = abspath(String(home))
+    d = joinpath(home, ".config", "git")
+    mkpath(d)
+    write(joinpath(d, "attributes"), "*.jl -diff\n")
+    return nothing
+end
+
+"""Hostile default global attributes at XDG_CONFIG_HOME/git/attributes."""
+function hostile_default_xdg_attributes_under_xdg!(xdg::AbstractString)
+    xdg = abspath(String(xdg))
+    d = joinpath(xdg, "git")
+    mkpath(d)
+    write(joinpath(d, "attributes"), "*.jl -diff\n")
+    return nothing
 end
 
 """
