@@ -17,6 +17,15 @@ git path and version used for the run.
 CI that assumed the runner's system git, git older than 2.32, or user `diff.renames` / hooks in git
 config may see different behavior.
 
+### **[CI-breaking]** User-supplied paths normalized; non-matching paths exit 2
+
+Library `paths`, CLI positional paths, `--allow-paths`, and `--config` are normalized at
+the input boundary (`\\` is a path separator on every OS). An explicit lint path or
+`--config` target that matches no file after normalization is a `ConfigError` (exit 2)
+naming the value as given and as normalized; lint no longer returns zero findings silently
+for mistyped paths. `--allow-paths` globs are normalized the same way and are still matched
+only against changed paths in the diff, not against the repository file list.
+
 ### **[CI-breaking]** Config file renamed to `.AgentRuleLint.jl.toml`
 
 AgentRuleLint reads only `.AgentRuleLint.jl.toml`. Leaving `.AgentRuleLintConfig.toml`
