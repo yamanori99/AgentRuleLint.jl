@@ -50,6 +50,9 @@ const init_code = quote
     include($(joinpath(TEST_DIR, "golden_test_helpers.jl")))
     include($(joinpath(TEST_DIR, "mutation_subprocess_helpers.jl")))
     using AgentRuleLint
+    const run_git_cmd = AgentRuleLint.run_git_cmd
+    const read_git_cmd = AgentRuleLint.read_git_cmd
+    include($(joinpath(TEST_DIR, "git_test_helpers.jl")))
     using Test
     using Aqua
     using JSON
@@ -64,6 +67,10 @@ const _SERIAL_AFTER = [
 ]
 
 function run_agentrulelint_tests()
+    return AgentRuleLint.git_run_scope(_run_agentrulelint_tests_body)
+end
+
+function _run_agentrulelint_tests_body()
     testsuite = build_testsuite()
     args = parse_args(ARGS)
     # Probe-only suites (e.g. test_digest_deliberate_fail) stay out of the default run.

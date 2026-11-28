@@ -2,24 +2,6 @@ RULE = "protected-paths"
 
 @testset "protected-paths" begin
 
-    function init_git_repo!(dir)
-        run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "agentrulelint@test"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "agentrulelint"]); dir = dir))
-        return nothing
-    end
-
-    function git_commit_all!(dir, msg)
-        run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
-        run(
-            setenv(
-                Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", msg]);
-                dir = dir,
-            ),
-        )
-        return nothing
-    end
-
     function base_cfg(extra = "")
         ver = string(pkgversion(AgentRuleLint))
         return """
@@ -177,12 +159,7 @@ RULE = "protected-paths"
             git_commit_all!(dir, "base")
             # Use git mv so case-only renames work on case-insensitive filesystems
             # (default macOS APFS, many Windows volumes). Julia's mv fails there.
-            run(
-                setenv(
-                    Cmd(["git", "-C", dir, "mv", ".JETLSConfig.toml", ".jetlsconfig.toml"]);
-                    dir = dir,
-                ),
-            )
+            run_git_cmd(dir, "mv", ".JETLSConfig.toml", ".jetlsconfig.toml"; cwd = dir)
             git_commit_all!(dir, "rename case")
             cd(dir) do
                 events = AgentRuleLint.git_diff_path_events(dir, "HEAD^1")

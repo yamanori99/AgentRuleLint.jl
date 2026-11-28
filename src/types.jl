@@ -76,6 +76,8 @@ struct CheckResult
     baseline_exit_severity_source::Symbol
     below_threshold_count::Int
     below_threshold_level::Symbol
+    git_executable::String
+    git_version::String
 
     function CheckResult(
             violations::Vector{Violation},
@@ -93,6 +95,8 @@ struct CheckResult
             baseline_exit_severity_source::Symbol = :default,
             below_threshold_count::Int = 0,
             below_threshold_level::Symbol = :none,
+            git_executable::String = "",
+            git_version::String = "",
         )
         return new(
             violations,
@@ -110,6 +114,8 @@ struct CheckResult
             baseline_exit_severity_source,
             below_threshold_count,
             below_threshold_level,
+            git_executable,
+            git_version,
         )
     end
 end

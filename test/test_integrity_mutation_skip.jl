@@ -1,23 +1,15 @@
 using AgentRuleLint
 
+include(joinpath(@__DIR__, "git_test_helpers.jl"))
+
 const ROOT = normpath(joinpath(@__DIR__, ".."))
 cfg = read(joinpath(ROOT, ".AgentRuleLint.jl.toml"), String)
 dir = abspath(mktempdir())
 try
-    run(`git -C $dir init -q -b main`)
-    run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "m@t"]); dir = dir))
-    run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "m"]); dir = dir))
+    init_git_repo!(dir)
     write(joinpath(dir, ".AgentRuleLint.jl.toml"), cfg)
     mkpath(joinpath(dir, "test"))
-    git_commit = function ()
-        run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
-        return run(
-            setenv(
-                Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "c"]);
-                dir = dir,
-            ),
-        )
-    end
+    git_commit = () -> git_commit_all!(dir, "c")
     git_commit()
     write(joinpath(dir, "test", "new_skip.jl"), "@test_broken false\n")
     git_commit()

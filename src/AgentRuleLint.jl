@@ -5,7 +5,6 @@ using PrecompileTools
 using StyledStrings
 using TOML
 using SHA: sha1
-
 export CheckResult, RuleSpec, Span, Violation, check
 export ConfigError, GitError, InternalError, ParseError
 
@@ -15,6 +14,7 @@ include("types.jl")
 include("fingerprints.jl")
 include("path_glob.jl")
 include("syntax/SyntaxAdapter.jl")
+include("git.jl")
 include("config.jl")
 include("diff.jl")
 include("ratchet.jl")

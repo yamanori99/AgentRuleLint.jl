@@ -90,18 +90,20 @@ end
             cfg_path = joinpath(tmp, ".AgentRuleLint.jl.toml")
             write(cfg_path, cfg)
             path = joinpath("test", "corpus", "unsafe_inbounds.jl")
-            run(`git -C $tmp init`)
-            run(`git -C $tmp add .`)
-            run(
-                Cmd(
-                    `git -C $tmp commit -m strict-only`;
-                    env = Dict(
-                        "GIT_AUTHOR_NAME" => "t",
-                        "GIT_AUTHOR_EMAIL" => "t@t",
-                        "GIT_COMMITTER_NAME" => "t",
-                        "GIT_COMMITTER_EMAIL" => "t@t",
-                    ),
-                ),
+            init_git_repo!(tmp)
+            run_git_cmd(tmp, "add", "."; cwd = tmp)
+            run_git_cmd(
+                tmp,
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "-c",
+                "commit.gpgsign=false",
+                "commit",
+                "-m",
+                "strict-only";
+                cwd = tmp,
             )
             res = AgentRuleLint.check(tmp; paths = [path], config_from = "HEAD")
             hits = filter(

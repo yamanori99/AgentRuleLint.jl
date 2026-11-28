@@ -1,22 +1,4 @@
 @testset "diff gitattributes hardening" begin
-    function init_git_repo!(dir)
-        run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "agentrulelint@test"]); dir = dir))
-        run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "agentrulelint"]); dir = dir))
-        return nothing
-    end
-
-    function git_commit_all!(dir, msg)
-        run(setenv(Cmd(["git", "-C", dir, "add", "-A"]); dir = dir))
-        run(
-            setenv(
-                Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", msg]);
-                dir = dir,
-            ),
-        )
-        return nothing
-    end
-
     function hardening_cfg()
         ver = string(pkgversion(AgentRuleLint))
         return """
@@ -191,7 +173,7 @@
             write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
             write(joinpath(dir, "src.jl"), "v=1\n")
             git_commit_all!(dir, "base")
-            run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
+            run_git_cmd(dir, "mv", "src.jl", "dst.jl"; cwd = dir)
             git_commit_all!(dir, "rename only")
             write(joinpath(dir, "dst.jl"), "v=1\nx=\"FORBIDDEN_DIFF_TOKEN\"\n")
             git_commit_all!(dir, "add literal on line two")
@@ -249,7 +231,7 @@
                 write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
                 write(joinpath(dir, "old.jl"), "alpha\nbeta\n")
                 git_commit_all!(dir, "base")
-                run(setenv(Cmd(["git", "-C", dir, "mv", "old.jl", "new.jl"]); dir = dir))
+                run_git_cmd(dir, "mv", "old.jl", "new.jl"; cwd = dir)
                 git_commit_all!(dir, "rename only")
                 dest = joinpath(dir, "new.jl")
                 cd(dir) do
@@ -271,7 +253,7 @@
                 write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
                 write(joinpath(dir, "src.jl"), "v=1\n")
                 git_commit_all!(dir, "base")
-                run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
+                run_git_cmd(dir, "mv", "src.jl", "dst.jl"; cwd = dir)
                 write(joinpath(dir, "dst.jl"), "v=1\nx=2\n")
                 git_commit_all!(dir, "rename and add one line")
                 dest = joinpath(dir, "dst.jl")
@@ -320,12 +302,7 @@
                 )
                 git_commit_all!(dir, "base")
                 mkpath(joinpath(dir, "src"))
-                run(
-                    setenv(
-                        Cmd(["git", "-C", dir, "mv", "test/moved.jl", "src/moved.jl"]);
-                        dir = dir,
-                    ),
-                )
+                run_git_cmd(dir, "mv", "test/moved.jl", "src/moved.jl"; cwd = dir)
                 write(joinpath(dir, "src", "moved.jl"), "x = \"FORBIDDEN_DIFF_TOKEN\"\nallowed\nedit\n")
                 git_commit_all!(dir, "rename and edit line three")
                 dest = joinpath(dir, "src", "moved.jl")
@@ -355,7 +332,7 @@
                 write(joinpath(dir, ".AgentRuleLint.jl.toml"), hardening_cfg())
                 write(joinpath(dir, "src.jl"), "keep\nbad\ntail\n")
                 git_commit_all!(dir, "base")
-                run(setenv(Cmd(["git", "-C", dir, "mv", "src.jl", "dst.jl"]); dir = dir))
+                run_git_cmd(dir, "mv", "src.jl", "dst.jl"; cwd = dir)
                 write(joinpath(dir, "dst.jl"), "keep\ntail\n")
                 git_commit_all!(dir, "rename and delete middle")
                 dest = joinpath(dir, "dst.jl")

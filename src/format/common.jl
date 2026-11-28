@@ -86,7 +86,12 @@ function human_policy_banner(result::CheckResult, version::AbstractString)
     else
         "policy bundle base: $(string(cs.kind))"
     end
-    return "AgentRuleLint v$version ($base, pos: utf8-line-col)"
+    git_s = if isempty(result.git_executable)
+        ""
+    else
+        ", git: $(result.git_executable) @ $(result.git_version)"
+    end
+    return "AgentRuleLint v$version ($base, pos: utf8-line-col$git_s)"
 end
 
 function _below_threshold_phrase(result::CheckResult)

@@ -4,6 +4,17 @@ CI-breaking changes are marked **[CI-breaking]**. Tracked from [#65](https://git
 
 ## Unreleased (0.1.0-DEV)
 
+### **[CI-breaking]** Isolated PATH git (>= 2.24); user and system git config ignored
+
+All git reads use **`git` on `PATH`** with config isolation (`GIT_CONFIG_NOSYSTEM`, empty global
+config, `GIT_OPTIONAL_LOCKS=0`, and related env). Git **2.24** or newer is required; older or
+missing git fails closed (exit 2). Plain `check` on a non-repository directory fails closed with a
+`GitError` naming the feature (for example **manifest-sync**). There is no escape hatch to a
+different git binary. Output headers record the git path and version used for the run.
+
+CI on git older than 2.24, or jobs that relied on `diff.renames` / hooks in user git config, may fail
+or see different behavior after upgrade.
+
 ### **[CI-breaking]** Config file renamed to `.AgentRuleLint.jl.toml`
 
 AgentRuleLint reads only `.AgentRuleLint.jl.toml`. Leaving `.AgentRuleLintConfig.toml`

@@ -16,8 +16,9 @@ function format_agent(
     rule_hits = length(groups)
     status = result.exit_code == 0 ? "OK" : "FAIL"
     ver = something(_agentrulelint_version, string(AGENTRULELINT_VERSION))
+    git_part = isempty(result.git_executable) ? "" : " git=$(result.git_executable)@$(result.git_version)"
     headline =
-        "AGENTRULELINT $status v$ver base=$base pos=utf8-codepoint-1based violations=$(result.violation_count) rules=$rule_hits"
+        "AGENTRULELINT $status v$ver base=$base pos=utf8-codepoint-1based$git_part violations=$(result.violation_count) rules=$rule_hits"
     extras = verdict_exit_paren(result)
     extras != "(exit $(result.exit_code))" && (headline *= " $extras")
     println(buf, headline)

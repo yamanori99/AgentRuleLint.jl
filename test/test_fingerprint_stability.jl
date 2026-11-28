@@ -14,7 +14,7 @@ function sole_fp(res::CheckResult, pred)
 end
 
 function _git_commit_scratch!(scratch::AbstractString)
-    run(setenv(Cmd(["git", "-C", scratch, "add", "-A"]); dir = scratch))
+    run_git_cmd(scratch, "add", "-A"; cwd = scratch)
     run(
         setenv(
             Cmd(
@@ -38,9 +38,9 @@ function _git_commit_scratch!(scratch::AbstractString)
 end
 
 function _init_scratch_git!(scratch::AbstractString)
-    run(setenv(Cmd(["git", "-C", scratch, "init", "-q", "-b", "main"]); dir = scratch))
-    run(setenv(Cmd(["git", "-C", scratch, "config", "user.email", "agentrulelint@test"]); dir = scratch))
-    run(setenv(Cmd(["git", "-C", scratch, "config", "user.name", "agentrulelint"]); dir = scratch))
+    run_git_cmd(scratch, "init", "-q", "-b", "main"; cwd = scratch)
+    run_git_cmd(scratch, "config", "user.email", "agentrulelint@test"; cwd = scratch)
+    run_git_cmd(scratch, "config", "user.name", "agentrulelint"; cwd = scratch)
     _git_commit_scratch!(scratch)
     return nothing
 end

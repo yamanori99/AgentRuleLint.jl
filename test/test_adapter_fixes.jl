@@ -8,19 +8,14 @@
     @testset "git_diff_name_status" begin
         dir = abspath(mktempdir())
         try
-            run(setenv(Cmd(["git", "-C", dir, "init", "-q", "-b", "main"]); dir = dir))
-            run(setenv(Cmd(["git", "-C", dir, "config", "user.email", "agentrulelint@test"]); dir = dir))
-            run(setenv(Cmd(["git", "-C", dir, "config", "user.name", "agentrulelint"]); dir = dir))
+            run_git_cmd(dir, "init", "-q", "-b", "main"; cwd = dir)
+            run_git_cmd(dir, "config", "user.email", "agentrulelint@test"; cwd = dir)
+            run_git_cmd(dir, "config", "user.name", "agentrulelint"; cwd = dir)
             write(joinpath(dir, "tracked.jl"), "1\n")
-            run(setenv(Cmd(["git", "-C", dir, "add", "tracked.jl"]); dir = dir))
-            run(
-                setenv(
-                    Cmd(["git", "-C", dir, "-c", "commit.gpgsign=false", "commit", "-q", "-m", "initial"]);
-                    dir = dir,
-                ),
-            )
+            run_git_cmd(dir, "add", "tracked.jl"; cwd = dir)
+            git_commit_all!(dir, "initial")
             write(joinpath(dir, "new.jl"), "2\n")
-            run(setenv(Cmd(["git", "-C", dir, "add", "new.jl"]); dir = dir))
+            run_git_cmd(dir, "add", "new.jl"; cwd = dir)
             entries = AgentRuleLint.git_diff_name_status(dir, "HEAD")
             paths = [p for (_, p) in entries]
             @test "new.jl" in paths

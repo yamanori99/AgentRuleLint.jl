@@ -192,36 +192,6 @@ function load_toml_file(path::String)
     end
 end
 
-"""Read stdout from `cmd`; on failure raise `GitError` including stderr and showerror.
-
-Stderr is drained concurrently so a full stderr pipe cannot deadlock against a
-blocking stdout read (e.g. CRLF / rename-detection warnings from git). The stderr
-task is always awaited in `finally` so a failed stdout read cannot leave it orphaned.
-"""
-function _read_git_cmd(cmd::Cmd; error_prefix::AbstractString)
-    out = Pipe()
-    err = Pipe()
-    proc = run(pipeline(cmd, stdout = out, stderr = err), wait = false)
-    close(out.in)
-    close(err.in)
-    err_task = @async read(err)
-    local stdout_data
-    try
-        stdout_data = read(out)
-    catch
-        fetch(err_task)
-        rethrow()
-    end
-    stderr_data = fetch(err_task)
-    wait(proc)
-    if !success(proc)
-        stderr_s = strip(String(stderr_data))
-        detail = isempty(stderr_s) ? "exit $(proc.exitcode)" : "exit $(proc.exitcode): $stderr_s"
-        throw(GitError("$error_prefix ($detail)"))
-    end
-    return stdout_data
-end
-
 function _collect_rule_tables(raw::Dict)
     out = Tuple{String, Dict}[]
     seen = Set{String}()
@@ -566,15 +536,18 @@ end
 function git_resolve_commit_sha(root::AbstractString, ref::AbstractString)
     root = abspath(String(root))
     spec = string(ref, "^{commit}")
-    cmd = Cmd(["git", "-C", root, "rev-parse", "--verify", "--end-of-options", spec])
     ref_s = String(ref)
     prefix = if ref_s == "HEAD^1"
-        "diff base ref not available: HEAD^1 (shallow clone or single-parent HEAD)"
+        "--config-from/--diff requires git: diff base ref not available: HEAD^1 (shallow clone or single-parent HEAD)"
     else
-        "diff base ref not available: $ref_s"
+        "--config-from/--diff requires git: diff base ref not available: $ref_s"
     end
     try
-        return strip(String(_read_git_cmd(cmd; error_prefix = prefix)))
+        return strip(
+            String(
+                read_git_cmd(root, "rev-parse", "--verify", "--end-of-options", spec; error_prefix = prefix),
+            ),
+        )
     catch err
         err isa InterruptException && rethrow()
         err isa GitError && rethrow()
@@ -584,23 +557,21 @@ end
 
 function git_tree_path_exists(root::AbstractString, commit_sha::AbstractString, relpath::AbstractString)
     root = abspath(String(root))
-    cmd = Cmd(
-        [
-            "git",
-            "-C",
-            root,
-            "ls-tree",
-            "--name-only",
-            "-z",
-            "--end-of-options",
-            String(commit_sha),
-            "--",
-            String(relpath),
-        ]
-    )
-    prefix = "failed to list $(relpath) at commit $(commit_sha)"
+    prefix = "--config-from/--diff requires git: failed to list $(relpath) at commit $(commit_sha)"
     try
-        return !isempty(_read_git_cmd(cmd; error_prefix = prefix))
+        return !isempty(
+            read_git_cmd(
+                root,
+                "ls-tree",
+                "--name-only",
+                "-z",
+                "--end-of-options",
+                String(commit_sha),
+                "--",
+                String(relpath);
+                error_prefix = prefix,
+            ),
+        )
     catch err
         err isa InterruptException && rethrow()
         err isa GitError && rethrow()
@@ -611,10 +582,13 @@ end
 function git_show_blob_at_commit(root::AbstractString, commit_sha::AbstractString, relpath::AbstractString)
     root = abspath(String(root))
     showspec = string(commit_sha, ":", relpath)
-    cmd = Cmd(["git", "-C", root, "show", "--end-of-options", showspec])
-    prefix = "failed to read $(relpath) at commit $(commit_sha)"
+    prefix = "--config-from/--diff requires git: failed to read $(relpath) at commit $(commit_sha)"
     try
-        return String(strip(String(_read_git_cmd(cmd; error_prefix = prefix))))
+        return String(
+            strip(
+                String(read_git_cmd(root, "show", "--end-of-options", showspec; error_prefix = prefix)),
+            ),
+        )
     catch err
         err isa InterruptException && rethrow()
         err isa GitError && rethrow()
