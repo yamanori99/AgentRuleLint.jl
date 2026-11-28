@@ -6,8 +6,6 @@ using .EnumSymbolGuard: scan_enum_symbol_source, collect_src_enum_symbol_violati
 const _SEVERITY_SOURCE_PROBE_REL = "src/__severity_source_symbol_guard_probe__.jl"
 const _SEVERITY_SOURCE_NAMES = Set(["default", "config", "cli"])
 const _SEVERITY_SOURCE_SYMBOL_ALLOWLIST = [
-    ("src/exit_severity.jl", "config", "_reject_allow_threshold config branch"),
-    ("src/exit_severity.jl", "cli", "_reject_allow_threshold cli branch"),
     ("src/format/report.jl", "config", "explain extra dict key"),
     ("src/rules/shell_safety.jl", "config", "explain extra dict key"),
     ("src/rules/unsafe_boundary.jl", "config", "explain extra dict key"),
