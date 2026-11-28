@@ -8,13 +8,25 @@ include(joinpath(@__DIR__, "..", "..", "git_test_helpers.jl"))
 const _HITS_EXIT = 42
 const _DIFF_ISOLATION_BASE = GIT_ISOLATION_DIFF_BASE
 
+function git_isolation_check_outcome(dir::AbstractString, diff_base::AbstractString, home::AbstractString)
+    try
+        return git_isolation_check_result(dir, diff_base, home)
+    catch err
+        err isa InterruptException && rethrow()
+        if err isa AgentRuleLint.GitError
+            return (kind = :git_error, msg = err.msg)
+        end
+        rethrow()
+    end
+end
+
 function compare_signatures(hostile_home::String)
     dir = mktempdir()
     try
-        hostile_renames_global_gitconfig!(hostile_home)
+        hostile_attributes_global_gitconfig!(hostile_home)
         rename_diff_literal_isolation_fixture(dir)
-        clean = git_check_isolation_signature(dir, _DIFF_ISOLATION_BASE, mktempdir())
-        hostile = git_check_isolation_signature(dir, _DIFF_ISOLATION_BASE, hostile_home)
+        clean = git_isolation_check_outcome(dir, _DIFF_ISOLATION_BASE, mktempdir())
+        hostile = git_isolation_check_outcome(dir, _DIFF_ISOLATION_BASE, hostile_home)
         return clean == hostile
     finally
         rm(dir, recursive = true, force = true)

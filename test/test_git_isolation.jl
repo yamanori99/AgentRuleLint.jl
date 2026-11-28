@@ -2,15 +2,26 @@ function _git_isolation_child_script(helpers_path::AbstractString)
     return """
     using AgentRuleLint
     include($(repr(helpers_path)))
+    function git_isolation_check_outcome(dir, diff_base, home)
+        try
+            return git_isolation_check_result(dir, diff_base, home)
+        catch err
+            err isa InterruptException && rethrow()
+            if err isa AgentRuleLint.GitError
+                return (kind = :git_error, msg = err.msg)
+            end
+            rethrow()
+        end
+    end
     AgentRuleLint.git_run_scope() do
         hostile = mktempdir()
         dir = mktempdir()
         try
             rename_diff_literal_isolation_fixture(dir)
-            hostile_renames_global_gitconfig!(hostile)
+            hostile_attributes_global_gitconfig!(hostile)
             base = GIT_ISOLATION_DIFF_BASE
-            clean = git_check_isolation_signature(dir, base, mktempdir())
-            hostile_sig = git_check_isolation_signature(dir, base, hostile)
+            clean = git_isolation_check_outcome(dir, base, mktempdir())
+            hostile_sig = git_isolation_check_outcome(dir, base, hostile)
             clean == hostile_sig || exit(42)
             exit(0)
         finally
@@ -21,7 +32,7 @@ function _git_isolation_child_script(helpers_path::AbstractString)
     """
 end
 
-@testset "isolated git ignores hostile global diff.renames (child HOME)" begin
+@testset "isolated git ignores hostile global attributesfile (child HOME)" begin
     helpers = joinpath(@__DIR__, "git_test_helpers.jl")
     script = _git_isolation_child_script(helpers)
     cmd = Cmd(

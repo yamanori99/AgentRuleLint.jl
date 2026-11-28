@@ -2,6 +2,18 @@
 
 const _git = AgentRuleLint
 
+"""
+Git argv/env our entry point sets (no other repo code should bypass `git_cmd`):
+
+- **Every call:** `-C <root>`, `-c safe.directory=<root>`; env `GIT_CONFIG_NOSYSTEM=1`,
+  `GIT_CONFIG_GLOBAL` (empty per run), `GIT_TERMINAL_PROMPT=0`, `GIT_OPTIONAL_LOCKS=0`,
+  `GIT_PAGER=cat`, `LC_ALL=C`.
+- **`git diff` (name-status / numstat / unified):** `-c diff.renames=true`, `-M`,
+  `--no-ext-diff`, `--no-textconv`, `--text` (name-status + unified), `--no-color` (unified).
+- **Other subcommands** (`rev-parse`, `ls-files`, `ls-tree`, `show`, `config`, …): only
+  the per-call flags above (no `diff.renames`, color, or attributes overrides).
+"""
+
 """Initialize a temp repo with local identity (isolated git)."""
 function init_git_repo!(dir::AbstractString)
     dir = abspath(String(dir))
@@ -55,24 +67,34 @@ function active_violation_paths(res::AgentRuleLint.CheckResult)
     return sort(tup)
 end
 
-"""Observed `CheckResult` fields plus diff path events that drive diff filtering."""
-function git_check_isolation_signature(dir::AbstractString, diff_base::AbstractString, home::AbstractString)
+"""Successful `check(...; diff_base)` under `HOME`; throws `GitError` on fail-closed git paths."""
+function git_isolation_check_result(dir::AbstractString, diff_base::AbstractString, home::AbstractString)
     dir = abspath(String(dir))
     base = String(diff_base)
     return withenv("HOME" => home) do
         res = _git.check(dir; diff_base = base)
-        active = _git.active_violations(res.violations)
-        viols = sort(Tuple{String, String, String}[(d.rule_id, d.path, d.message) for d in active])
-        events = _git.git_diff_path_events(dir, base)
-        evs = sort(Tuple{Char, String, String}[(e.status, e.path, e.old_path) for e in events])
-        return (viols = viols, events = evs)
+        return (
+            kind = :result,
+            violations = active_violation_paths(res),
+            exit_code = res.exit_code,
+            complete = res.complete,
+        )
     end
 end
 
-function hostile_renames_global_gitconfig!(hostile_home::AbstractString)
+"""
+Hostile global config not overridden by our explicit git flags: `core.attributesfile`
+with `*.jl -diff`. When `GIT_CONFIG_GLOBAL` isolation is missing, git still applies
+global attributes to numstat probe (`--no-textconv` diff) and check fails closed on
+binary probe for `.jl` paths; with isolation, global config is empty and both HOMEs match.
+"""
+function hostile_attributes_global_gitconfig!(hostile_home::AbstractString)
+    hostile_home = abspath(String(hostile_home))
+    attr = joinpath(hostile_home, "global-attrs")
+    write(attr, "*.jl -diff\n")
     open(joinpath(hostile_home, ".gitconfig"), "w") do io
-        println(io, "[diff]")
-        println(io, "\trenames = false")
+        println(io, "[core]")
+        println(io, "\tattributesfile = $(attr)")
     end
     return nothing
 end

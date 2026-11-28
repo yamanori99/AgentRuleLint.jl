@@ -11,11 +11,6 @@ run_source_mutation(;
     replacement = raw"return `$g $tail`",
     replace_count = 1,
     verify = root -> begin
-        diff_path = joinpath(root, "src", "diff.jl")
-        text = read(diff_path, String)
-        patched = replace(text, "        \"-c\",\n        \"diff.renames=true\",\n" => "")
-        patched = replace(patched, "        \"-M\",\n" => "")
-        patched != text && write(diff_path, patched)
         cmd = _julia_project_cmd(root, _GIT_ISOLATION_DETECTOR)
         return mutation_verify_detected(cmd; dir = root)
     end,
