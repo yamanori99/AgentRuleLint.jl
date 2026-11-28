@@ -1,4 +1,3 @@
-using JuliaSyntax: GreenNode, children, head, is_infix_op_call, is_leaf, kind, span
 const KString = JuliaSyntax.K"String"
 const KChar = JuliaSyntax.K"Char"
 
@@ -66,7 +65,7 @@ function _collect_string_chars(node::GreenNode, src::AbstractString, pos::Int)
         k = kind(c)
         if k == KString
             push!(parts, _node_text(src, p, c))
-        elseif JuliaSyntax.is_trivia(head(c)) || string(k) in ("()", "inertparen", "\"", "''")
+        elseif syntax_is_trivia(c) || string(k) in ("()", "inertparen", "\"", "''")
             continue
         else
             return nothing
@@ -78,7 +77,7 @@ end
 function _string_node_interpolated(node::GreenNode, pos::Int)
     for (c, _) in _child_positions(node, pos)[1]
         string(kind(c)) == "\$" && return true
-        summary(c) == "interpolation" && return true
+        syntax_interpolation_child(c) && return true
     end
     return false
 end
@@ -92,10 +91,10 @@ function _fold_atom(
     )::Union{Nothing, String}
     _fold_budget!(budget)
     depth > FOLD_MAX_DEPTH && return nothing
-    if summary(node) == "string"
+    if kind(node) == KStringExpr
         _string_node_interpolated(node, pos) && return nothing
         return _collect_string_chars(node, src, pos)
-    elseif summary(node) == "char"
+    elseif kind(node) == KCharExpr
         return _collect_string_chars(node, src, pos)
     end
     return nothing
@@ -106,7 +105,7 @@ function _call_callee_name(node::GreenNode, src::AbstractString, pos::Int)
     ch === nothing && return ""
     kids, _ = _child_positions(node, pos)
     for (c, cp) in kids
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         is_leaf(c) || return ""
         return _identifier_name(c, src, cp)
     end
@@ -127,7 +126,7 @@ function _fold_children_strings(
     p = start
     for i in 2:length(ch)
         c = ch[i]
-        if JuliaSyntax.is_trivia(head(c))
+        if syntax_is_trivia(c)
             p += span(c)
             continue
         end
@@ -142,10 +141,10 @@ end
 function _fold_vect_strings(node::GreenNode, src::AbstractString, pos::Int, depth::Int, budget::FoldBudget)
     vals = String[]
     for (c, p) in _child_positions(node, pos)[1]
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         sk = string(kind(c))
         sk in ("()", ",") && continue
-        v = if summary(c) == "string"
+        v = if kind(c) == KStringExpr
             _fold_atom(c, src, p, depth + 1, budget)
         else
             folded = try_fold_expr(c, src, p, depth, budget)
@@ -190,14 +189,14 @@ function try_fold_expr(
     sp = span(node)
     byte_end = pos + sp - 1
 
-    if is_infix_op_call(head(node))
+    if syntax_is_infix_op_call(node)
         ch = children(node)
         ch === nothing && return nothing
         nargs = 0
         pos_args = Tuple{GreenNode, Int}[]
         p = pos
         for c in ch
-            JuliaSyntax.is_trivia(head(c)) && (p += span(c); continue)
+            syntax_is_trivia(c) && (p += span(c); continue)
             push!(pos_args, (c, p))
             nargs += 1
             p += span(c)
@@ -213,13 +212,13 @@ function try_fold_expr(
         return FoldedStringExpr(val, pos, byte_end)
     end
 
-    if summary(node) == "string" || summary(node) == "char"
+    if kind(node) == KStringExpr || kind(node) == KCharExpr
         v = _fold_atom(node, src, pos, depth, budget)
         v === nothing && return nothing
         return FoldedStringExpr(v, pos, byte_end)
     end
 
-    if summary(node) == "call"
+    if kind(node) == KCall
         fname = _call_callee_name(node, src, pos)
         if fname == "string"
             parts = _fold_children_strings(node, src, pos, depth, budget)
@@ -238,14 +237,14 @@ function try_fold_expr(
             for i in 2:length(ch)
                 c = ch[i]
                 k = kind(c)
-                (string(k) in ("()", "inertparen", ",") || JuliaSyntax.is_trivia(head(c))) && (p += span(c); continue)
+                (string(k) in ("()", "inertparen", ",") || syntax_is_trivia(c)) && (p += span(c); continue)
                 push!(args, c)
                 push!(argpos, p)
                 p += span(c)
             end
             length(args) < 2 && return nothing
             arr = args[1]
-            summary(arr) == "vect" || return nothing
+            kind(arr) == KVect || return nothing
             strings = _fold_vect_strings(arr, src, argpos[1], depth, budget)
             strings === nothing && return nothing
             delim = try_fold_expr(args[2], src, argpos[2], depth + 1, budget)
@@ -268,7 +267,7 @@ function try_fold_expr(
             for i in 2:length(ch)
                 c = ch[i]
                 k = kind(c)
-                (string(k) in ("()", "inertparen", ",") || JuliaSyntax.is_trivia(head(c))) && (p += span(c); continue)
+                (string(k) in ("()", "inertparen", ",") || syntax_is_trivia(c)) && (p += span(c); continue)
                 push!(args, c)
                 push!(argpos, p)
                 p += span(c)
@@ -278,7 +277,7 @@ function try_fold_expr(
             opname = _identifier_name(op, src, argpos[1])
             opname == "*" || return nothing
             coll = args[2]
-            summary(coll) == "vect" || return nothing
+            kind(coll) == KVect || return nothing
             strings = _fold_vect_strings(coll, src, argpos[2], depth, budget)
             strings === nothing && return nothing
             val = join(strings)
@@ -287,7 +286,7 @@ function try_fold_expr(
             arg = nothing
             argp = 0
             for (c, p) in _child_positions(node, pos)[1]
-                if summary(c) == "ref" || summary(c) == "vect"
+                if kind(c) == KRef || kind(c) == KVect
                     arg = c
                     argp = p
                     break
@@ -295,7 +294,7 @@ function try_fold_expr(
             end
             arg === nothing && return nothing
             bytes =
-                summary(arg) == "vect" ?
+                kind(arg) == KVect ?
                 _fold_uint8_vect(arg, src, argp) :
                 _fold_uint8_ref(arg, src, argp)
             bytes === nothing && return nothing
@@ -303,7 +302,7 @@ function try_fold_expr(
         end
     end
 
-    if summary(node) == "vect"
+    if kind(node) == KVect
         strings = _fold_vect_strings(node, src, pos, depth, budget)
         strings === nothing && return nothing
         return FoldedStringExpr(join(strings), pos, byte_end)
@@ -326,7 +325,7 @@ function _walk_collect_folds(
         push!(out, folded)
     end
     for (c, p) in _child_positions(node, pos)[1]
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         _walk_collect_folds(c, src, p, depth + 1, budget, out)
     end
     return

@@ -1,7 +1,3 @@
-using JuliaSyntax: GreenNode, children, head, kind, span
-
-const _CALL_SUMMARIES = ("call", "inertquote", "macrocall", "macro")
-
 """Code portion of a source line (before an end-of-line `#` comment)."""
 function code_prefix_on_line(line::AbstractString)
     idx = findfirst('#', line)
@@ -94,9 +90,8 @@ function expects_eligible_for_suppression(
 end
 
 function _walk_green(node::GreenNode, pos::Int, src::AbstractString, out::Set{Int})
-    s = summary(node)
-    if s in _CALL_SUMMARIES
-        byte_end = pos + span(node) - 1
+    if kind(node) in _CALL_KINDS
+        byte_end = pos + syntax_span(node) - 1
         byte_end = min(byte_end, ncodeunits(src))
         start_line = line_number_at_byte(src, pos)
         end_line = line_number_at_byte(src, byte_end)
@@ -106,12 +101,12 @@ function _walk_green(node::GreenNode, pos::Int, src::AbstractString, out::Set{In
             end
         end
     end
-    ch = children(node)
+    ch = syntax_children(node)
     ch === nothing && return
     cpos = pos
     for c in ch
         _walk_green(c, cpos, src, out)
-        cpos += span(c)
+        cpos += syntax_span(c)
     end
     return
 end

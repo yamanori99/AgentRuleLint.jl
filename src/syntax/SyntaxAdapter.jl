@@ -1,5 +1,6 @@
 # Syntax layer (included inside AgentRuleLint after types.jl)
 
+include("adapter_core.jl")
 include("normalize.jl")
 include("parser.jl")
 include("comments.jl")

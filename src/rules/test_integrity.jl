@@ -74,48 +74,47 @@ function _push_test_integrity!(
     return nothing
 end
 
-function _macro_name_text(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "macro_name" || return ""
+function _macro_name_text(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KMacroName || return ""
     for (c, cp) in _child_positions(node, pos)[1]
-        summary(c) == "Identifier" || continue
+        syntax_kind(c) == KIdentifier || continue
         return _node_text_trim(c, src, cp)
     end
     return ""
 end
 
-function _ti_macrocall_name(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "macrocall" || return ""
+function _ti_macrocall_name(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KMacrocall || return ""
     for (c, cp) in _child_positions(node, pos)[1]
-        summary(c) == "macro_name" || continue
+        syntax_kind(c) == KMacroName || continue
         return _macro_name_text(c, src, cp)
     end
     return ""
 end
 
-function _macrocall_args(node::GreenNode, pos::Int)
-    summary(node) == "macrocall" || return GreenNode[], Int[]
-    args = GreenNode[]
+function _macrocall_args(node::SyntaxTree, pos::Int)
+    syntax_kind(node) == KMacrocall || return SyntaxTree[], Int[]
+    args = SyntaxTree[]
     argpos = Int[]
     for (c, cp) in _child_positions(node, pos)[1]
-        summary(c) == "macro_name" && continue
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_kind(c) == KMacroName && continue
+        syntax_is_trivia(c) && continue
         push!(args, c)
         push!(argpos, cp)
     end
     return args, argpos
 end
 
-function _qualified_ident_tail(node::GreenNode, src::AbstractString, pos::Int)
-    s = summary(node)
-    if s == "Identifier"
+function _qualified_ident_tail(node::SyntaxTree, src::AbstractString, pos::Int)
+    if syntax_kind(node) == KIdentifier
         return _node_text_trim(node, src, pos)
-    elseif s == "."
+    elseif syntax_kind(node) == KDot
         last = ""
         for (c, cp) in _child_positions(node, pos)[1]
-            JuliaSyntax.is_trivia(head(c)) && continue
-            if summary(c) == "Identifier"
+            syntax_is_trivia(c) && continue
+            if syntax_kind(c) == KIdentifier
                 last = _node_text_trim(c, src, cp)
-            elseif summary(c) == "."
+            elseif syntax_kind(c) == KDot
                 continue
             end
         end
@@ -124,46 +123,45 @@ function _qualified_ident_tail(node::GreenNode, src::AbstractString, pos::Int)
     return ""
 end
 
-function _exception_type_too_broad(node::GreenNode, src::AbstractString, pos::Int)
+function _exception_type_too_broad(node::SyntaxTree, src::AbstractString, pos::Int)
     tail = _qualified_ident_tail(node, src, pos)
     return tail in _BROAD_THROW_TYPES
 end
 
-function _call_callee_ident(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "call" || return ""
+function _call_callee_ident(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KCall || return ""
     kids, _ = _child_positions(node, pos)
     for (c, cp) in kids
-        JuliaSyntax.is_trivia(head(c)) && continue
-        s = summary(c)
-        s == "Identifier" && return _node_text_trim(c, src, cp)
-        s == "." && return _qualified_ident_tail(c, src, cp)
+        syntax_is_trivia(c) && continue
+        syntax_kind(c) == KIdentifier && return _node_text_trim(c, src, cp)
+        syntax_kind(c) == KDot && return _qualified_ident_tail(c, src, cp)
         break
     end
     return ""
 end
 
-function _is_exit_call(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) != "call" && return false
+function _is_exit_call(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) != KCall && return false
     callee = _call_callee_ident(node, src, pos)
     return callee == "exit"
 end
 
-function _folded_string_arg(node::GreenNode, src::AbstractString, pos::Int)
+function _folded_string_arg(node::SyntaxTree, src::AbstractString, pos::Int)
     v = _fold_atom(node, src, pos, 0, FoldBudget())
     return v
 end
 
-function _top_level_include_paths(tree::GreenNode, src::AbstractString)
+function _top_level_include_paths(tree::SyntaxTree, src::AbstractString)
     paths = String[]
     for (node, pos) in _toplevel_stmt_nodes(tree)
-        summary(node) == "call" || continue
+        syntax_kind(node) == KCall || continue
         _call_callee_ident(node, src, pos) == "include" || continue
         kids, _ = _child_positions(node, pos)
         lit = nothing
         litp = 0
         seen_callee = false
         for (c, cp) in kids
-            JuliaSyntax.is_trivia(head(c)) && continue
+            syntax_is_trivia(c) && continue
             if !seen_callee
                 seen_callee = true
                 continue
@@ -180,33 +178,32 @@ function _top_level_include_paths(tree::GreenNode, src::AbstractString)
     return paths
 end
 
-function _walk_tree_first_macro(node::GreenNode, pos::Int, src::AbstractString, want::String)
-    if summary(node) == "macrocall" && _ti_macrocall_name(node, src, pos) == want
-        return (line_number_at_byte(src, pos), pos, pos + span(node) - 1)
+function _walk_tree_first_macro(node::SyntaxTree, pos::Int, src::AbstractString, want::String)
+    if syntax_kind(node) == KMacrocall && _ti_macrocall_name(node, src, pos) == want
+        return (line_number_at_byte(src, pos), pos, pos + syntax_span(node) - 1)
     end
     for (c, cp) in _child_positions(node, pos)[1]
-        JuliaSyntax.is_trivia(head(c)) && continue
+        syntax_is_trivia(c) && continue
         hit = _walk_tree_first_macro(c, cp, src, want)
         hit[1] > 0 && return hit
     end
     return (0, 0, 0)
 end
 
-function _first_macro_line(tree::GreenNode, src::AbstractString, name::AbstractString)
+function _first_macro_line(tree::SyntaxTree, src::AbstractString, name::AbstractString)
     return _walk_tree_first_macro(tree, 1, src, String(name))
 end
 
-function _runtests_entries(tree::GreenNode, src::AbstractString)::Vector{RuntestsEntry}
+function _runtests_entries(tree::SyntaxTree, src::AbstractString)::Vector{RuntestsEntry}
     out = RuntestsEntry[]
     for (node, pos) in _toplevel_stmt_nodes(tree)
-        s = summary(node)
-        if s == "call" && _call_callee_ident(node, src, pos) == "include"
+        if syntax_kind(node) == KCall && _call_callee_ident(node, src, pos) == "include"
             kids, _ = _child_positions(node, pos)
             lit = nothing
             litp = 0
             seen_callee = false
             for (c, cp) in kids
-                JuliaSyntax.is_trivia(head(c)) && continue
+                syntax_is_trivia(c) && continue
                 if !seen_callee
                     seen_callee = true
                     continue
@@ -218,20 +215,20 @@ function _runtests_entries(tree::GreenNode, src::AbstractString)::Vector{Runtest
             lit === nothing && continue
             path = _folded_string_arg(lit, src, litp)
             path === nothing && continue
-            sp = span_from_byte_range(src, pos, pos + span(node) - 1)
+            sp = span_from_byte_range(src, pos, pos + syntax_span(node) - 1)
             push!(
                 out,
-                RuntestsEntry(:include, path, sp.start_line, pos, pos + span(node) - 1),
+                RuntestsEntry(:include, path, sp.start_line, pos, pos + syntax_span(node) - 1),
             )
-        elseif s == "macrocall" && _ti_macrocall_name(node, src, pos) == "testset"
+        elseif syntax_kind(node) == KMacrocall && _ti_macrocall_name(node, src, pos) == "testset"
             args, argpos = _macrocall_args(node, pos)
             isempty(args) && continue
             name = _folded_string_arg(args[1], src, argpos[1])
             name === nothing && continue
-            sp = span_from_byte_range(src, pos, pos + span(node) - 1)
+            sp = span_from_byte_range(src, pos, pos + syntax_span(node) - 1)
             push!(
                 out,
-                RuntestsEntry(:testset, name, sp.start_line, pos, pos + span(node) - 1),
+                RuntestsEntry(:testset, name, sp.start_line, pos, pos + syntax_span(node) - 1),
             )
         end
     end
@@ -240,24 +237,24 @@ end
 
 function _walk_count_test_macros!(
         counts::Dict{String, Int},
-        node::GreenNode,
+        node::SyntaxTree,
         pos::Int,
         src::AbstractString,
         names::Tuple{Vararg{String}},
     )
-    if summary(node) == "macrocall"
+    if syntax_kind(node) == KMacrocall
         m = _ti_macrocall_name(node, src, pos)
         if m in names
             counts[m] = get(counts, m, 0) + 1
         end
     end
     for (c, cp) in _child_positions(node, pos)[1]
-        JuliaSyntax.is_trivia(head(c)) || _walk_count_test_macros!(counts, c, cp, src, names)
+        syntax_is_trivia(c) || _walk_count_test_macros!(counts, c, cp, src, names)
     end
     return nothing
 end
 
-function _count_macro_ops(tree::GreenNode, src::AbstractString, names::Tuple{Vararg{String}})
+function _count_macro_ops(tree::SyntaxTree, src::AbstractString, names::Tuple{Vararg{String}})
     counts = Dict{String, Int}()
     for n in names
         counts[n] = 0
@@ -272,12 +269,11 @@ function _walk_test_integrity_node!(
         path::String,
         source::AbstractString,
         consts::Dict{String, TestFoldConst},
-        node::GreenNode,
+        node::SyntaxTree,
         pos::Int,
         track_exit::Bool,
     )
-    s = summary(node)
-    if s == "macrocall"
+    if syntax_kind(node) == KMacrocall
         mname = _ti_macrocall_name(node, source, pos)
         if mname == "test"
             args, argpos = _macrocall_args(node, pos)
@@ -292,7 +288,7 @@ function _walk_test_integrity_node!(
                         path,
                         source,
                         pos,
-                        pos + span(node) - 1,
+                        pos + syntax_span(node) - 1,
                         "@test condition is trivially true after constant folding",
                     )
                 elseif fold_res == TEST_FOLD_BUDGET
@@ -302,7 +298,7 @@ function _walk_test_integrity_node!(
                         path,
                         source,
                         pos,
-                        pos + span(node) - 1,
+                        pos + syntax_span(node) - 1,
                         TEST_INTEGRITY_RULE,
                     )
                 end
@@ -316,25 +312,25 @@ function _walk_test_integrity_node!(
                     path,
                     source,
                     pos,
-                    pos + span(node) - 1,
+                    pos + syntax_span(node) - 1,
                     "@test_throws uses overly broad exception type ($(strip(_node_text(source, argpos[1], args[1]))))",
                 )
             end
         end
-    elseif track_exit && s == "call" && _is_exit_call(node, source, pos)
+    elseif track_exit && syntax_kind(node) == KCall && _is_exit_call(node, source, pos)
         _push_test_integrity!(
             diags,
             policy,
             path,
             source,
             pos,
-            pos + span(node) - 1,
+            pos + syntax_span(node) - 1,
             "exit(...) must not run before the test suite finishes",
         )
     end
-    child_track = track_exit && s != "function" && s != "macro"
+    child_track = track_exit && syntax_kind(node) != KFunction && syntax_kind(node) != KMacro
     for (c, cp) in _child_positions(node, pos)[1]
-        JuliaSyntax.is_trivia(head(c)) || _walk_test_integrity_node!(diags, policy, path, source, consts, c, cp, child_track)
+        syntax_is_trivia(c) || _walk_test_integrity_node!(diags, policy, path, source, consts, c, cp, child_track)
     end
     return nothing
 end
@@ -344,7 +340,7 @@ function _walk_test_integrity_syntax!(
         policy::PolicyBundle,
         path::String,
         source::AbstractString,
-        tree::GreenNode,
+        tree::SyntaxTree,
         consts::Dict{String, TestFoldConst},
         exit_scope::Bool,
     )
@@ -352,19 +348,19 @@ function _walk_test_integrity_syntax!(
     return nothing
 end
 
-function _parse_kw_tolerance(parameters_node::GreenNode, src::AbstractString, pos::Int)
+function _parse_kw_tolerance(parameters_node::SyntaxTree, src::AbstractString, pos::Int)
     atol = nothing
     rtol = nothing
     for (c, cp) in _child_positions(parameters_node, pos)[1]
-        summary(c) == "=" || continue
+        syntax_kind(c) == KAssign || continue
         key = ""
         val_node = nothing
         val_pos = 0
         for (cc, cpp) in _child_positions(c, cp)[1]
-            JuliaSyntax.is_trivia(head(cc)) && continue
-            if summary(cc) == "Identifier" && isempty(key)
+            syntax_is_trivia(cc) && continue
+            if syntax_kind(cc) == KIdentifier && isempty(key)
                 key = _node_text_trim(cc, src, cpp)
-            elseif summary(cc) in ("Float", "Integer")
+            elseif syntax_kind(cc) in (KFloat, KInteger)
                 val_node = cc
                 val_pos = cpp
             end
@@ -372,7 +368,7 @@ function _parse_kw_tolerance(parameters_node::GreenNode, src::AbstractString, po
         key in ("atol", "rtol") || continue
         val_node === nothing && continue
         v = _parse_float_node(val_node, src, val_pos)
-        if v === nothing && summary(val_node) == "Integer"
+        if v === nothing && syntax_kind(val_node) == KInteger
             iv = _parse_int_node(val_node, src, val_pos)
             iv !== nothing && (v = Float64(iv))
         end
@@ -383,44 +379,43 @@ function _parse_kw_tolerance(parameters_node::GreenNode, src::AbstractString, po
     return atol, rtol
 end
 
-function _approx_arg_signature(node::GreenNode, src::AbstractString, pos::Int)
-    summary(node) == "call" || return ""
+function _approx_arg_signature(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KCall || return ""
     parts = String[]
     seen_callee = false
     for (c, cp) in _child_positions(node, pos)[1]
-        JuliaSyntax.is_trivia(head(c)) && continue
-        summary(c) == "parameters" && break
+        syntax_is_trivia(c) && continue
+        syntax_kind(c) == KParameters && break
         if !seen_callee
             seen_callee = true
             continue
         end
-        s = summary(c)
-        if s in ("Float", "Integer", "Identifier", "string", "Bool")
-            push!(parts, s * ":" * _node_text_trim(c, src, cp))
-        elseif s == "call" || s == "."
+        k = syntax_kind(c)
+        if k in (KFloat, KInteger, KIdentifier, KStringExpr, KBool)
+            push!(parts, string(k) * ":" * _node_text_trim(c, src, cp))
+        elseif k == KCall || k == KDot
             push!(parts, _node_text_trim(c, src, cp))
         else
-            push!(parts, s)
+            push!(parts, string(k))
         end
     end
     return join(parts, ",")
 end
 
-function _call_is_approx(node::GreenNode, src::AbstractString, pos::Int)
-    s = summary(node)
-    s == "call" || return false
+function _call_is_approx(node::SyntaxTree, src::AbstractString, pos::Int)
+    syntax_kind(node) == KCall || return false
     callee = _call_callee_ident(node, src, pos)
     callee == "isapprox" && return true
     callee == "≈" && return true
     for (c, cp) in _child_positions(node, pos)[1]
-        summary(c) == "Identifier" && _node_text_trim(c, src, cp) == "≈" && return true
+        syntax_kind(c) == KIdentifier && _node_text_trim(c, src, cp) == "≈" && return true
     end
     return false
 end
 
 function _walk_approx_snaps!(
         out::Vector{ApproxTolSnapshot},
-        node::GreenNode,
+        node::SyntaxTree,
         pos::Int,
         src::AbstractString,
         testset::String,
@@ -436,10 +431,10 @@ function _walk_approx_snaps!(
         atol = nothing
         rtol = nothing
         for (c, cp) in _child_positions(node, pos)[1]
-            summary(c) == "parameters" || continue
+            syntax_kind(c) == KParameters || continue
             atol, rtol = _parse_kw_tolerance(c, src, cp)
         end
-        sp = span_from_byte_range(src, pos, pos + span(node) - 1)
+        sp = span_from_byte_range(src, pos, pos + syntax_span(node) - 1)
         push!(
             out,
             ApproxTolSnapshot(
@@ -449,13 +444,13 @@ function _walk_approx_snaps!(
                 pairing_key,
                 sp.start_line,
                 pos,
-                pos + span(node) - 1,
+                pos + syntax_span(node) - 1,
                 atol,
                 rtol,
             ),
         )
     end
-    if summary(node) == "macrocall" && _ti_macrocall_name(node, src, pos) == "testset"
+    if syntax_kind(node) == KMacrocall && _ti_macrocall_name(node, src, pos) == "testset"
         args, argpos = _macrocall_args(node, pos)
         child_ts = ""
         if !isempty(args)
@@ -463,17 +458,17 @@ function _walk_approx_snaps!(
             lit !== nothing && (child_ts = lit)
         end
         for (c, cp) in _child_positions(node, pos)[1]
-            JuliaSyntax.is_trivia(head(c)) || _walk_approx_snaps!(out, c, cp, src, child_ts, ordinals)
+            syntax_is_trivia(c) || _walk_approx_snaps!(out, c, cp, src, child_ts, ordinals)
         end
         return nothing
     end
     for (c, cp) in _child_positions(node, pos)[1]
-        JuliaSyntax.is_trivia(head(c)) || _walk_approx_snaps!(out, c, cp, src, testset, ordinals)
+        syntax_is_trivia(c) || _walk_approx_snaps!(out, c, cp, src, testset, ordinals)
     end
     return nothing
 end
 
-function _collect_approx_tolerances(tree::GreenNode, src::AbstractString)::Vector{ApproxTolSnapshot}
+function _collect_approx_tolerances(tree::SyntaxTree, src::AbstractString)::Vector{ApproxTolSnapshot}
     out = ApproxTolSnapshot[]
     ordinals = Dict{Tuple{String, String}, Int}()
     _walk_approx_snaps!(out, tree, 1, src, "<toplevel>", ordinals)
