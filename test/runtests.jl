@@ -8,6 +8,7 @@ const TEST_DIR = @__DIR__
 const ROOT = dirname(TEST_DIR)
 include(joinpath(TEST_DIR, "failure_digest.jl"))
 include(joinpath(TEST_DIR, "parallel_testsuite_config.jl"))
+include(joinpath(TEST_DIR, "mutation", "run_all_lib.jl"))
 
 const _FAILURE_DIGEST_TS = Ref{Union{Nothing, Test.DefaultTestSet}}(nothing)
 
@@ -71,6 +72,28 @@ const _SERIAL_AFTER = [
     "test_src_untouched", # git status --porcelain --untracked-files=all (see suite_git_status_exclusions.jl)
 ]
 
+function parse_test_shard()
+    raw = get(ENV, "AGENTRULELINT_TEST_SHARD", "")
+    return withenv("AGENTRULELINT_MUTATION_SHARD" => raw) do
+        parse_mutation_shard()
+    end
+end
+
+function apply_test_shard!(testsuite::Dict{String, Expr})
+    shard = parse_test_shard()
+    shard === nothing && return collect(_SERIAL_AFTER)
+    i, n = shard
+    names = sort(collect(keys(testsuite)))
+    selected = select_mutation_shard(names, i, n)
+    selset = Set(selected)
+    for k in collect(keys(testsuite))
+        k in selset || delete!(testsuite, k)
+    end
+    ser = [s for s in _SERIAL_AFTER if s in selset]
+    println("Pkg.test runtests: shard $i/$n; files: $(length(selected))")
+    return ser
+end
+
 function run_agentrulelint_tests()
     return AgentRuleLint.git_run_scope(_run_agentrulelint_tests_body)
 end
@@ -84,6 +107,7 @@ function _run_agentrulelint_tests_body()
             delete!(testsuite, probe)
         end
     end
+    serial_after = apply_test_shard!(testsuite)
     try
         runtests(
             AgentRuleLint,
@@ -91,7 +115,7 @@ function _run_agentrulelint_tests_body()
             testsuite,
             init_code,
             init_worker_code,
-            serial = _SERIAL_AFTER,
+            serial = serial_after,
             serial_position = :after,
         )
     catch err
