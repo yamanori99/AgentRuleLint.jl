@@ -42,7 +42,7 @@ function format_json(result::CheckResult)
             ),
             "anchor_line" => d.anchor_line,
             "fingerprint" => d.fingerprint,
-            "expect_status" => String(d.expect_status),
+            "expect_status" => wire_name(d.expect_status),
             "suppressed" => d.suppressed,
             "message" => d.message,
         )
