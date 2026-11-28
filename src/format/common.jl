@@ -111,7 +111,7 @@ function verdict_exit_paren(result::CheckResult)
         baseline_word = result.baseline_exit_severity_source == :default ? "default" : "config"
         push!(
             parts,
-            "threshold $(result.exit_severity) from --exit-severity, $(baseline_word) $(result.baseline_exit_severity)",
+            "threshold $(wire_name(result.exit_severity)) from --exit-severity, $(baseline_word) $(wire_name(result.baseline_exit_severity))",
         )
     end
     below = _below_threshold_phrase(result)

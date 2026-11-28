@@ -55,7 +55,7 @@ function format_json(result::CheckResult)
         "suppressed" => result.suppressed_count,
         "rules" => length(unique(d.rule_id for d in active_violations(result.violations))),
         "exit_code" => result.exit_code,
-        "threshold" => String(result.exit_severity),
+        "threshold" => wire_name(result.exit_severity),
         "threshold_source" => String(result.exit_severity_source),
     )
     push!(lines, _json_val(summary))

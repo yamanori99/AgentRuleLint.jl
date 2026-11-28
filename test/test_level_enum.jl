@@ -26,4 +26,16 @@ end
         @test occursin("forbid|deny|warn|allow", msg)
         @test occursin("fobid", msg)
     end
+
+    @testset "parse_enum spelling matches origin/main lowercase+strip" begin
+        @test AgentRuleLint.parse_enum(AgentRuleLint.Level.T, " DENY ") ===
+            AgentRuleLint.Level.DENY
+        @test AgentRuleLint.parse_enum(AgentRuleLint.Level.T, "Forbid") ===
+            AgentRuleLint.Level.FORBID
+        err = @test_throws AgentRuleLint.ConfigError AgentRuleLint.parse_enum(
+            AgentRuleLint.Level.T,
+            "deny!",
+        )
+        @test err.value isa AgentRuleLint.ConfigError
+    end
 end

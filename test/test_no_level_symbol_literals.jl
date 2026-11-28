@@ -5,17 +5,7 @@ const _LEVEL_SRC_ROOT = joinpath(ROOT, "src")
 const _LEVEL_PROBE_REL = "src/__level_symbol_guard_probe__.jl"
 const _LEVEL_NAMES = Set(["forbid", "deny", "warn", "allow"])
 
-# (relpath under repo, identifier, reason) — remaining Symbol uses for exit_severity
-# until a later #104 PR migrates that closed set.
-const _LEVEL_SYMBOL_ALLOWLIST = [
-    ("src/types.jl", "warn", "DEFAULT_EXIT_SEVERITY remains Symbol until a later #104 PR"),
-    ("src/config.jl", "forbid", "VALID_EXIT_SEVERITY remains Symbol until a later #104 PR"),
-    ("src/config.jl", "deny", "VALID_EXIT_SEVERITY remains Symbol until a later #104 PR"),
-    ("src/config.jl", "warn", "VALID_EXIT_SEVERITY remains Symbol until a later #104 PR"),
-    ("src/exit_severity.jl", "warn", "exit_severity threshold ranking remains Symbol until a later #104 PR"),
-    ("src/exit_severity.jl", "deny", "exit_severity threshold ranking remains Symbol until a later #104 PR"),
-    ("src/exit_severity.jl", "forbid", "exit_severity threshold ranking remains Symbol until a later #104 PR"),
-]
+const _LEVEL_SYMBOL_ALLOWLIST = Tuple{String, String, String}[]
 
 const _LEVEL_CONVERT_FNS = Set(["parse_enum", "wire_name"])
 
