@@ -17,6 +17,7 @@ include("syntax/SyntaxAdapter.jl")
 include("git.jl")
 include("config.jl")
 include("diff.jl")
+include("user_paths.jl")
 include("ratchet.jl")
 include("expect.jl")
 include("rules/common.jl")
@@ -32,14 +33,26 @@ include("format/human.jl")
 include("format/agent.jl")
 include("format/report.jl")
 
-function _validate_check_keywords!(kwargs)
-    allow_raw = get(kwargs, :allow_paths, nothing)
-    allow_raw === nothing && return kwargs
-    diff_base = get(kwargs, :diff_base, nothing)
-    allow_paths = _resolve_allow_paths_kw(allow_raw)
-    validate_allow_paths_kw(allow_paths, diff_base)
+function _normalize_check_inputs!(kwargs)
     nt = NamedTuple(kwargs)
-    return merge(nt, (; allow_paths = allow_paths))
+    paths = get(kwargs, :paths, String[])
+    if !isempty(paths)
+        given = String[string(p) for p in paths]
+        nt = merge(nt, (; user_paths_given = given, paths = normalize_path.(given)))
+    end
+    allow_raw = get(kwargs, :allow_paths, nothing)
+    allow_raw === nothing && return nt
+    diff_base = get(kwargs, :diff_base, nothing)
+    if allow_raw isa Vector{Regex}
+        validate_allow_paths_kw(allow_raw, diff_base)
+        return nt
+    elseif allow_raw isa AbstractVector
+        strings = String[string(x) for x in allow_raw]
+        regexes = compile_allow_path_globs(strings)
+        validate_allow_paths_kw(regexes, diff_base)
+        return merge(nt, (; allow_paths = regexes))
+    end
+    throw(ConfigError("allow_paths must be a vector of glob strings or compiled Regex values"))
 end
 
 """
@@ -50,7 +63,6 @@ threads or tasks: each invocation uses its own policy resolution and built-in
 rule registry (no shared mutable linter state).
 """
 function check(root::AbstractString; kwargs...)
-    kwargs = _validate_check_keywords!(kwargs)
     try
         return run_check(root; kwargs...)
     catch err
@@ -203,15 +215,6 @@ function _emit(result::CheckResult, fmt::Symbol, opts; root::AbstractString = pw
         fmt == :agent ? format_agent(result; root = root, io = plain_io) :
         format_human(result; root = root, io = plain_io)
     return write(out_path, text)
-end
-
-function _resolve_allow_paths_kw(raw)
-    raw === nothing && return nothing
-    raw isa Vector{Regex} && return raw
-    if raw isa AbstractVector
-        return compile_allow_path_globs(String[string(x) for x in raw])
-    end
-    throw(ConfigError("allow_paths must be a vector of glob strings or compiled Regex values"))
 end
 
 function _resolve_diff_kw(opts)

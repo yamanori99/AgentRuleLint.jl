@@ -6,8 +6,9 @@ function compile_allow_path_globs(raw::Vector{String})
     out = Regex[]
     for (j, g) in enumerate(raw)
         label = "allow-paths[$j]"
-        pat = strip(String(g))
-        isempty(pat) && throw(ConfigError("--allow-paths: empty glob at index $j"))
+        given = strip(String(g))
+        isempty(given) && throw(ConfigError("--allow-paths: empty glob at index $j"))
+        pat = normalize_path(given)
         validate_path_glob_pattern!(pat, label)
         push!(out, compile_path_glob(pat, label))
     end
@@ -21,7 +22,7 @@ function parse_allow_paths_cli(raw::AbstractString)
     isempty(raw_parts) && throw(ConfigError("--allow-paths requires a non-empty glob list"))
     all(isempty, raw_parts) && throw(ConfigError("--allow-paths requires a non-empty glob list"))
     filter!(!isempty, raw_parts)
-    return compile_allow_path_globs(raw_parts)
+    return raw_parts
 end
 
 function _scope_paths_spec(policy::PolicyBundle)
@@ -98,8 +99,8 @@ Every changed path in the diff (add, modify, delete, rename on both sides) must 
 least one glob. Otherwise the rule flags the path.
 
 Without `--diff`, `--allow-paths` is a usage error (exit 2). An empty or whitespace-only
-list is a usage error. Absolute paths, `..` segments, and backslash separators are rejected
-at glob parse time (exit 2).
+list is a usage error. Globs are normalized at the input boundary (`\\` is a path separator).
+Absolute paths and `..` segments are rejected at glob parse time (exit 2).
 
 Integrity level: `scope-paths` must use `level = "forbid"` in config (ConfigError otherwise).
 """

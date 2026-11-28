@@ -20,15 +20,16 @@ function discover_files(
     if !isempty(paths)
         out = String[]
         for p in paths
+            p = normalize_path(p)
             ap = isabspath(p) ? p : joinpath(root, p)
             if isfile(ap)
-                rel = replace(relpath(ap, root), '\\' => '/')
+                rel = normalize_path(relpath(ap, root))
                 selected_for_lint(rel, project_regexes) || continue
                 push!(out, rel)
             elseif isdir(ap)
                 for (dir, _, files) in walkdir(ap)
                     for f in files
-                        rel = replace(relpath(joinpath(dir, f), root), '\\' => '/')
+                        rel = normalize_path(relpath(joinpath(dir, f), root))
                         selected_for_lint(rel, project_regexes) || continue
                         push!(out, rel)
                     end
@@ -50,7 +51,7 @@ function discover_files(
     out = String[]
     for (dir, _, files) in walkdir(root)
         for f in files
-            rel = replace(relpath(joinpath(dir, f), root), '\\' => '/')
+            rel = normalize_path(relpath(joinpath(dir, f), root))
             selected_for_lint(rel, project_regexes) || continue
             push!(out, rel)
         end
@@ -105,11 +106,14 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
         config_from = get(kwargs, :config_from, nothing),
     )
     paths_kw = get(kwargs, :paths, String[])
+    user_paths_given = get(kwargs, :user_paths_given, String[])
     diff_base = get(kwargs, :diff_base, nothing)
-    allow_paths = validate_allow_paths_kw(_resolve_allow_paths_kw(get(kwargs, :allow_paths, nothing)), diff_base)
+    allow_paths =
+        validate_allow_paths_kw(get(kwargs, :allow_paths, nothing), diff_base)
     diff_scope = diff_base === nothing ? nothing : build_diff_scope(root, diff_base)
     project_regexes = project_rule_path_regexes(policy)
     rel_files = discover_files(root; paths = paths_kw, diff_base = diff_base, project_regexes = project_regexes)
+    validate_user_lint_paths!(root, user_paths_given, rel_files)
 
     contexts = FileContext[build_file_context(root, rel) for rel in rel_files]
     all_diags = Violation[]
@@ -286,6 +290,7 @@ function _run_check_pipeline(root::AbstractString; kwargs...)
 end
 
 function run_check(root::AbstractString; kwargs...)
+    kwargs = _normalize_check_inputs!(kwargs)
     return git_run_scope() do
         result, _ = _run_check_pipeline(root; kwargs...)
         result
@@ -293,6 +298,7 @@ function run_check(root::AbstractString; kwargs...)
 end
 
 function run_check_pipeline(root::AbstractString; kwargs...)
+    kwargs = _normalize_check_inputs!(kwargs)
     return git_run_scope() do
         _run_check_pipeline(root; kwargs...)
     end

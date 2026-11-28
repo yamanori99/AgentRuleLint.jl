@@ -653,9 +653,15 @@ function resolve_policy(root::AbstractString; config_path = nothing, config_from
         return load_policy_from_ref(root, config_from)
     end
     reject_legacy_config_file!(root)
-    cfg = something(config_path, joinpath(abspath(root), CONFIG_FILENAME))
+    given, cfg = resolve_user_config_path(root, config_path)
     if isfile(cfg)
         return load_policy(root; config_path = cfg)
     end
+    given !== nothing &&
+        throw(
+            ConfigError(
+                "config not found: given=$(repr(given)) normalized=$(repr(normalize_path(given)))",
+            ),
+        )
     return default_policy(root)
 end
