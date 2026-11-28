@@ -77,7 +77,6 @@ const PROJECT_RULE_KEYS = Set(
         "do_not",
     ]
 )
-const VALID_OUTPUT_FORMATS = Set([:human, :json, :agent])
 const KNOWN_PRESET_NAMES = Set(["shell-safety", "unsafe-boundary/strict"])
 const SHELL_SAFETY_PRESET_ID = "shell-safety/process-pattern"
 const UNSAFE_BOUNDARY_STRICT_PRESET_ID = "unsafe-boundary/strict"
@@ -123,11 +122,14 @@ function _parse_on_allow_rule(raw, label::String)
 end
 
 function _parse_default_format(raw, label::String)
-    s = raw isa AbstractString ? lowercase(strip(raw)) : ""
-    sym = Symbol(s)
-    sym in VALID_OUTPUT_FORMATS ||
-        throw(ConfigError("unknown default_format '$raw' in $label (expected human|json|agent)"))
-    return sym
+    s = raw isa AbstractString ? strip(String(raw)) : ""
+    try
+        return parse_enum(OutputFormat.T, s)
+    catch err
+        err isa ConfigError || rethrow()
+        valid = join(wire_name.(instances(OutputFormat.T)), "|")
+        throw(ConfigError("unknown default_format '$raw' in $label (expected $valid)"))
+    end
 end
 
 function _parse_preset_list(raw, label::String)
@@ -485,7 +487,7 @@ function build_policy(raw::Dict, config_path::String, config_source::ConfigSourc
     fmt = if haskey(raw, "default_format")
         _parse_default_format(raw["default_format"], CONFIG_FILENAME)
     else
-        :human
+        OutputFormat.HUMAN
     end
     max_hits = if haskey(raw, "max_hits_per_rule")
         v = raw["max_hits_per_rule"]
@@ -652,7 +654,7 @@ function default_policy(root::AbstractString)
     cfg = joinpath(abspath(root), CONFIG_FILENAME)
     return PolicyBundle(
         ver,
-        :human,
+        OutputFormat.HUMAN,
         DEFAULT_EXIT_SEVERITY,
         :default,
         20,

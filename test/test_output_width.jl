@@ -92,7 +92,7 @@ end
             "intent",
             long_dn,
         )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
+        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
         out = AgentRuleLint.format_human(res; root = ROOT, output_width = 32)
         lines = filter(!isempty, split(out, '\n'))
         do_lines = filter(l -> occursin("do_not:", l) || occursin(r"^│\s{7,}", l), lines)
@@ -120,7 +120,7 @@ end
                 "",
                 "",
             )
-            res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
+            res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
             out = AgentRuleLint.format_human(res; root = fixture_root, output_width = 35)
             gutter_lines = filter(l -> occursin("> ", l) || occursin('~', l), split(out, '\n'))
             @test !isempty(gutter_lines)
@@ -148,7 +148,7 @@ end
             cjk,
             "",
         )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
+        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
         out = AgentRuleLint.format_human(res; root = ROOT, output_width = 24)
         intent_lines = filter(l -> occursin("intent:", l) || occursin(r"^│\s{7,}", l), split(out, '\n'))
         @test length(intent_lines) >= 2
@@ -182,7 +182,7 @@ end
             "",
             "",
         )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
+        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
         loc_needle = "very/long/path/under/test/corpus/example_name.jl:9:9-9:9"
         out = AgentRuleLint.format_human(res; root = ROOT, output_width = 80)
         @test occursin(loc_needle, out)
@@ -203,7 +203,7 @@ end
             "i",
             "d",
         )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :human, 20, 0, 1)
+        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 1)
         js = AgentRuleLint.format_json(res)
         @test occursin("\"type\":\"header\"", replace(js, " " => ""))
         @test !occursin("…", js)
@@ -238,7 +238,7 @@ end
             "short intent",
             "short do_not",
         )
-        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :agent, 20, 0, 1)
+        res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.AGENT, 20, 0, 1)
         out = AgentRuleLint.format_agent(res; root = ROOT, io = IOBuffer())
         loc = "$long_path:2:2-2:5"
         @test occursin("RULE ", out)
@@ -274,7 +274,7 @@ end
                 "",
                 "",
             )
-            res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), :agent, 20, 0, 1)
+            res = AgentRuleLint.CheckResult([d], true, 1, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.AGENT, 20, 0, 1)
             out = AgentRuleLint.format_agent(
                 res;
                 root = fixture_root,

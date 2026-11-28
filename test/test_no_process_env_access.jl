@@ -6,9 +6,7 @@ const _PROBE_REL = "src/__env_guard_probe__.jl"
 
 const _ENV_ACCESS_ALLOWLIST = [
     # (relpath under repo, construct id, reason) — allowlisted uses in src/git.jl only
-    ("src/git.jl", :ENV, "Seed _git_merged_env from process ENV before strip/merge overrides"),
-    ("src/git.jl", :Sys_which, "Locate git executable on PATH for version probe"),
-    ("src/git.jl", :setenv, "Attach merged isolated env to git Cmd; run git with working directory"),
+    ("src/git.jl", :setenv, "Attach merged isolated env to bundled git Cmd; run and probe git"),
 ]
 
 const _FORBIDDEN_CALL_CALLEE = Dict{String, Symbol}(

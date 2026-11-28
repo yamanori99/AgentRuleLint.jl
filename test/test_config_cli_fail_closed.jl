@@ -189,7 +189,7 @@
                 "agentrulelint_version = \"=$(ver)\"\ndefault_format = \"human\"\n",
             )
             res = AgentRuleLint.check(dir; config_from = "HEAD", paths = ["ok.jl"])
-            @test res.default_format == :json
+            @test res.default_format == AgentRuleLint.OutputFormat.JSON
             out = joinpath(dir, "emit.txt")
             cd(dir) do
                 @test AgentRuleLint.cli_main(["check", "--config-from", "HEAD", "ok.jl", "--output", out]) == 0

@@ -120,8 +120,8 @@ function _filtered_glob_path_words(ev::DiffPathEvent, entry::ProtectedGlobEntry)
         return out
     elseif st == 'C'
         old_m && !new_m && return Tuple{String, String}[]
-        new_m && !old_m && return ((new_p, "added"),)
-        old_m && new_m && return ((new_p, "copied"),)
+        new_m && !old_m && return [(new_p, "added")]
+        old_m && new_m && return [(new_p, "copied")]
         return Tuple{String, String}[]
     end
     return Tuple{String, String}[]

@@ -44,7 +44,7 @@ end
         write(joinpath(tmp, f), formatted)
         after = AgentRuleLint.run_check(tmp; paths = [f]).violations
         sig(v) =
-            diagnostic_signatures(AgentRuleLint.CheckResult(v, true, 0, AgentRuleLint.ConfigSource(), :human, 20, 0, 0))
+            diagnostic_signatures(AgentRuleLint.CheckResult(v, true, 0, AgentRuleLint.ConfigSource(), AgentRuleLint.OutputFormat.HUMAN, 20, 0, 0))
         @test sig(before) == sig(after)
     end
 end

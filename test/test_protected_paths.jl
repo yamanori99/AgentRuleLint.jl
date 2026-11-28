@@ -510,16 +510,19 @@ RULE = "protected-paths"
         @test occursin("deleted", first(diags_d).message)
     end
 
-    @testset "mutation harness infra (repository config)" begin
-        mutation_infra = (
+    @testset "mutation harness and shard selection (repository config)" begin
+        protected_infra = (
             "test/mutation/mutation_lib.jl",
             "test/mutation/run_all_lib.jl",
             "test/mutation/run_all.jl",
+            "test/shard_lib.jl",
+            "test/shard_select.jl",
+            "test/parallel_testsuite_config.jl",
         )
         repo_config = joinpath(ROOT, ".AgentRuleLint.jl.toml")
         @test isfile(repo_config)
         policy = AgentRuleLint.load_policy(ROOT; config_path = repo_config)
-        for rel in mutation_infra
+        for rel in protected_infra
             matched, reason = AgentRuleLint.classify_protected_path(rel, policy)
             @test matched
             @test !isempty(reason)
