@@ -336,6 +336,7 @@ RULE = "protected-paths"
         mutation_infra = (
             "test/mutation/mutation_lib.jl",
             "test/mutation/run_all_lib.jl",
+            "test/mutation/run_all.jl",
         )
         repo_config = joinpath(ROOT, ".AgentRuleLint.jl.toml")
         @test isfile(repo_config)

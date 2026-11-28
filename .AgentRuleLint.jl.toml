@@ -45,6 +45,7 @@ paths = [
   { glob = ".claude/**", reason = "Agent configuration and skill links must not be changed by agents." },
   { glob = "test/mutation/mutation_lib.jl", reason = "This file decides whether a mutation harness passes (control run, verify exit contract, and child-process flags)." },
   { glob = "test/mutation/run_all_lib.jl", reason = "This file decides whether mutation run_all passes (shard selection, job parallelism, and aggregate pass/fail)." },
+  { glob = "test/mutation/run_all.jl", reason = "This entrypoint carries mutation_run_all_main's exit code to CI; weakening exit() would pass the job when harnesses fail." },
 ]
 
 [[project_rules]]
