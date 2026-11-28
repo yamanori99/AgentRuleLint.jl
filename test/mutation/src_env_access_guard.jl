@@ -11,6 +11,7 @@ run_source_mutation(;
         script = join(
             [
                 "using Test",
+                "using AgentRuleLint",
                 "const ROOT = $(repr(root))",
                 "withenv(\"AGENTRULELINT_ENV_GUARD_PROBE\" => \"1\") do",
                 "    include(joinpath(ROOT, \"test\", \"test_no_process_env_access.jl\"))",
