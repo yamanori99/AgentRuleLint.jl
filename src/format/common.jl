@@ -76,15 +76,15 @@ end
 
 function human_policy_banner(result::CheckResult, version::AbstractString)
     cs = result.config_source
-    base = if cs.kind == :git_ref && !isempty(cs.ref)
+    base = if cs.kind == ConfigSourceKind.GIT_REF && !isempty(cs.ref)
         sha = isempty(cs.sha) ? "?" : cs.sha
         "policy bundle base: $(cs.ref) @ $sha"
-    elseif cs.kind == :path && !isempty(cs.path)
+    elseif cs.kind == ConfigSourceKind.PATH && !isempty(cs.path)
         "policy bundle base: $(cs.path)"
-    elseif cs.kind == :builtin
+    elseif cs.kind == ConfigSourceKind.BUILTIN
         "policy bundle base: builtin"
     else
-        "policy bundle base: $(string(cs.kind))"
+        "policy bundle base: $(wire_name(cs.kind))"
     end
     git_s = if isempty(result.git_executable)
         ""
@@ -211,9 +211,9 @@ function emit_plain_or_styled(io::IO, plain::AbstractString; color = nothing, bo
 end
 
 function config_source_base_label(cs::ConfigSource)
-    cs.kind == :git_ref && !isempty(cs.ref) && return cs.ref
-    cs.kind == :path && !isempty(cs.path) && return cs.path
-    return string(cs.kind)
+    cs.kind == ConfigSourceKind.GIT_REF && !isempty(cs.ref) && return cs.ref
+    cs.kind == ConfigSourceKind.PATH && !isempty(cs.path) && return cs.path
+    return wire_name(cs.kind)
 end
 
 function snippet_for_violation(root::AbstractString, d::Violation)

@@ -6,14 +6,15 @@ using Test
 
 const SCHEMA_PATH = joinpath(ROOT, "schemas", "check-jsonl.schema.json")
 const HUMAN_GOLDEN_PATH = joinpath(@__DIR__, "fixtures", "human_output_golden.txt")
-const HUMAN_GOLDEN_CS = AgentRuleLint.ConfigSource(:git_ref, "", "origin/main", "9f2c1a4e")
+const HUMAN_GOLDEN_CS =
+    AgentRuleLint.ConfigSource(AgentRuleLint.ConfigSourceKind.GIT_REF, "", "origin/main", "9f2c1a4e")
 
 function strip_ansi_local(s::AbstractString)
     return AgentRuleLint.strip_ansi(s)
 end
 
 function check_result_fixture()
-    cs = AgentRuleLint.ConfigSource(:path, ".AgentRuleLint.jl.toml", "", "")
+    cs = AgentRuleLint.ConfigSource(AgentRuleLint.ConfigSourceKind.PATH, ".AgentRuleLint.jl.toml", "", "")
     d = AgentRuleLint.Violation(
         "project/no-internal-codename",
         AgentRuleLint.Origin.PROJECT,
