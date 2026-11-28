@@ -526,7 +526,7 @@ RULE = "protected-paths"
         diags_d = AgentRuleLint._handle_protected_event(ROOT, "HEAD^1", ev_d, policy)
         @test length(diags_d) == 1
         @test occursin("deleted", first(diags_d).message)
-        ev_r = AgentRuleLint.DiffPathEvent('R', sample, "outside/detector.jl")
+        ev_r = AgentRuleLint.DiffPathEvent('R', "outside/detector.jl", sample)
         diags_r = AgentRuleLint._handle_protected_event(ROOT, "HEAD^1", ev_r, policy)
         @test any(d -> d.path == sample && occursin("deleted", d.message), diags_r)
     end
