@@ -25,7 +25,7 @@ end
             """,
         )
         pol = AgentRuleLint.resolve_policy(root)
-        @test pol.on_allow_rule == :forbid
+        @test pol.on_allow_rule == AgentRuleLint.Level.FORBID
         write(
             joinpath(root, ".AgentRuleLint.jl.toml"),
             """

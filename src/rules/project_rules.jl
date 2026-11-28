@@ -1,5 +1,5 @@
 function _effective_project_level(policy::PolicyBundle, pr::ProjectRule)
-    pr.level == :allow && return policy.on_allow_rule
+    pr.level == Level.ALLOW && return policy.on_allow_rule
     return pr.level
 end
 
@@ -19,7 +19,7 @@ end
 function _push_project_violation!(
         diags::Vector{Violation},
         rule_id::String,
-        eff_level::Symbol,
+        eff_level::Level.T,
         path::String,
         source::AbstractString,
         byte_start::Int,
@@ -55,7 +55,7 @@ function _run_project_rules_julia!(
         policy::PolicyBundle,
         pr::ProjectRule,
         rule_id::String,
-        eff_level::Symbol,
+        eff_level::Level.T,
     )
     path = fc.parsed.path
     source = fc.parsed.normalized
@@ -115,7 +115,7 @@ function _run_project_rules_text!(
         fc::FileContext,
         pr::ProjectRule,
         rule_id::String,
-        eff_level::Symbol,
+        eff_level::Level.T,
     )
     path = fc.parsed.path
     source = fc.parsed.normalized
@@ -146,7 +146,7 @@ function run_project_rules(fc::FileContext, policy::PolicyBundle)
         path_matches_glob(path, pr.path_regexes) || continue
         rule_id = project_rule_id(pr)
         eff_level = _effective_project_level(policy, pr)
-        eff_level == :allow && continue
+        eff_level == Level.ALLOW && continue
         if julia_source_path(path)
             _run_project_rules_julia!(diags, fc, policy, pr, rule_id, eff_level)
         else

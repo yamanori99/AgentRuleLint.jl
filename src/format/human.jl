@@ -1,4 +1,4 @@
-function _human_console_head_styled(io::IO, level::Symbol)
+function _human_console_head_styled(io::IO, level::Level.T)
     plain = human_console_level(level)
     color_enabled(io) || return plain
     if level in HUMAN_LEVEL_RED
@@ -13,13 +13,13 @@ function _human_group_header(
         io::IO,
         label::AbstractString,
         rule_id::AbstractString,
-        level::Symbol,
+        level::Level.T,
         total::Int,
         ceiling_s::AbstractString,
     )
     head = _human_console_head_styled(io, level)
     counts = human_violation_phrase(total)
-    return "┌ $head: $label $rule_id [$level] ($counts, ceiling $ceiling_s)"
+    return "┌ $head: $label $rule_id [$(wire_name(level))] ($counts, ceiling $ceiling_s)"
 end
 
 function format_human(

@@ -226,7 +226,7 @@
         dir = init_git_fixture(joinpath(FIXTURES, "warn_sources_mismatch"))
         try
             viols = ms_violations(dir)
-            @test any(v -> v.level == :warn && occursin("sources path", v.message), viols)
+            @test any(v -> v.level == AgentRuleLint.Level.WARN && occursin("sources path", v.message), viols)
         finally
             rm(dir, recursive = true, force = true)
         end
@@ -236,7 +236,7 @@
         dir = init_git_fixture(joinpath(FIXTURES, "warn_subproject_manifest"))
         try
             viols = ms_violations(dir)
-            @test any(v -> v.level == :warn && occursin("workspace subproject", v.message), viols)
+            @test any(v -> v.level == AgentRuleLint.Level.WARN && occursin("workspace subproject", v.message), viols)
         finally
             rm(dir, recursive = true, force = true)
         end
